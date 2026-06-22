@@ -1,0 +1,78 @@
+# ======================
+# Go
+# ======================
+
+# Diary
+FleetTrack_Backend_Architecture_Notes.md
+
+# compiled binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go build output
+bin/
+build/
+dist/
+
+# test output
+*.test
+*.out
+
+
+# ======================
+# IDE
+# ======================
+
+# VS Code
+.vscode/
+
+# GoLand / IntelliJ
+.idea/
+
+# Vim
+*.swp
+*.swo
+
+
+# ======================
+# Environment
+# ======================
+
+.env
+
+# ======================
+# Logs
+# ======================
+
+*.log
+logs/
+
+
+# ======================
+# OS
+# ======================
+
+.DS_Store
+Thumbs.db
+
+
+# ======================
+# Docker
+# ======================
+
+# volumes
+postgres_data/
+
+# docker override
+docker-compose.override.yml
+
+
+# ======================
+# Temporary
+# ======================
+
+tmp/
+temp/
