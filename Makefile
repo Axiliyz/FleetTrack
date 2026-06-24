@@ -1,6 +1,8 @@
 include .env
 export
 
+export PROJECT_ROOT=$(shell pwd)
+
 # LOCAL
 
 run:
@@ -23,11 +25,11 @@ lint:
 
 # DOCKER
 
-docker-up:
-	@docker compose up -d
-
 docker-build:
 	@docker compose build
+
+docker-up:
+	@docker compose up -d
 
 docker-down:
 	@docker compose down
