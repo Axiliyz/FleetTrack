@@ -1,8 +1,6 @@
 include .env
 export
 
-export PROJECT_ROOT=$(shell pwd)
-
 # LOCAL
 
 run:
@@ -21,7 +19,10 @@ vet:
 	@go vet ./...
 
 lint:
-	@golangci-lint run ./...
+	@docker run --rm \
+		-v $(PWD):/app \
+		-w /app \
+		golangci/golangci-lint run ./...
 
 # DOCKER
 
@@ -55,11 +56,17 @@ help:
 	@echo "make run"
 	@echo "make build"
 	@echo "make test"
-	@echo "make up"
-	@echo "make down"
+	@echo "make docker-up"
+	@echo "make docker-down"
 	@echo "make lint"
 	@echo "make fmt"
 
 clean:
-	@docker compose down -v
-	@rm -rf bin/
+	@read -p "Очистить окружение? [y/n]: " ans; \
+	if [ "$$ans" = "y" ]; then \
+		docker compose down -v; \
+		rm -rf bin/; \
+		echo "Окружение очищено"; \
+	else \
+		echo "Очистка отменена"; \
+	fi
