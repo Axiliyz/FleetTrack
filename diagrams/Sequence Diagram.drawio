@@ -1,0 +1,46 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/28.2.5 Chrome/138.0.7204.251 Electron/37.6.1 Safari/537.36" version="28.2.5">
+  <diagram name="Page-1" id="FzZJEw3jIkU9GPuST_FA">
+    <mxGraphModel dx="706" dy="632" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2xszXYwircRzl7jud3_9-2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="pTDhr8XBmsTU_vj8en0P-1" target="2xszXYwircRzl7jud3_9-1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pTDhr8XBmsTU_vj8en0P-1" value="Client" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+          <mxGeometry x="60" y="420" width="60" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="pTDhr8XBmsTU_vj8en0P-8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="pTDhr8XBmsTU_vj8en0P-2" target="pTDhr8XBmsTU_vj8en0P-3" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pTDhr8XBmsTU_vj8en0P-2" value="Handler" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+          <mxGeometry x="60" y="580" width="60" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="pTDhr8XBmsTU_vj8en0P-9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="pTDhr8XBmsTU_vj8en0P-3" target="pTDhr8XBmsTU_vj8en0P-4" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pTDhr8XBmsTU_vj8en0P-3" value="Service" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+          <mxGeometry x="60" y="680" width="60" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="pTDhr8XBmsTU_vj8en0P-10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="pTDhr8XBmsTU_vj8en0P-4" target="pTDhr8XBmsTU_vj8en0P-5" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pTDhr8XBmsTU_vj8en0P-4" value="Repository" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+          <mxGeometry x="60" y="780" width="60" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="pTDhr8XBmsTU_vj8en0P-5" value="DB" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+          <mxGeometry x="60" y="880" width="60" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="pTDhr8XBmsTU_vj8en0P-11" value="POST telemetry" style="shape=callout;whiteSpace=wrap;html=1;perimeter=calloutPerimeter;" parent="1" vertex="1">
+          <mxGeometry x="20" y="330" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="2xszXYwircRzl7jud3_9-3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="2xszXYwircRzl7jud3_9-1" target="pTDhr8XBmsTU_vj8en0P-2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="2xszXYwircRzl7jud3_9-1" value="Middleware" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="500" width="60" height="30" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
