@@ -16,21 +16,19 @@ func NewTelemetryService(r repository.TelemetryRepository) *TelemetryService {
 }
 
 func (s *TelemetryService) ProcessTelemetry(ctx context.Context, t model.Telemetry) (model.Telemetry, error) {
-	// _, ok := ctx.Value(middleware.RequestIDKey).(string)
+	if t.DeviceID < 0 {
+		return model.Telemetry{}, model.ErrInvalidDeviceID
+	}
 
-	// if !ok {
-	// 	requestID = "unknown"
-	// }
-
-	if t.DeviceID < 0 || t.VehicleID < 0 {
-		return model.Telemetry{}, model.ErrInvalidID
+	if t.VehicleID < 0 {
+		return model.Telemetry{}, model.ErrInvalidVehicleID
 	}
 
 	if t.Lat < -90 || t.Lat > 90 || t.Lon < -180 || t.Lon > 180 {
 		return model.Telemetry{}, model.ErrInvalidCoords
 	}
 
-	// Если пришло без времени отправления - ставим Now
+	// Если пришло без времени отправления ставим Now
 	if t.DeviceTimestamp.IsZero() {
 		t.DeviceTimestamp = time.Now()
 	}
@@ -42,14 +40,4 @@ func (s *TelemetryService) ProcessTelemetry(ctx context.Context, t model.Telemet
 	}
 
 	return t, nil
-
-	// return model.TelemetryResponse{
-	// 	Status:      "accepted",
-	// 	Message:     "Telemetry saved successfully",
-	// 	RequestID:   requestID,
-	// 	TelemetryID: t.TelemetryID,
-	// 	VehicleID:   t.VehicleID,
-	// 	DeviceID:    t.DeviceID,
-	// 	ReceivedAt:  t.ReceivedAt,
-	// }
 }
