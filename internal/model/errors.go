@@ -8,4 +8,6 @@ var (
 	ErrInvalidCoords    = errors.New("invalid coordinates")
 	ErrInvalidFuel      = errors.New("invalid fuel")
 	ErrInvalidTimestamp = errors.New("invalid timestamp")
+	ErrDecoding         = errors.New("decoding failed")
+	ErrEncoding         = errors.New("encoding failed")
 )

@@ -19,5 +19,8 @@ func main() {
 
 	router.HandleFunc("/telemetry", handler.HandleTelemetry)
 
-	http.ListenAndServe(":8080", middleware.RequestID(router))
+	err := http.ListenAndServe(":8080", middleware.RequestID(router))
+	if err != nil {
+		panic(err)
+	}
 }

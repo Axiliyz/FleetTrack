@@ -24,24 +24,41 @@ func NewTelemetryHandler(service *service.TelemetryService, logger logger.Logger
 	}
 }
 
+func getRequestID(ctx context.Context) string {
+	id, ok := ctx.Value(
+		middleware.RequestIDKey,
+	).(string)
+
+	if !ok {
+		return "unknown"
+	}
+
+	return id
+}
+
 func writeError(ctx context.Context, w http.ResponseWriter, message string, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 
-	json.NewEncoder(w).Encode(
+	err := json.NewEncoder(w).Encode(
 		model.ErrorResponse{
 			Status:    "error",
 			Message:   message,
-			RequestID: ctx.Value(middleware.RequestIDKey).(string),
+			RequestID: getRequestID(ctx),
 		},
 	)
+
+	if err != nil {
+		writeError(ctx, w, model.ErrEncoding.Error(), http.StatusBadRequest)
+	}
 }
 
 func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
+
 	if r.Method != http.MethodPost {
-		writeError(r.Context(), w, "Method not supported", http.StatusMethodNotAllowed)
-		h.logger.Error("Method not supported")
+		writeError(r.Context(), w, "method not supported", http.StatusMethodNotAllowed)
+		h.logger.Error("method not supported")
 		return
 	}
 
@@ -49,9 +66,10 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 
 	// // TODO: ТУТ ЭТОГО БЫТЬ НЕ ДОЛЖНО, НАДО ЧТОБЫ ПРИХОДИЛО С ESP
 	// telemetryData.DeviceTimestamp = time.Now()
-	if err := json.NewDecoder(r.Body).Decode(&telemetryData); err != nil {
-		writeError(r.Context(), w, "Invalid JSON", http.StatusBadRequest)
-		h.logger.Error("Invalid JSON")
+	err := json.NewDecoder(r.Body).Decode(&telemetryData)
+	if err != nil {
+		writeError(r.Context(), w, "invalid JSON", http.StatusBadRequest)
+		h.logger.Error("invalid JSON")
 		return
 	}
 
@@ -63,20 +81,20 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		if errors.Is(err, model.ErrInvalidID) {
 			writeError(r.Context(), w, err.Error(), http.StatusBadRequest)
-			h.logger.Error("Invalid ID or vehicle number")
+			h.logger.Error("invalid ID or vehicle number")
 			return
 		} else if errors.Is(err, model.ErrInvalidCoords) {
 			writeError(r.Context(), w, err.Error(), http.StatusBadRequest)
-			h.logger.Error("Invalid coords")
+			h.logger.Error("invalid coords")
 			return
 		} else {
 			writeError(r.Context(), w, err.Error(), http.StatusInternalServerError)
-			h.logger.Error("Internal server error")
+			h.logger.Error("internal server error")
 			return
 		}
 	}
 
-	response := dto.TelemetryResponse{
+	telemetryResponse := dto.TelemetryResponse{
 		TelemetryID: savedTelemetry.TelemetryID,
 		VehicleID:   savedTelemetry.VehicleID,
 		DeviceID:    savedTelemetry.DeviceID,
@@ -87,10 +105,14 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 		Status:    "success",
 		Message:   "Telemetry saved",
 		RequestID: r.Context().Value(middleware.RequestIDKey).(string),
-		Data:      response,
+		Data:      telemetryResponse,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(apiResponse)
+	err = json.NewEncoder(w).Encode(apiResponse)
+	if err != nil {
+		writeError(r.Context(), w, model.ErrEncoding.Error(), http.StatusBadRequest)
+		h.logger.Error("failed encoding")
+	}
 }
