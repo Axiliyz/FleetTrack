@@ -19,10 +19,7 @@ vet:
 	@go vet ./...
 
 lint:
-	@docker run --rm \
-		-v $(PWD):/app \
-		-w /app \
-		golangci/golangci-lint run ./...
+	@golangci-lint run ./...
 
 # DOCKER
 
