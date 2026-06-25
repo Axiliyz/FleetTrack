@@ -47,7 +47,7 @@ db:
 
 migrate-create:
 	@if [ -z "$(seq)" ]; then \
-		echo "отсутствует параметр seq, ex: make migrate-create seq=init"; \
+		echo "отсутствует параметр seq, пример: make migrate-create seq=init"; \
 		exit 1; \
 	fi
 	@docker compose run --rm fleettrack-postgres-migrate \
@@ -62,6 +62,10 @@ migrate-down:
 	@$(MAKE) migrate-action action=down
 
 migrate-action:
+	@if [ -z "$(action)" ]; then \
+		echo "отсутствует параметр action, пример: make migrate-action action=\"up 1\""; \
+		exit 1; \
+	fi
 	@docker compose run --rm fleettrack-postgres-migrate \
 		-path /migrations \
 		-database postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?sslmode=disable \
