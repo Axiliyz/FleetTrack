@@ -1,6 +1,8 @@
 include .env
 export
 
+export PROJECT_ROOT=${shell pwd}
+
 # LOCAL
 
 run:
@@ -43,8 +45,27 @@ docker-logs:
 db:
 	@docker compose exec postgres psql -U $(DB_USER) -d $(DB_NAME)
 
-migrate:
-	@docker compose exec api migrate up 
+migrate-create:
+	@if [ -z "$(seq)" ]; then \
+		echo "отсутствует параметр seq, ex: make migrate-create seq=init"; \
+		exit 1; \
+	fi
+	@docker compose run --rm fleettrack-postgres-migrate \
+		create \
+		-ext sql \
+		-dir /migrations \
+		-seq $(seq)
+
+migrate-up:
+	@$(MAKE) migrate-action action=up
+migrate-down:
+	@$(MAKE) migrate-action action=down
+
+migrate-action:
+	@docker compose run --rm fleettrack-postgres-migrate \
+		-path /migrations \
+		-database postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?sslmode=disable \
+		$(action)
 
 # USEFUL
 
