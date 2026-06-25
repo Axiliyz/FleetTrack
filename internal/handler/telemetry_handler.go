@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fleettrack/internal/handler/dto"
 	"fleettrack/internal/logger"
 	"fleettrack/internal/middleware"
@@ -41,7 +40,7 @@ func writeError(ctx context.Context, w http.ResponseWriter, message string, code
 	w.WriteHeader(code)
 
 	err := json.NewEncoder(w).Encode(
-		model.ErrorResponse{
+		dto.ErrorResponse{
 			Status:    "error",
 			Message:   message,
 			RequestID: getRequestID(ctx),
@@ -49,8 +48,16 @@ func writeError(ctx context.Context, w http.ResponseWriter, message string, code
 	)
 
 	if err != nil {
-		writeError(ctx, w, model.ErrEncoding.Error(), http.StatusBadRequest)
+		writeError(ctx, w, model.ErrEncoding.Error(), http.StatusInternalServerError)
 	}
+}
+
+func (h *TelemetryHandler) respondError(w http.ResponseWriter, r *http.Request, err error) {
+	h.logger.Error(err.Error())
+
+	apiError := mapError(err)
+
+	writeError(r.Context(), w, apiError.Message, apiError.Status)
 }
 
 func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Request) {
@@ -68,8 +75,7 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 	// telemetryData.DeviceTimestamp = time.Now()
 	err := json.NewDecoder(r.Body).Decode(&telemetryData)
 	if err != nil {
-		writeError(r.Context(), w, "invalid JSON", http.StatusBadRequest)
-		h.logger.Error("invalid JSON")
+		h.respondError(w, r, err)
 		return
 	}
 
@@ -79,19 +85,8 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 	)
 
 	if err != nil {
-		if errors.Is(err, model.ErrInvalidID) {
-			writeError(r.Context(), w, err.Error(), http.StatusBadRequest)
-			h.logger.Error("invalid ID or vehicle number")
-			return
-		} else if errors.Is(err, model.ErrInvalidCoords) {
-			writeError(r.Context(), w, err.Error(), http.StatusBadRequest)
-			h.logger.Error("invalid coords")
-			return
-		} else {
-			writeError(r.Context(), w, err.Error(), http.StatusInternalServerError)
-			h.logger.Error("internal server error")
-			return
-		}
+		h.respondError(w, r, err)
+		return
 	}
 
 	telemetryResponse := dto.TelemetryResponse{
@@ -104,7 +99,7 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 	apiResponse := dto.APIResponse{
 		Status:    "success",
 		Message:   "Telemetry saved",
-		RequestID: r.Context().Value(middleware.RequestIDKey).(string),
+		RequestID: getRequestID(r.Context()),
 		Data:      telemetryResponse,
 	}
 
@@ -112,7 +107,6 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusOK)
 	err = json.NewEncoder(w).Encode(apiResponse)
 	if err != nil {
-		writeError(r.Context(), w, model.ErrEncoding.Error(), http.StatusBadRequest)
-		h.logger.Error("failed encoding")
+		h.logger.Error(err.Error())
 	}
 }
