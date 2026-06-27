@@ -15,7 +15,8 @@ services:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
-
+    ports:
+    - "${DB_PORT}:5432"
     volumes:
     - ./out/pgdata:/var/lib/postgresql/data
 
@@ -32,10 +33,7 @@ services:
 
   fleettrack-postgres-migrate:
     image: migrate/migrate:v4.19.1
-    depends_on:
-      postgres:
-        condition: service_healthy
-
+    working_dir: /
     volumes:
       - ./migrations:/migrations
 
