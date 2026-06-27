@@ -13,7 +13,7 @@ CREATE TABLE vehicles (
     organization_id BIGINT NOT NULL REFERENCES organizations(id),
     version INTEGER NOT NULL DEFAULT 1,
     vin VARCHAR(17) UNIQUE, 
-    number_plate VARCHAR(9) UNIQUE,
+    number_plate VARCHAR(10) UNIQUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ
 );
@@ -42,7 +42,6 @@ CREATE TABLE telemetry (
     latitude NUMERIC(9, 4),
     longitude NUMERIC(9, 4),
     fuel NUMERIC(5, 2),
-    raw_data JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

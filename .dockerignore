@@ -1,6 +1,9 @@
 .git
 .idea
 .vscode
-bin
-tmp
+*.md
 .env
+tmp/
+out/
+bin/
+docker-compose.yml
