@@ -1,3 +1,4 @@
+// Package service содержит бизнес-логику приложения
 package service
 
 import (
@@ -8,15 +9,20 @@ import (
 	"time"
 )
 
+// TelemetryRepository определяет контракт сохранения телеметрии
 type TelemetryRepository interface {
+	// Save сохраняет телеметрию в хранилище
+	// Возвращает ошибку если сохранение не удалось
 	Save(ctx context.Context, t model.Telemetry) error
 }
 
+// TelemetryService обрабатывает и валидирует телеметрию
 type TelemetryService struct {
 	repository TelemetryRepository
 	logger     logger.Logger
 }
 
+// NewTelemetryService создаёт новый сервис с заданным репозиторием и логгером
 func NewTelemetryService(r TelemetryRepository, logger logger.Logger) *TelemetryService {
 	return &TelemetryService{
 		repository: r,
@@ -24,6 +30,17 @@ func NewTelemetryService(r TelemetryRepository, logger logger.Logger) *Telemetry
 	}
 }
 
+// ProcessTelemetry валидирует телеметрию и сохраняет в репозиторий.
+// Возвращает сохраненную телеметрию или ошибку валидации.
+//
+// Проверяет:
+// - DeviceID >= 0
+// - VehicleID >= 0
+// - Lat в диапазоне [-90, 90]
+// - Lon в диапазоне [-180, 180]
+//
+// Если DeviceTimestamp не указан - устанавливает текущее время.
+// ReceivedAt всегда ставится в текущее время
 func (s *TelemetryService) ProcessTelemetry(ctx context.Context, t model.Telemetry) (model.Telemetry, error) {
 	if t.DeviceID < 0 {
 		s.logger.Error(model.ErrInvalidDeviceID.Error())

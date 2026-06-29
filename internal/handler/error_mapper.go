@@ -6,11 +6,14 @@ import (
 	"net/http"
 )
 
+// HTTPError определяет структуру HTTP ответа при ошибке
 type HTTPError struct {
 	Message string
 	Status  int
 }
 
+// mapError преобразует внутреннюю ошибку приложения в HTTP ошибку с кодом статуса
+// Возвращает HTTPError
 func mapError(err error) HTTPError {
 	switch {
 	case errors.Is(err, model.ErrDecoding):

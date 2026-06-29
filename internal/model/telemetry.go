@@ -1,7 +1,9 @@
+// Package model содержит основные сущности логики
 package model
 
 import "time"
 
+// Telemetry - основной тип программы, содержит все переданные девайсом данные
 type Telemetry struct {
 	TelemetryID     int       `json:"telemetry_id"`
 	VehicleID       int       `json:"vehicle_id"`
