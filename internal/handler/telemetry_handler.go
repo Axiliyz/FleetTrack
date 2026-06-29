@@ -1,3 +1,4 @@
+// Package handler содержит приём данных из внешнего мира
 package handler
 
 import (
@@ -11,11 +12,13 @@ import (
 	"net/http"
 )
 
+// TelemetryHandler передаёт данные в сервис и логирует
 type TelemetryHandler struct {
 	telemetryService *service.TelemetryService
 	logger           logger.Logger
 }
 
+// NewTelemetryHandler создаёт новый хэндлер с заданным сервисом и логгером
 func NewTelemetryHandler(service *service.TelemetryService, logger logger.Logger) *TelemetryHandler {
 	return &TelemetryHandler{
 		telemetryService: service,
@@ -23,6 +26,7 @@ func NewTelemetryHandler(service *service.TelemetryService, logger logger.Logger
 	}
 }
 
+// getRequestID извлекает request ID из контекста
 func getRequestID(ctx context.Context) string {
 	id, ok := ctx.Value(
 		middleware.RequestIDKey,
@@ -35,6 +39,7 @@ func getRequestID(ctx context.Context) string {
 	return id
 }
 
+// writeError записывает ошибку в JSON
 func writeError(ctx context.Context, w http.ResponseWriter, message string, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
@@ -49,9 +54,11 @@ func writeError(ctx context.Context, w http.ResponseWriter, message string, code
 
 	if err != nil {
 		writeError(ctx, w, model.ErrEncoding.Error(), http.StatusInternalServerError)
+		return
 	}
 }
 
+// respondError логирует ошибку и отправляет ответ
 func (h *TelemetryHandler) respondError(w http.ResponseWriter, r *http.Request, err error) {
 	h.logger.Error(err.Error())
 
@@ -60,19 +67,17 @@ func (h *TelemetryHandler) respondError(w http.ResponseWriter, r *http.Request, 
 	writeError(r.Context(), w, apiError.Message, apiError.Status)
 }
 
+// HandleTelemetry принимает входящий JSON
 func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	if r.Method != http.MethodPost {
 		writeError(r.Context(), w, "method not supported", http.StatusMethodNotAllowed)
-		h.logger.Error("method not supported")
 		return
 	}
 
 	var telemetryData model.Telemetry
 
-	// // TODO: ТУТ ЭТОГО БЫТЬ НЕ ДОЛЖНО, НАДО ЧТОБЫ ПРИХОДИЛО С ESP
-	// telemetryData.DeviceTimestamp = time.Now()
 	err := json.NewDecoder(r.Body).Decode(&telemetryData)
 	if err != nil {
 		h.respondError(w, r, model.ErrInvalidJSON)

@@ -1,5 +1,7 @@
+// Package DTO для транспортировки данных
 package dto
 
+// APIResponse определяет структуру JSON ответа
 type APIResponse struct {
 	Status    string `json:"status"`
 	Message   string `json:"message"`

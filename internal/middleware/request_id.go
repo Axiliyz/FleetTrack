@@ -1,3 +1,4 @@
+// Package middleware для выставления uuid запроса
 package middleware
 
 import (
@@ -11,6 +12,8 @@ type key string
 
 const RequestIDKey key = "request_id"
 
+// RequestID для проброса хэндлера дальше
+// Возвращает новый хэндлер
 func RequestID(next http.Handler) http.Handler {
 
 	return http.HandlerFunc(func(

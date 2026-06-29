@@ -1,7 +1,9 @@
+// Package model содержит основные сущности логики
 package model
 
 import "errors"
 
+// Определяем набор возможных ошибок
 var (
 	ErrInvalidMethod    = errors.New("invalid method")
 	ErrInvalidDeviceID  = errors.New("invalid  deviceid")
