@@ -27,6 +27,7 @@ lint:
 
 docker-build:
 	@docker compose build
+	@docker compose up -d
 
 docker-up:
 	@docker compose up -d

@@ -11,4 +11,5 @@ var (
 	ErrInvalidTimestamp = errors.New("invalid timestamp")
 	ErrDecoding         = errors.New("decoding failed")
 	ErrEncoding         = errors.New("encoding failed")
+	ErrInvalidJSON      = errors.New("Invalid JSON")
 )

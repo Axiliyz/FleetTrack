@@ -75,7 +75,7 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 	// telemetryData.DeviceTimestamp = time.Now()
 	err := json.NewDecoder(r.Body).Decode(&telemetryData)
 	if err != nil {
-		h.respondError(w, r, err)
+		h.respondError(w, r, model.ErrInvalidJSON)
 		return
 	}
 
