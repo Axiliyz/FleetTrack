@@ -38,6 +38,7 @@ func NewTelemetryService(r TelemetryRepository, logger logger.Logger) *Telemetry
 // - VehicleID >= 0
 // - Lat в диапазоне [-90, 90]
 // - Lon в диапазоне [-180, 180]
+// - Fuel в диапазоне [0, 1]
 //
 // Если DeviceTimestamp не указан - устанавливает текущее время.
 // ReceivedAt всегда ставится в текущее время
@@ -55,6 +56,11 @@ func (s *TelemetryService) ProcessTelemetry(ctx context.Context, t model.Telemet
 	if t.Lat < -90 || t.Lat > 90 || t.Lon < -180 || t.Lon > 180 {
 		s.logger.Error(model.ErrInvalidCoords.Error())
 		return model.Telemetry{}, model.ErrInvalidCoords
+	}
+
+	if t.Fuel < 0.0 || t.Fuel > 1.0 {
+		s.logger.Error(model.ErrInvalidFuel.Error())
+		return model.Telemetry{}, model.ErrInvalidFuel
 	}
 
 	// Если пришло без времени отправления ставим Now
