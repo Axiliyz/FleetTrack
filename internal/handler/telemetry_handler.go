@@ -8,18 +8,22 @@ import (
 	"fleettrack/internal/logger"
 	"fleettrack/internal/middleware"
 	"fleettrack/internal/model"
-	"fleettrack/internal/service"
 	"net/http"
 )
 
 // TelemetryHandler передаёт данные в сервис и логирует
 type TelemetryHandler struct {
-	telemetryService *service.TelemetryService
+	telemetryService TelemetryService
 	logger           logger.Logger
 }
 
+// TelemetryService определяет контракт обработки телеметрии
+type TelemetryService interface {
+	ProcessTelemetry(ctx context.Context, t model.Telemetry) (model.Telemetry, error)
+}
+
 // NewTelemetryHandler создаёт новый хэндлер с заданным сервисом и логгером
-func NewTelemetryHandler(service *service.TelemetryService, logger logger.Logger) *TelemetryHandler {
+func NewTelemetryHandler(service TelemetryService, logger logger.Logger) *TelemetryHandler {
 	return &TelemetryHandler{
 		telemetryService: service,
 		logger:           logger,
