@@ -42,15 +42,125 @@ func TestProcessTelemetry(t *testing.T) {
 			wantErr: model.ErrInvalidDeviceID,
 		},
 		{
-			name: "invalid coords",
+			name: "invalid vehicle id",
+			telemetry: model.Telemetry{
+				DeviceID:  1,
+				VehicleID: -15,
+				Lat:       55.75,
+				Lon:       37.61,
+				Fuel:      0.8,
+			},
+			wantErr: model.ErrInvalidVehicleID,
+		},
+		{
+			name: "edge coords(lon=-180)",
 			telemetry: model.Telemetry{
 				DeviceID:  1,
 				VehicleID: 1,
-				Lat:       155.75,
+				Lat:       14.22,
+				Lon:       -180,
+				Fuel:      0.8,
+			},
+			wantErr: nil,
+		},
+		{
+			name: "edge coords (lat=-90)",
+			telemetry: model.Telemetry{
+				DeviceID:  1,
+				VehicleID: 1,
+				Lat:       -90,
+				Lon:       37.61,
+				Fuel:      0.8,
+			},
+			wantErr: nil,
+		},
+		{
+			name: "edge coords(lon=180)",
+			telemetry: model.Telemetry{
+				DeviceID:  1,
+				VehicleID: 1,
+				Lat:       14.22,
+				Lon:       180,
+				Fuel:      0.8,
+			},
+			wantErr: nil,
+		},
+		{
+			name: "edge coords (lat=90)",
+			telemetry: model.Telemetry{
+				DeviceID:  1,
+				VehicleID: 1,
+				Lat:       90,
+				Lon:       37.61,
+				Fuel:      0.8,
+			},
+			wantErr: nil,
+		},
+		{
+			name: "invalid coords (lat)",
+			telemetry: model.Telemetry{
+				DeviceID:  1,
+				VehicleID: 1,
+				Lat:       255.75,
 				Lon:       37.61,
 				Fuel:      0.8,
 			},
 			wantErr: model.ErrInvalidCoords,
+		},
+		{
+			name: "invalid coords(lon)",
+			telemetry: model.Telemetry{
+				DeviceID:  1,
+				VehicleID: 1,
+				Lat:       75.75,
+				Lon:       317.61,
+				Fuel:      0.8,
+			},
+			wantErr: model.ErrInvalidCoords,
+		},
+		{
+			name: "invalid fuel (> 1)",
+			telemetry: model.Telemetry{
+				DeviceID:  1,
+				VehicleID: 1,
+				Lat:       45.75,
+				Lon:       17.61,
+				Fuel:      1.2,
+			},
+			wantErr: model.ErrInvalidFuel,
+		},
+		{
+			name: "invalid fuel (< 0)",
+			telemetry: model.Telemetry{
+				DeviceID:  1,
+				VehicleID: 1,
+				Lat:       45.75,
+				Lon:       17.61,
+				Fuel:      -0.14,
+			},
+			wantErr: model.ErrInvalidFuel,
+		},
+		{
+			name: "edge fuel (= 0)",
+			telemetry: model.Telemetry{
+				DeviceID:  1,
+				VehicleID: 1,
+				Lat:       45.75,
+				Lon:       17.61,
+				Fuel:      0,
+			},
+			wantErr: nil,
+		},
+		{
+			name: "edge fuel (= 1)",
+			telemetry: model.Telemetry{
+				DeviceID:  1,
+				VehicleID: 1,
+				Lat:       45.75,
+				Lon:       17.61,
+				Fuel:      1,
+			},
+			wantErr: nil,
 		},
 	}
 
