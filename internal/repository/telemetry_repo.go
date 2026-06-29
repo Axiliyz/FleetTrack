@@ -1,40 +1,45 @@
 package repository
 
 import (
-	"fleettrack/internal/logger"
+	"context"
 	"fleettrack/internal/model"
-	"fmt"
-)
 
-type TelemetryRepository interface {
-	Save(t model.Telemetry) error
-}
+	"github.com/jackc/pgx/v5/pgxpool"
+)
 
 type MemoryTelemetryRepository struct {
 	history []model.Telemetry
 	current map[int]model.Telemetry
-	logger  logger.Logger
 }
 
-func (r *MemoryTelemetryRepository) Save(t model.Telemetry) error {
-	r.history = append(r.history, t)
-	r.current[t.VehicleID] = t
-
-	message := fmt.Sprintf(
-		"Telemetry stored:\nID: %d, Vehicle: %d, Device: %d, Time: %v",
-		t.TelemetryID,
-		t.VehicleID,
-		t.DeviceID,
-		t.ReceivedAt.Format("02.01.2006 15:04:05"),
-	)
-	r.logger.Info(message)
-	return nil
+type PostgresTelemetryRepository struct {
+	pool *pgxpool.Pool
 }
 
-func NewMemoryTelemetryRepository(logger logger.Logger) *MemoryTelemetryRepository {
+func NewMemoryTelemetryRepository() *MemoryTelemetryRepository {
 	return &MemoryTelemetryRepository{
 		history: make([]model.Telemetry, 0),
 		current: make(map[int]model.Telemetry),
-		logger:  logger,
 	}
+}
+
+func NewPostgresTelemetryRepository(pool *pgxpool.Pool) *PostgresTelemetryRepository {
+	return &PostgresTelemetryRepository{
+		pool: pool,
+	}
+}
+
+func (r *MemoryTelemetryRepository) Save(ctx context.Context, t model.Telemetry) error {
+	r.history = append(r.history, t)
+	r.current[t.VehicleID] = t
+	return nil
+}
+
+func (r *PostgresTelemetryRepository) Save(ctx context.Context, t model.Telemetry) error {
+	_, err := r.pool.Exec(ctx, "insert into telemetry(organization_id, vehicle_id, device_id, latitude, longitude, fuel) values ($1, $2, $3, $4, $5, $6)", 1, t.VehicleID, t.DeviceID, t.Lat, t.Lon, t.Fuel)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

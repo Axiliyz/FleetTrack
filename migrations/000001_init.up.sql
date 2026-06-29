@@ -78,16 +78,16 @@ ON device_assignments(vehicle_id)
 WHERE ended_at IS NULL;
 
 CREATE INDEX idx_users_org
-ON users(organization_id)
+ON users(organization_id);
 
 CREATE INDEX idx_vehicle_org
-ON vehicles(organization_id)
+ON vehicles(organization_id);
 
 CREATE INDEX idx_telemetry_device_time
-ON telemetry(device_id, created_at DESC)
+ON telemetry(device_id, created_at DESC);
 
 CREATE INDEX idx_telemetry_vehicle_time
-ON telemetry(vehicle_id, created_at DESC)
+ON telemetry(vehicle_id, created_at DESC);
 
 --- Partitions ---
 

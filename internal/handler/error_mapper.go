@@ -61,9 +61,15 @@ func mapError(err error) HTTPError {
 			Status:  http.StatusNotFound,
 		}
 
+	case errors.Is(err, model.ErrInvalidJSON):
+		return HTTPError{
+			Message: "invalid json",
+			Status:  http.StatusBadRequest,
+		}
+
 	default:
 		return HTTPError{
-			Message: "unknows error",
+			Message: "unknown error",
 			Status:  http.StatusInternalServerError,
 		}
 	}
