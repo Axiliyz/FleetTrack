@@ -48,18 +48,13 @@ func writeError(ctx context.Context, w http.ResponseWriter, message string, code
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 
-	err := json.NewEncoder(w).Encode(
+	json.NewEncoder(w).Encode(
 		dto.ErrorResponse{
 			Status:    "error",
 			Message:   message,
 			RequestID: getRequestID(ctx),
 		},
 	)
-
-	if err != nil {
-		writeError(ctx, w, model.ErrEncoding.Error(), http.StatusInternalServerError)
-		return
-	}
 }
 
 // respondError логирует ошибку и отправляет ответ
@@ -76,21 +71,21 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 	defer r.Body.Close()
 
 	if r.Method != http.MethodPost {
-		writeError(r.Context(), w, "method not supported", http.StatusMethodNotAllowed)
+		h.respondError(w, r, model.ErrInvalidMethod)
 		return
 	}
 
-	var telemetryData model.Telemetry
+	var telemetryData dto.TelemetryRequest
 
 	err := json.NewDecoder(r.Body).Decode(&telemetryData)
 	if err != nil {
 		h.respondError(w, r, model.ErrInvalidJSON)
 		return
 	}
-
+	telemetry := telemetryData.ToDomainModel()
 	savedTelemetry, err := h.telemetryService.ProcessTelemetry(
 		r.Context(),
-		telemetryData,
+		telemetry,
 	)
 
 	if err != nil {

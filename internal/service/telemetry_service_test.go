@@ -9,7 +9,7 @@ import (
 
 type mockRepository struct{}
 
-func (m *mockRepository) Save(ctx context.Context, t model.Telemetry) error {
+func (m *mockRepository) Save(ctx context.Context, t *model.Telemetry) error {
 	return nil
 }
 

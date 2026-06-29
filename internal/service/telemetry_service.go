@@ -13,7 +13,7 @@ import (
 type TelemetryRepository interface {
 	// Save сохраняет телеметрию в хранилище
 	// Возвращает ошибку если сохранение не удалось
-	Save(ctx context.Context, t model.Telemetry) error
+	Save(ctx context.Context, t *model.Telemetry) error
 }
 
 // TelemetryService обрабатывает и валидирует телеметрию
@@ -44,22 +44,18 @@ func NewTelemetryService(r TelemetryRepository, logger logger.Logger) *Telemetry
 // ReceivedAt всегда ставится в текущее время
 func (s *TelemetryService) ProcessTelemetry(ctx context.Context, t model.Telemetry) (model.Telemetry, error) {
 	if t.DeviceID < 0 {
-		s.logger.Error(model.ErrInvalidDeviceID.Error())
 		return model.Telemetry{}, model.ErrInvalidDeviceID
 	}
 
 	if t.VehicleID < 0 {
-		s.logger.Error(model.ErrInvalidVehicleID.Error())
 		return model.Telemetry{}, model.ErrInvalidVehicleID
 	}
 
 	if t.Lat < -90 || t.Lat > 90 || t.Lon < -180 || t.Lon > 180 {
-		s.logger.Error(model.ErrInvalidCoords.Error())
 		return model.Telemetry{}, model.ErrInvalidCoords
 	}
 
 	if t.Fuel < 0.0 || t.Fuel > 1.0 {
-		s.logger.Error(model.ErrInvalidFuel.Error())
 		return model.Telemetry{}, model.ErrInvalidFuel
 	}
 
@@ -69,9 +65,8 @@ func (s *TelemetryService) ProcessTelemetry(ctx context.Context, t model.Telemet
 	}
 
 	t.ReceivedAt = time.Now()
-	err := s.repository.Save(ctx, t)
+	err := s.repository.Save(ctx, &t)
 	if err != nil {
-		s.logger.Error(err.Error())
 		return model.Telemetry{}, err
 	}
 
