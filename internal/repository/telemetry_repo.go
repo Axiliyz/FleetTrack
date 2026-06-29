@@ -36,19 +36,18 @@ func NewPostgresTelemetryRepository(pool *pgxpool.Pool) *PostgresTelemetryReposi
 
 // Save для MemoryTelemetryRepository сохраняет телеметрию в память
 // Возвращает ошибку
-func (r *MemoryTelemetryRepository) Save(ctx context.Context, t model.Telemetry) error {
-	r.history = append(r.history, t)
-	r.current[t.VehicleID] = t
+func (r *MemoryTelemetryRepository) Save(ctx context.Context, t *model.Telemetry) error {
+	r.history = append(r.history, *t)
+	r.current[t.VehicleID] = *t
 	return nil
 }
 
 // Save для PostgresTelemetryRepository сохраняет телеметрию в БД PostgreSQL
 // Возвращает ошибку
-func (r *PostgresTelemetryRepository) Save(ctx context.Context, t model.Telemetry) error {
-	_, err := r.pool.Exec(ctx, "insert into telemetry(organization_id, vehicle_id, device_id, latitude, longitude, fuel) values ($1, $2, $3, $4, $5, $6)", 1, t.VehicleID, t.DeviceID, t.Lat, t.Lon, t.Fuel)
-	if err != nil {
-		return err
-	}
-
-	return nil
+func (r *PostgresTelemetryRepository) Save(ctx context.Context, t *model.Telemetry) error {
+	err := r.pool.QueryRow(ctx,
+		"insert into telemetry(organization_id, vehicle_id, device_id, latitude, longitude, fuel) values ($1, $2, $3, $4, $5, $6) RETURNING id",
+		1, t.VehicleID, t.DeviceID, t.Lat, t.Lon, t.Fuel,
+	).Scan(&t.TelemetryID)
+	return err
 }
