@@ -1,0 +1,9 @@
+DROP TABLE IF EXISTS trips;
+DROP TABLE IF EXISTS driver_assignments;
+DROP TABLE IF EXISTS drivers;
+DROP TABLE IF EXISTS device_assignments;
+DROP TABLE IF EXISTS devices;
+DROP TABLE IF EXISTS telemetry;
+DROP TABLE IF EXISTS vehicles;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS organizations;

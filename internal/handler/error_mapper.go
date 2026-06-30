@@ -55,19 +55,25 @@ func mapError(err error) HTTPError {
 	case errors.Is(err, model.ErrInvalidDeviceID):
 		return HTTPError{
 			Message: "invalid device id",
-			Status:  http.StatusNotFound,
+			Status:  http.StatusBadRequest,
 		}
 
 	case errors.Is(err, model.ErrInvalidVehicleID):
 		return HTTPError{
 			Message: "invalid vehicle id",
-			Status:  http.StatusNotFound,
+			Status:  http.StatusBadRequest,
 		}
 
 	case errors.Is(err, model.ErrInvalidJSON):
 		return HTTPError{
 			Message: "invalid json",
 			Status:  http.StatusBadRequest,
+		}
+
+	case errors.Is(err, model.ErrNotFound):
+		return HTTPError{
+			Message: "telemetry not found",
+			Status:  http.StatusNotFound,
 		}
 
 	default:

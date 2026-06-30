@@ -13,6 +13,18 @@ func (m *mockRepository) Save(ctx context.Context, t *model.Telemetry) error {
 	return nil
 }
 
+func (m *mockRepository) GetList(ctx context.Context, limit int) ([]model.Telemetry, error) {
+	return []model.Telemetry{}, nil
+}
+
+func (m *mockRepository) GetItemByID(ctx context.Context, id int) (model.Telemetry, error) {
+	return model.Telemetry{}, nil
+}
+
+func (r *mockRepository) GetListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error) {
+	return []model.Telemetry{}, nil
+}
+
 func TestProcessTelemetry(t *testing.T) {
 	tests := []struct {
 		name      string
