@@ -14,6 +14,9 @@ type TelemetryRepository interface {
 	// Save сохраняет телеметрию в хранилище
 	// Возвращает ошибку если сохранение не удалось
 	Save(ctx context.Context, t *model.Telemetry) error
+	GetList(ctx context.Context, limit int) ([]model.Telemetry, error)
+	GetItemByID(ctx context.Context, id int) (model.Telemetry, error)
+	GetListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error)
 }
 
 // TelemetryService обрабатывает и валидирует телеметрию
@@ -81,4 +84,16 @@ func (s *TelemetryService) ProcessTelemetry(ctx context.Context, t model.Telemet
 	)
 	s.logger.Info(message)
 	return t, nil
+}
+
+func (s *TelemetryService) GetTelemetryList(ctx context.Context, limit int) ([]model.Telemetry, error) {
+	return s.repository.GetList(ctx, limit)
+}
+
+func (s *TelemetryService) GetTelemetryByID(ctx context.Context, id int) (model.Telemetry, error) {
+	return s.repository.GetItemByID(ctx, id)
+}
+
+func (s *TelemetryService) GetTelemetryByVehicle(ctx context.Context, id int) ([]model.Telemetry, error) {
+	return s.repository.GetListByVehicle(ctx, id)
 }

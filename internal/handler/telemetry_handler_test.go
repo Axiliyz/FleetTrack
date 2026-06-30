@@ -28,6 +28,19 @@ func (m *mockTelemetryService) ProcessTelemetry(ctx context.Context, t model.Tel
 		}, nil
 	}
 }
+
+func (m *mockTelemetryService) GetTelemetryList(ctx context.Context, limit int) ([]model.Telemetry, error) {
+	return []model.Telemetry{}, nil
+}
+
+func (m *mockTelemetryService) GetTelemetryByID(ctx context.Context, id int) (model.Telemetry, error) {
+	return model.Telemetry{}, nil
+}
+
+func (m *mockTelemetryService) GetTelemetryByVehicle(ctx context.Context, id int) ([]model.Telemetry, error) {
+	return []model.Telemetry{}, nil
+}
+
 func TestHandleTelemetry(t *testing.T) {
 	tests := []struct {
 		name           string
