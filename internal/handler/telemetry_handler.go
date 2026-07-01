@@ -194,7 +194,7 @@ func (h *TelemetryHandler) HandlerGetTelemetryByVehicle(w http.ResponseWriter, r
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		h.respondError(w, r, err)
+		h.respondError(w, r, model.ErrInvalidVehicleID)
 		return
 	}
 
