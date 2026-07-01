@@ -7,7 +7,7 @@ import "errors"
 var (
 	ErrInvalidMethod      = errors.New("invalid method")
 	ErrInvalidTelemetryID = errors.New("invalid telemetry id")
-	ErrInvalidDeviceID    = errors.New("invalid  device id")
+	ErrInvalidDeviceID    = errors.New("invalid device id")
 	ErrInvalidVehicleID   = errors.New("invalid vehicle id")
 	ErrInvalidCoords      = errors.New("invalid coordinates")
 	ErrInvalidFuel        = errors.New("invalid fuel")
