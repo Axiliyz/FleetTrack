@@ -14,8 +14,11 @@ type TelemetryRepository interface {
 	// Save сохраняет телеметрию в хранилище
 	// Возвращает ошибку если сохранение не удалось
 	Save(ctx context.Context, t *model.Telemetry) error
+	// GetList возвращает список всей телеметрии
 	GetList(ctx context.Context, limit int) ([]model.Telemetry, error)
+	// GetItemByID возвращает запись телеметрии по её ID
 	GetItemByID(ctx context.Context, id int) (model.Telemetry, error)
+	// GetListByVehicle возвращает срез телеметрий по ID машины
 	GetListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error)
 }
 
@@ -86,14 +89,37 @@ func (s *TelemetryService) ProcessTelemetry(ctx context.Context, t model.Telemet
 	return t, nil
 }
 
+// GetTelemetryList используется в GET /telemetry
+// Возвращает срез всех телеметрий(макс. limit записей), либо ошибку
 func (s *TelemetryService) GetTelemetryList(ctx context.Context, limit int) ([]model.Telemetry, error) {
-	return s.repository.GetList(ctx, limit)
+	res, err := s.repository.GetList(ctx, limit)
+	if err != nil {
+		return nil, err
+	}
+	s.logger.Info("Got all the telemetry")
+	return res, nil
 }
 
+// GetTelemetryByID используется в GET /telemetry/{id}
+// Возвращает запись по её ID, либо ошибку
 func (s *TelemetryService) GetTelemetryByID(ctx context.Context, id int) (model.Telemetry, error) {
-	return s.repository.GetItemByID(ctx, id)
+	res, err := s.repository.GetItemByID(ctx, id)
+	if err != nil {
+		return model.Telemetry{}, err
+	}
+	message := fmt.Sprintf("Got telemetry with id %d", id)
+	s.logger.Info(message)
+	return res, nil
 }
 
+// GetTelemetryByVehicle используется в GET /telemetry/vehicle/{id}
+// Возвращает срез записей по машине по её ID, либо ошибку
 func (s *TelemetryService) GetTelemetryByVehicle(ctx context.Context, id int) ([]model.Telemetry, error) {
-	return s.repository.GetListByVehicle(ctx, id)
+	res, err := s.repository.GetListByVehicle(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	message := fmt.Sprintf("Got telemetry for vehicle %d", id)
+	s.logger.Info(message)
+	return res, nil
 }

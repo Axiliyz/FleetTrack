@@ -10,6 +10,7 @@ import (
 
 type key string
 
+// RequestIDKey - ключ контекста, по которому хранится и извлекается request id запроса
 const RequestIDKey key = "request_id"
 
 // RequestID для проброса хэндлера дальше
