@@ -72,8 +72,14 @@ func mapError(err error) HTTPError {
 
 	case errors.Is(err, model.ErrNotFound):
 		return HTTPError{
-			Message: "telemetry not found",
+			Message: "record not found",
 			Status:  http.StatusNotFound,
+		}
+
+	case errors.Is(err, model.ErrInvalidTelemetryID):
+		return HTTPError{
+			Message: "invalid telemetry id",
+			Status:  http.StatusBadRequest,
 		}
 
 	default:
