@@ -1,4 +1,4 @@
-// Package DTO для транспортировки данных
+// Package dto для транспортировки данных
 package dto
 
 // APIResponse определяет структуру JSON ответа

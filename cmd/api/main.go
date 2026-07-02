@@ -38,8 +38,10 @@ func main() {
 	}))
 	router.Post("/telemetry", handler.HandleTelemetry)
 	router.Get("/telemetry", handler.HandleGetTelemetry)
-	router.Get("/telemetry/vehicle/{id}", handler.HandlerGetTelemetryByVehicle)
+	router.Get("/telemetry/vehicle/{id}", handler.HandleGetTelemetryByVehicle)
 	router.Get("/telemetry/{id}", handler.HandleGetTelemetryByID)
+	router.Delete("/telemetry/{id}", handler.HandleDeleteTelemetryByID)
+	router.Delete("/telemetry/vehicle/{id}", handler.HandleDeleteTelemetryByVehicleID)
 
 	err = http.ListenAndServe(":8080", router)
 	if err != nil {
