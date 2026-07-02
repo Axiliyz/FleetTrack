@@ -26,6 +26,8 @@ type TelemetryService interface {
 	GetTelemetryList(ctx context.Context, limit int) ([]model.Telemetry, error)
 	GetTelemetryByID(ctx context.Context, id int) (model.Telemetry, error)
 	GetTelemetryByVehicle(ctx context.Context, id int) ([]model.Telemetry, error)
+	DeleteTelemetryByID(ctx context.Context, id int) (model.Telemetry, error)
+	DeleteTelemetryByVehicle(ctx context.Context, id int) ([]model.Telemetry, error)
 }
 
 // NewTelemetryHandler создаёт новый хэндлер с заданным сервисом и логгером
@@ -189,8 +191,8 @@ func (h *TelemetryHandler) HandleGetTelemetryByID(w http.ResponseWriter, r *http
 	}
 }
 
-// HandlerGetTelemetryByVehicle возвращает все записи телеметрии по ID машины
-func (h *TelemetryHandler) HandlerGetTelemetryByVehicle(w http.ResponseWriter, r *http.Request) {
+// HandleGetTelemetryByVehicle возвращает все записи телеметрии по ID машины
+func (h *TelemetryHandler) HandleGetTelemetryByVehicle(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -217,6 +219,80 @@ func (h *TelemetryHandler) HandlerGetTelemetryByVehicle(w http.ResponseWriter, r
 	apiResponse := dto.APIResponse{
 		Status:    "success",
 		Message:   "Telemetry list",
+		RequestID: getRequestID(r.Context()),
+		Data:      responses,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	err = json.NewEncoder(w).Encode(apiResponse)
+	if err != nil {
+		h.logger.Error(err.Error())
+	}
+}
+
+// HandleDeleteTelemetryByID удаляет телеметрию по её ID
+func (h *TelemetryHandler) HandleDeleteTelemetryByID(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		h.respondError(w, r, model.ErrInvalidTelemetryID)
+		return
+	}
+	t, err := h.telemetryService.DeleteTelemetryByID(r.Context(), id)
+	if err != nil {
+		h.respondError(w, r, err)
+		return
+	}
+
+	telemetryResponse := dto.TelemetryResponse{
+		TelemetryID: t.TelemetryID,
+		VehicleID:   t.VehicleID,
+		DeviceID:    t.DeviceID,
+		ReceivedAt:  t.ReceivedAt,
+	}
+
+	apiResponse := dto.APIResponse{
+		Status:    "success",
+		Message:   "Telemetry deleted",
+		RequestID: getRequestID(r.Context()),
+		Data:      telemetryResponse,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	err = json.NewEncoder(w).Encode(apiResponse)
+	if err != nil {
+		h.logger.Error(err.Error())
+	}
+}
+
+// HandleDeleteTelemetryByVehicle удаляет телеметрию по машине по её ID
+func (h *TelemetryHandler) HandleDeleteTelemetryByVehicleID(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		h.respondError(w, r, model.ErrInvalidVehicleID)
+		return
+	}
+	telemetries, err := h.telemetryService.DeleteTelemetryByVehicle(r.Context(), id)
+	if err != nil {
+		h.respondError(w, r, err)
+		return
+	}
+	responses := make([]dto.TelemetryResponse, 0, len(telemetries))
+	for _, t := range telemetries {
+		responses = append(responses, dto.TelemetryResponse{
+			TelemetryID: t.TelemetryID,
+			VehicleID:   t.VehicleID,
+			DeviceID:    t.DeviceID,
+			ReceivedAt:  t.ReceivedAt,
+		})
+	}
+
+	apiResponse := dto.APIResponse{
+		Status:    "success",
+		Message:   "Telemetries of vehicle deleted",
 		RequestID: getRequestID(r.Context()),
 		Data:      responses,
 	}

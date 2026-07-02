@@ -52,6 +52,20 @@ func (m *mockTelemetryService) GetTelemetryByVehicle(ctx context.Context, id int
 	return []model.Telemetry{}, nil
 }
 
+func (m *mockTelemetryService) DeleteTelemetryByID(ctx context.Context, id int) (model.Telemetry, error) {
+	if m.returnError != nil {
+		return model.Telemetry{}, m.returnError
+	}
+	return model.Telemetry{}, nil
+}
+
+func (m *mockTelemetryService) DeleteTelemetryByVehicle(ctx context.Context, id int) ([]model.Telemetry, error) {
+	if m.returnError != nil {
+		return []model.Telemetry{}, m.returnError
+	}
+	return []model.Telemetry{}, nil
+}
+
 func TestHandleTelemetry(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -172,6 +186,100 @@ func TestHandleGetTelemetryByID(t *testing.T) {
 	}
 }
 
+func TestHandleDeleteTelemetryByID(t *testing.T) {
+	tests := []struct {
+		name           string
+		urlID          string
+		serviceError   error
+		expectedStatus int
+	}{
+		{
+			name:           "ok",
+			urlID:          "31",
+			serviceError:   nil,
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "not found",
+			urlID:          "7777777",
+			serviceError:   model.ErrNotFound,
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:           "invalid id",
+			urlID:          "hello",
+			serviceError:   nil,
+			expectedStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := &mockTelemetryService{returnError: tt.serviceError}
+			logger := logger.NewStdLogger(logger.DebugLevel)
+			handler := NewTelemetryHandler(service, logger)
+
+			r := chi.NewRouter()
+			r.Delete("/telemetry/{id}", handler.HandleDeleteTelemetryByID)
+
+			request := httptest.NewRequest("DELETE", "/telemetry/"+tt.urlID, nil)
+			recorder := httptest.NewRecorder()
+			r.ServeHTTP(recorder, request)
+
+			if recorder.Code != tt.expectedStatus {
+				t.Errorf("got %v expected %v", recorder.Code, tt.expectedStatus)
+			}
+		})
+	}
+}
+
+func TestHandleDeleteTelemetryByVehicleID(t *testing.T) {
+	tests := []struct {
+		name           string
+		vehicleID      string
+		serviceError   error
+		expectedStatus int
+	}{
+		{
+			name:           "ok",
+			vehicleID:      "4",
+			serviceError:   nil,
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "not found",
+			vehicleID:      "7777777",
+			serviceError:   model.ErrNotFound,
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:           "invalid id",
+			vehicleID:      "hello",
+			serviceError:   nil,
+			expectedStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := &mockTelemetryService{returnError: tt.serviceError}
+			logger := logger.NewStdLogger(logger.DebugLevel)
+			handler := NewTelemetryHandler(service, logger)
+
+			r := chi.NewRouter()
+			r.Delete("/telemetry/vehicle/{id}", handler.HandleDeleteTelemetryByVehicleID)
+
+			request := httptest.NewRequest("DELETE", "/telemetry/vehicle/"+tt.vehicleID, nil)
+			recorder := httptest.NewRecorder()
+			r.ServeHTTP(recorder, request)
+
+			if recorder.Code != tt.expectedStatus {
+				t.Errorf("got %v expected %v", recorder.Code, tt.expectedStatus)
+			}
+		})
+	}
+}
+
 func TestHandleGetTelemetryByVehicle(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -206,7 +314,7 @@ func TestHandleGetTelemetryByVehicle(t *testing.T) {
 			handler := NewTelemetryHandler(service, logger)
 
 			r := chi.NewRouter()
-			r.Get("/telemetry/vehicle/{id}", handler.HandlerGetTelemetryByVehicle)
+			r.Get("/telemetry/vehicle/{id}", handler.HandleGetTelemetryByVehicle)
 
 			request := httptest.NewRequest("GET", "/telemetry/vehicle/"+tt.vehicleID, nil)
 			recorder := httptest.NewRecorder()

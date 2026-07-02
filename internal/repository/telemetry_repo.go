@@ -157,3 +157,86 @@ func (r *PostgresTelemetryRepository) GetListByVehicle(ctx context.Context, id i
 	}
 	return telemetries, rows.Err()
 }
+
+// DeleteListByVehicle для MemoryTelemetryRepository удаляет всю телеметрию для конкретной машины
+func (r *MemoryTelemetryRepository) DeleteListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error) {
+	deleted, ok := r.byVehicle[id]
+	if !ok {
+		return nil, model.ErrNotFound
+	}
+	delete(r.byVehicle, id)
+	delete(r.current, id)
+	for _, t := range deleted {
+		delete(r.telemetry, t.TelemetryID)
+	}
+	return deleted, nil
+}
+
+// DeleteListByVehicle для PostgresTelemetryRepository удаляет всю телеметрию для конкретной машины
+func (r *PostgresTelemetryRepository) DeleteListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error) {
+	query := `DELETE FROM telemetry WHERE vehicle_id = $1
+		RETURNING id, organization_id, vehicle_id, device_id, latitude, longitude, fuel, received_at, device_timestamp`
+	rows, err := r.pool.Query(ctx, query, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var telemetries []model.Telemetry
+	for rows.Next() {
+		var t model.Telemetry
+		err = rows.Scan(
+			&t.TelemetryID, &t.OrganizationID, &t.VehicleID, &t.DeviceID,
+			&t.Lat, &t.Lon, &t.Fuel,
+			&t.ReceivedAt, &t.DeviceTimestamp,
+		)
+		if err != nil {
+			return nil, err
+		}
+		telemetries = append(telemetries, t)
+	}
+	if len(telemetries) == 0 {
+		return nil, model.ErrNotFound
+	}
+	return telemetries, rows.Err()
+}
+
+// DeleteItemByID для MemoryTelemetryRepository удаляет телеметрию по её ID
+func (r *MemoryTelemetryRepository) DeleteItemByID(ctx context.Context, id int) (model.Telemetry, error) {
+	t, ok := r.telemetry[id]
+	if !ok {
+		return model.Telemetry{}, model.ErrNotFound
+	}
+	delete(r.telemetry, id)
+
+	list := r.byVehicle[t.VehicleID]
+	for i, item := range list {
+		if item.TelemetryID == id {
+			r.byVehicle[t.VehicleID] = append(list[:i], list[i+1:]...)
+			break
+		}
+	}
+
+	if r.current[t.VehicleID].TelemetryID == id {
+		delete(r.current, t.VehicleID)
+	}
+	return t, nil
+}
+
+// DeleteItemByID для PostgresTelemetryRepository удаляет телеметрию по её ID
+func (r *PostgresTelemetryRepository) DeleteItemByID(ctx context.Context, id int) (model.Telemetry, error) {
+	query := `DELETE FROM telemetry WHERE id = $1
+		RETURNING id, organization_id, vehicle_id, device_id, latitude, longitude, fuel, received_at, device_timestamp`
+	var t model.Telemetry
+	err := r.pool.QueryRow(ctx, query, id).Scan(
+		&t.TelemetryID, &t.OrganizationID, &t.VehicleID, &t.DeviceID,
+		&t.Lat, &t.Lon, &t.Fuel,
+		&t.ReceivedAt, &t.DeviceTimestamp,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return model.Telemetry{}, model.ErrNotFound
+		}
+		return model.Telemetry{}, err
+	}
+	return t, nil
+}

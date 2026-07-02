@@ -20,6 +20,10 @@ type TelemetryRepository interface {
 	GetItemByID(ctx context.Context, id int) (model.Telemetry, error)
 	// GetListByVehicle возвращает срез телеметрий по ID машины
 	GetListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error)
+	// DeleteItemByID удаляет запись по её ID
+	DeleteItemByID(ctx context.Context, id int) (model.Telemetry, error)
+	// DeleteListByVehicle удаляет список записей по ID машины
+	DeleteListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error)
 }
 
 // TelemetryService обрабатывает и валидирует телеметрию
@@ -120,6 +124,30 @@ func (s *TelemetryService) GetTelemetryByVehicle(ctx context.Context, id int) ([
 		return nil, err
 	}
 	message := fmt.Sprintf("Got telemetry for vehicle %d", id)
+	s.logger.Info(message)
+	return res, nil
+}
+
+// DeleteTelemetryByID используется в DELETE /telemetry/{id}
+// Удаляет запись по её ID, либо возвращает ошибку
+func (s *TelemetryService) DeleteTelemetryByID(ctx context.Context, id int) (model.Telemetry, error) {
+	res, err := s.repository.DeleteItemByID(ctx, id)
+	if err != nil {
+		return model.Telemetry{}, err
+	}
+	message := fmt.Sprintf("Telemetry with id %d was deleted", id)
+	s.logger.Info(message)
+	return res, nil
+}
+
+// DeleteTelemetryByVehicle используется в DELETE /telemetry/vehicle/{id}
+// Удаляет срез записей по машине по её ID, либо возвращает ошибку
+func (s *TelemetryService) DeleteTelemetryByVehicle(ctx context.Context, id int) ([]model.Telemetry, error) {
+	res, err := s.repository.DeleteListByVehicle(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	message := fmt.Sprintf("Telemetry for vehicle %d was deleted", id)
 	s.logger.Info(message)
 	return res, nil
 }

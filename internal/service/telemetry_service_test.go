@@ -25,6 +25,14 @@ func (r *mockRepository) GetListByVehicle(ctx context.Context, id int) ([]model.
 	return []model.Telemetry{}, nil
 }
 
+func (m *mockRepository) DeleteItemByID(ctx context.Context, id int) (model.Telemetry, error) {
+	return model.Telemetry{}, nil
+}
+
+func (r *mockRepository) DeleteListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error) {
+	return []model.Telemetry{}, nil
+}
+
 func TestProcessTelemetry(t *testing.T) {
 	tests := []struct {
 		name      string
