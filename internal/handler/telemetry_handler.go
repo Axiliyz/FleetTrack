@@ -23,7 +23,7 @@ type TelemetryHandler struct {
 // TelemetryService определяет контракт обработки телеметрии
 type TelemetryService interface {
 	ProcessTelemetry(ctx context.Context, t model.Telemetry) (model.Telemetry, error)
-	GetTelemetryList(ctx context.Context, limit int) ([]model.Telemetry, error)
+	GetTelemetryList(ctx context.Context, filter model.TelemetryFilter) ([]model.Telemetry, error)
 	GetTelemetryByID(ctx context.Context, id int) (model.Telemetry, error)
 	GetTelemetryByVehicle(ctx context.Context, id int) ([]model.Telemetry, error)
 	DeleteTelemetryByID(ctx context.Context, id int) (model.Telemetry, error)
@@ -123,7 +123,12 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 
 // HandleGetTelemetry возвращает список телеметрии
 func (h *TelemetryHandler) HandleGetTelemetry(w http.ResponseWriter, r *http.Request) {
-	telemetries, err := h.telemetryService.GetTelemetryList(r.Context(), 100)
+	filter, err := dto.ParseTelemetryFilter(r.URL.Query())
+	if err != nil {
+		h.respondError(w, r, err)
+		return
+	}
+	telemetries, err := h.telemetryService.GetTelemetryList(r.Context(), filter)
 	if err != nil {
 		h.respondError(w, r, err)
 		return
