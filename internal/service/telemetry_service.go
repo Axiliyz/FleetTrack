@@ -119,22 +119,27 @@ func (s *TelemetryService) GetTelemetryList(ctx context.Context, filter model.Te
 
 	if filter.DeviceID != nil && *filter.DeviceID < 0 {
 		s.logger.Error("wrong device id(must be > 0)")
+		return nil, model.ErrInvalidDeviceID
 	}
 
 	if filter.VehicleID != nil && *filter.VehicleID < 0 {
 		s.logger.Error("wrong vehicle id(must be > 0)")
+		return nil, model.ErrInvalidVehicleID
 	}
 
 	if filter.DriverID != nil && *filter.DriverID < 0 {
 		s.logger.Error("wrong driver id(must be > 0)")
+		return nil, model.ErrInvalidDriverID
 	}
 
 	if filter.TripID != nil && *filter.TripID < 0 {
 		s.logger.Error("wrong trip id(must be > 0)")
+		return nil, model.ErrInvalidTripID
 	}
 
 	if filter.OrganizationID != nil && *filter.OrganizationID < 0 {
 		s.logger.Error("wrong organization id(must be > 0)")
+		return nil, model.ErrInvalidOrganizationID
 	}
 
 	res, err := s.repository.GetList(ctx, filter)
