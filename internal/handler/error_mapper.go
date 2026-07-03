@@ -82,6 +82,48 @@ func mapError(err error) HTTPError {
 			Status:  http.StatusBadRequest,
 		}
 
+	case errors.Is(err, model.ErrInvalidDriverID):
+		return HTTPError{
+			Message: "invalid driver id",
+			Status:  http.StatusBadRequest,
+		}
+
+	case errors.Is(err, model.ErrInvalidTripID):
+		return HTTPError{
+			Message: "invalid trip id",
+			Status:  http.StatusBadRequest,
+		}
+
+	case errors.Is(err, model.ErrInvalidOrganizationID):
+		return HTTPError{
+			Message: "invalid organization id",
+			Status:  http.StatusBadRequest,
+		}
+
+	case errors.Is(err, model.ErrInvalidLimit):
+		return HTTPError{
+			Message: "invalid limit",
+			Status:  http.StatusBadRequest,
+		}
+
+	case errors.Is(err, model.ErrInvalidOffset):
+		return HTTPError{
+			Message: "invalid offset",
+			Status:  http.StatusBadRequest,
+		}
+
+	case errors.Is(err, model.ErrInvalidInteger):
+		return HTTPError{
+			Message: "invalid integer(must be > 0)",
+			Status:  http.StatusBadRequest,
+		}
+
+	case errors.Is(err, model.ErrInvalidFloat):
+		return HTTPError{
+			Message: "invalid float(must be > 0)",
+			Status:  http.StatusBadRequest,
+		}
+
 	default:
 		return HTTPError{
 			Message: "unknown error",

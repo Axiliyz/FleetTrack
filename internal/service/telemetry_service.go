@@ -15,7 +15,7 @@ type TelemetryRepository interface {
 	// Возвращает ошибку если сохранение не удалось
 	Save(ctx context.Context, t *model.Telemetry) error
 	// GetList возвращает список всей телеметрии
-	GetList(ctx context.Context, limit int) ([]model.Telemetry, error)
+	GetList(ctx context.Context, filter model.TelemetryFilter) ([]model.Telemetry, error)
 	// GetItemByID возвращает запись телеметрии по её ID
 	GetItemByID(ctx context.Context, id int) (model.Telemetry, error)
 	// GetListByVehicle возвращает срез телеметрий по ID машины
@@ -94,13 +94,54 @@ func (s *TelemetryService) ProcessTelemetry(ctx context.Context, t model.Telemet
 }
 
 // GetTelemetryList используется в GET /telemetry
-// Возвращает срез всех телеметрий(макс. limit записей), либо ошибку
-func (s *TelemetryService) GetTelemetryList(ctx context.Context, limit int) ([]model.Telemetry, error) {
-	res, err := s.repository.GetList(ctx, limit)
+// Возвращает срез всех телеметрий(с возможностью фильтрации), либо ошибку
+func (s *TelemetryService) GetTelemetryList(ctx context.Context, filter model.TelemetryFilter) ([]model.Telemetry, error) {
+	if filter.From != nil && filter.To != nil && filter.From.After(*filter.To) {
+		s.logger.Error("Wrong datetime(from>to)")
+		return nil, model.ErrInvalidTimestamp
+	}
+	if filter.FuelMin != nil && filter.FuelMax != nil &&
+		*filter.FuelMin > *filter.FuelMax {
+		s.logger.Error("Wrong fuel(min>max)")
+		return nil, model.ErrInvalidFuel
+	}
+	if filter.LatMin != nil && filter.LatMax != nil &&
+		*filter.LatMin > *filter.LatMax {
+		s.logger.Error("Wrong coords(min>max)")
+		return nil, model.ErrInvalidCoords
+	}
+
+	if filter.LonMin != nil && filter.LonMax != nil &&
+		*filter.LonMin > *filter.LonMax {
+		s.logger.Error("Wrong coords(min>max)")
+		return nil, model.ErrInvalidCoords
+	}
+
+	if filter.DeviceID != nil && *filter.DeviceID < 0 {
+		s.logger.Error("wrong device id(must be > 0)")
+	}
+
+	if filter.VehicleID != nil && *filter.VehicleID < 0 {
+		s.logger.Error("wrong vehicle id(must be > 0)")
+	}
+
+	if filter.DriverID != nil && *filter.DriverID < 0 {
+		s.logger.Error("wrong driver id(must be > 0)")
+	}
+
+	if filter.TripID != nil && *filter.TripID < 0 {
+		s.logger.Error("wrong trip id(must be > 0)")
+	}
+
+	if filter.OrganizationID != nil && *filter.OrganizationID < 0 {
+		s.logger.Error("wrong organization id(must be > 0)")
+	}
+
+	res, err := s.repository.GetList(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
-	s.logger.Info("Got all the telemetry")
+	s.logger.Info("Got all the filtered telemetry")
 	return res, nil
 }
 

@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fleettrack/internal/model"
+	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -60,11 +62,80 @@ func (r *PostgresTelemetryRepository) Save(ctx context.Context, t *model.Telemet
 	return err
 }
 
+// matchesFilter проверяет все непустые поля фильтра
+func matchesFilter(t model.Telemetry, f model.TelemetryFilter) bool {
+	if f.VehicleID != nil && t.VehicleID != *f.VehicleID {
+		return false
+	}
+	if f.DeviceID != nil && t.DeviceID != *f.DeviceID {
+		return false
+	}
+	if f.FuelMin != nil && t.Fuel < *f.FuelMin {
+		return false
+	}
+	if f.FuelMax != nil && t.Fuel > *f.FuelMax {
+		return false
+	}
+	if f.LatMin != nil && t.Lat < *f.LatMin {
+		return false
+	}
+	if f.LatMax != nil && t.Lat > *f.LatMax {
+		return false
+	}
+	if f.LonMin != nil && t.Lon < *f.LonMin {
+		return false
+	}
+	if f.LonMax != nil && t.Lon > *f.LonMax {
+		return false
+	}
+	if f.From != nil && t.ReceivedAt.Before(*f.From) {
+		return false
+	}
+	if f.To != nil && t.ReceivedAt.After(*f.To) {
+		return false
+	}
+
+	return true
+}
+
+// buildWhereClause берёт фильтр и возвращает готовый кусок WHERE... и срез аргументов
+func buildWhereClause(filter model.TelemetryFilter) (string, []any) {
+	var conditions []string
+	var args []any
+	argN := 1
+	if filter.VehicleID != nil {
+		conditions = append(conditions, fmt.Sprintf("vehicle_id = $%d", argN))
+		args = append(args, *filter.VehicleID)
+		argN++
+	}
+	if filter.DeviceID != nil {
+		conditions = append(conditions, fmt.Sprintf("device_id = $%d", argN))
+		args = append(args, *filter.DeviceID)
+		argN++
+	}
+	if filter.FuelMin != nil {
+		conditions = append(conditions, fmt.Sprintf("fuel >= $%d", argN))
+		args = append(args, *filter.FuelMin)
+		argN++
+	}
+	if filter.FuelMax != nil {
+		conditions = append(conditions, fmt.Sprintf("fuel <= $%d", argN))
+		args = append(args, *filter.FuelMax)
+		argN++
+	}
+	if len(conditions) < 1 {
+		return "", args
+	}
+	return "WHERE " + strings.Join(conditions, " AND "), args
+}
+
 // GetList для PostgresTelemetryRepository возвращает полный список телеметрии
-func (r *PostgresTelemetryRepository) GetList(ctx context.Context, limit int) ([]model.Telemetry, error) {
-	query := `SELECT id, device_id, vehicle_id, latitude, longitude, fuel, received_at, device_timestamp
-		FROM telemetry ORDER BY received_at DESC LIMIT $1`
-	rows, err := r.pool.Query(ctx, query, limit)
+func (r *PostgresTelemetryRepository) GetList(ctx context.Context, filter model.TelemetryFilter) ([]model.Telemetry, error) {
+	whereClause, args := buildWhereClause(filter)
+	query := fmt.Sprintf(`SELECT id, device_id, vehicle_id, latitude, longitude, fuel, received_at, device_timestamp
+		FROM telemetry %s ORDER BY received_at DESC LIMIT $%d OFFSET $%d`, whereClause, len(args)+1, len(args)+2)
+	args = append(args, filter.Limit, filter.Offset)
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -82,15 +153,21 @@ func (r *PostgresTelemetryRepository) GetList(ctx context.Context, limit int) ([
 }
 
 // GetList для MemoryTelemetryRepository возвращает полный список телеметрии
-func (r *MemoryTelemetryRepository) GetList(ctx context.Context, limit int) ([]model.Telemetry, error) {
-	res := make([]model.Telemetry, 0, limit)
-	count := 0
+func (r *MemoryTelemetryRepository) GetList(ctx context.Context, filter model.TelemetryFilter) ([]model.Telemetry, error) {
+	res := make([]model.Telemetry, 0, filter.Limit)
+	skipped := 0
 	for _, t := range r.telemetry {
-		if count >= limit {
+		if !matchesFilter(t, filter) {
+			continue
+		}
+		if skipped < filter.Offset {
+			skipped++
+			continue
+		}
+		if len(res) >= filter.Limit {
 			break
 		}
 		res = append(res, t)
-		count++
 	}
 	return res, nil
 }

@@ -31,7 +31,7 @@ func (m *mockTelemetryService) ProcessTelemetry(ctx context.Context, t model.Tel
 	}
 }
 
-func (m *mockTelemetryService) GetTelemetryList(ctx context.Context, limit int) ([]model.Telemetry, error) {
+func (m *mockTelemetryService) GetTelemetryList(ctx context.Context, filter model.TelemetryFilter) ([]model.Telemetry, error) {
 	if m.returnError != nil {
 		return []model.Telemetry{}, m.returnError
 	}
