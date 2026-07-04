@@ -48,8 +48,14 @@ func main() {
 	router.Delete("/telemetry/{id}", handler.HandleDeleteTelemetryByID)
 	router.Delete("/telemetry/vehicle/{id}", handler.HandleDeleteTelemetryByVehicleID)
 
-	err = http.ListenAndServe(":"+cfg.API.Port, router)
-	if err != nil {
-		panic(err)
+	srv := &http.Server{
+		Addr:    ":" + cfg.API.Port,
+		Handler: router,
 	}
+	err = srv.ListenAndServe()
+	if err != nil && err != http.ErrServerClosed {
+		logger.Error(err.Error())
+		return
+	}
+
 }
