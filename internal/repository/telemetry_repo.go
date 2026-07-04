@@ -64,6 +64,9 @@ func (r *PostgresTelemetryRepository) Save(ctx context.Context, t *model.Telemet
 
 // matchesFilter проверяет все непустые поля фильтра
 func matchesFilter(t model.Telemetry, f model.TelemetryFilter) bool {
+	if f.OrganizationID != nil && t.OrganizationID != *f.OrganizationID {
+		return false
+	}
 	if f.VehicleID != nil && t.VehicleID != *f.VehicleID {
 		return false
 	}
@@ -103,6 +106,11 @@ func buildWhereClause(filter model.TelemetryFilter) (string, []any) {
 	var conditions []string
 	var args []any
 	argN := 1
+	if filter.OrganizationID != nil {
+		conditions = append(conditions, fmt.Sprintf("organization_id = $%d", argN))
+		args = append(args, *filter.OrganizationID)
+		argN++
+	}
 	if filter.VehicleID != nil {
 		conditions = append(conditions, fmt.Sprintf("vehicle_id = $%d", argN))
 		args = append(args, *filter.VehicleID)
@@ -121,6 +129,36 @@ func buildWhereClause(filter model.TelemetryFilter) (string, []any) {
 	if filter.FuelMax != nil {
 		conditions = append(conditions, fmt.Sprintf("fuel <= $%d", argN))
 		args = append(args, *filter.FuelMax)
+		argN++
+	}
+	if filter.LatMin != nil {
+		conditions = append(conditions, fmt.Sprintf("latitude >= $%d", argN))
+		args = append(args, *filter.LatMin)
+		argN++
+	}
+	if filter.LatMax != nil {
+		conditions = append(conditions, fmt.Sprintf("latitude <= $%d", argN))
+		args = append(args, *filter.LatMax)
+		argN++
+	}
+	if filter.LonMin != nil {
+		conditions = append(conditions, fmt.Sprintf("longitude >= $%d", argN))
+		args = append(args, *filter.LonMin)
+		argN++
+	}
+	if filter.LonMax != nil {
+		conditions = append(conditions, fmt.Sprintf("longitude <= $%d", argN))
+		args = append(args, *filter.LonMax)
+		argN++
+	}
+	if filter.From != nil {
+		conditions = append(conditions, fmt.Sprintf("received_at >= $%d", argN))
+		args = append(args, *filter.From)
+		argN++
+	}
+	if filter.To != nil {
+		conditions = append(conditions, fmt.Sprintf("received_at <= $%d", argN))
+		args = append(args, *filter.To)
 		argN++
 	}
 	if len(conditions) < 1 {
