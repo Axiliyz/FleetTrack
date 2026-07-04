@@ -124,6 +124,18 @@ func mapError(err error) HTTPError {
 			Status:  http.StatusBadRequest,
 		}
 
+	case errors.Is(err, model.ErrMissingDBVars):
+		return HTTPError{
+			Message: "missing required DB env vars",
+			Status:  http.StatusServiceUnavailable,
+		}
+
+	case errors.Is(err, model.ErrConnectingDB):
+		return HTTPError{
+			Message: "error connecting to DB",
+			Status:  http.StatusServiceUnavailable,
+		}
+
 	default:
 		return HTTPError{
 			Message: "unknown error",

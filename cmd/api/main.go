@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fleettrack/internal/config"
 	"fleettrack/internal/handler"
 	"fleettrack/internal/logger"
 	"fleettrack/internal/middleware"
@@ -9,7 +10,6 @@ import (
 	"fleettrack/internal/repository"
 	"fleettrack/internal/service"
 	"net/http"
-	"os"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,8 +18,13 @@ import (
 func main() {
 	logger := logger.NewStdLogger(logger.DebugLevel)
 
-	dsn := "postgres://" + os.Getenv("DB_USER") + ":" + os.Getenv("DB_PASSWORD") + "@postgres:5432/" + os.Getenv("DB_NAME")
-	pool, err := pgxpool.New(context.Background(), dsn)
+	cfg, err := config.Load()
+	if err != nil {
+		logger.Error(model.ErrConnectingDB.Error())
+		return
+	}
+
+	pool, err := pgxpool.New(context.Background(), cfg.DB.DSN())
 	if err != nil {
 		logger.Error(err.Error())
 		return
@@ -43,7 +48,7 @@ func main() {
 	router.Delete("/telemetry/{id}", handler.HandleDeleteTelemetryByID)
 	router.Delete("/telemetry/vehicle/{id}", handler.HandleDeleteTelemetryByVehicleID)
 
-	err = http.ListenAndServe(":8080", router)
+	err = http.ListenAndServe(":"+cfg.API.Port, router)
 	if err != nil {
 		panic(err)
 	}

@@ -23,4 +23,6 @@ var (
 	ErrInvalidOffset         = errors.New("invalid offset")
 	ErrInvalidInteger        = errors.New("invalid integer(must be > 0)")
 	ErrInvalidFloat          = errors.New("invalid float(must be > 0)")
+	ErrMissingDBVars         = errors.New("missing required DB env vars")
+	ErrConnectingDB          = errors.New("error connecting to DB")
 )

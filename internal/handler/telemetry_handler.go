@@ -77,6 +77,23 @@ func (h *TelemetryHandler) respondError(w http.ResponseWriter, r *http.Request, 
 	writeError(r.Context(), w, apiError.Message, apiError.Status)
 }
 
+// respondSuccess записывает JSON ответа
+func (h *TelemetryHandler) respondSuccess(w http.ResponseWriter, r *http.Request, message string, data any) {
+
+	apiResponse := dto.APIResponse{
+		Status:    "success",
+		Message:   message,
+		RequestID: getRequestID(r.Context()),
+		Data:      data,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(apiResponse); err != nil {
+		h.logger.Error(err.Error())
+	}
+}
+
 // HandleTelemetry принимает входящий JSON
 func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
@@ -106,19 +123,7 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 		ReceivedAt:  savedTelemetry.ReceivedAt,
 	}
 
-	apiResponse := dto.APIResponse{
-		Status:    "success",
-		Message:   "Telemetry saved",
-		RequestID: getRequestID(r.Context()),
-		Data:      telemetryResponse,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	err = json.NewEncoder(w).Encode(apiResponse)
-	if err != nil {
-		h.logger.Error(err.Error())
-	}
+	h.respondSuccess(w, r, "Telemetry got to post", telemetryResponse)
 }
 
 // HandleGetTelemetry возвращает список телеметрии
@@ -144,19 +149,7 @@ func (h *TelemetryHandler) HandleGetTelemetry(w http.ResponseWriter, r *http.Req
 		})
 	}
 
-	apiResponse := dto.APIResponse{
-		Status:    "success",
-		Message:   "Telemetry list",
-		RequestID: getRequestID(r.Context()),
-		Data:      responses,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	err = json.NewEncoder(w).Encode(apiResponse)
-	if err != nil {
-		h.logger.Error(err.Error())
-	}
+	h.respondSuccess(w, r, "Telemetry list", responses)
 }
 
 // HandleGetTelemetryByID возвращает запись телеметрии по ID
@@ -181,19 +174,7 @@ func (h *TelemetryHandler) HandleGetTelemetryByID(w http.ResponseWriter, r *http
 		ReceivedAt:  telemetry.ReceivedAt,
 	}
 
-	apiResponse := dto.APIResponse{
-		Status:    "success",
-		Message:   "Telemetry found",
-		RequestID: getRequestID(r.Context()),
-		Data:      telemetryResponse,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	err = json.NewEncoder(w).Encode(apiResponse)
-	if err != nil {
-		h.logger.Error(err.Error())
-	}
+	h.respondSuccess(w, r, "Telemetry found", telemetryResponse)
 }
 
 // HandleGetTelemetryByVehicle возвращает все записи телеметрии по ID машины
@@ -221,19 +202,7 @@ func (h *TelemetryHandler) HandleGetTelemetryByVehicle(w http.ResponseWriter, r 
 		})
 	}
 
-	apiResponse := dto.APIResponse{
-		Status:    "success",
-		Message:   "Telemetry list",
-		RequestID: getRequestID(r.Context()),
-		Data:      responses,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	err = json.NewEncoder(w).Encode(apiResponse)
-	if err != nil {
-		h.logger.Error(err.Error())
-	}
+	h.respondSuccess(w, r, "Telemetry list", responses)
 }
 
 // HandleDeleteTelemetryByID удаляет телеметрию по её ID
@@ -257,19 +226,7 @@ func (h *TelemetryHandler) HandleDeleteTelemetryByID(w http.ResponseWriter, r *h
 		ReceivedAt:  t.ReceivedAt,
 	}
 
-	apiResponse := dto.APIResponse{
-		Status:    "success",
-		Message:   "Telemetry deleted",
-		RequestID: getRequestID(r.Context()),
-		Data:      telemetryResponse,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	err = json.NewEncoder(w).Encode(apiResponse)
-	if err != nil {
-		h.logger.Error(err.Error())
-	}
+	h.respondSuccess(w, r, "Telemetry deleted", telemetryResponse)
 }
 
 // HandleDeleteTelemetryByVehicle удаляет телеметрию по машине по её ID
@@ -295,17 +252,5 @@ func (h *TelemetryHandler) HandleDeleteTelemetryByVehicleID(w http.ResponseWrite
 		})
 	}
 
-	apiResponse := dto.APIResponse{
-		Status:    "success",
-		Message:   "Telemetries of vehicle deleted",
-		RequestID: getRequestID(r.Context()),
-		Data:      responses,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	err = json.NewEncoder(w).Encode(apiResponse)
-	if err != nil {
-		h.logger.Error(err.Error())
-	}
+	h.respondSuccess(w, r, "Telemetries of vehicle deleted", responses)
 }
