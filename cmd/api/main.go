@@ -7,7 +7,7 @@ import (
 	"fleettrack/internal/logger"
 	"fleettrack/internal/middleware"
 	"fleettrack/internal/model"
-	"fleettrack/internal/repository"
+	"fleettrack/internal/repository/postgres"
 	"fleettrack/internal/service"
 	"net/http"
 
@@ -31,9 +31,13 @@ func main() {
 	}
 	defer pool.Close()
 
-	repo := repository.NewPostgresTelemetryRepository(pool)
-	service := service.NewTelemetryService(repo, logger)
-	handler := handler.NewTelemetryHandler(service, logger)
+	telemetryRepo := postgres.NewPostgresTelemetryRepository(pool)
+	telemetryService := service.NewTelemetryService(telemetryRepo, logger)
+	telemetryHandler := handler.NewTelemetryHandler(telemetryService, logger)
+
+	vehicleRepo := postgres.NewPostgresVehicleRepository(pool)
+	vehicleService := service.NewVehicleService(vehicleRepo, logger)
+	vehicleHandler := handler.NewVehicleHandler(vehicleService, logger)
 
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
@@ -41,12 +45,18 @@ func main() {
 		logger.Error(model.ErrInvalidMethod.Error())
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}))
-	router.Post("/telemetry", handler.HandleTelemetry)
-	router.Get("/telemetry", handler.HandleGetTelemetry)
-	router.Get("/telemetry/vehicle/{id}", handler.HandleGetTelemetryByVehicle)
-	router.Get("/telemetry/{id}", handler.HandleGetTelemetryByID)
-	router.Delete("/telemetry/{id}", handler.HandleDeleteTelemetryByID)
-	router.Delete("/telemetry/vehicle/{id}", handler.HandleDeleteTelemetryByVehicleID)
+	router.Post("/telemetry", telemetryHandler.HandleTelemetry)
+	router.Get("/telemetry", telemetryHandler.HandleGetListTelemetry)
+	router.Get("/telemetry/vehicles/{id}", telemetryHandler.HandleGetTelemetryByVehicle)
+	router.Get("/telemetry/{id}", telemetryHandler.HandleGetTelemetryByID)
+	router.Delete("/telemetry/{id}", telemetryHandler.HandleDeleteTelemetryByID)
+	router.Delete("/telemetry/vehicles/{id}", telemetryHandler.HandleDeleteTelemetryByVehicleID)
+
+	router.Post("/vehicles", vehicleHandler.HandlePostVehicle)
+	router.Get("/vehicles", vehicleHandler.HandleGetListVehicle)
+	router.Get("/vehicles/{id}", vehicleHandler.HandleGetVehicleByID)
+	router.Delete("/vehicles/{id}", vehicleHandler.HandleDeleteVehicle)
+	router.Patch("/vehicles/{id}", vehicleHandler.HandlePatchVehicle)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.API.Port,

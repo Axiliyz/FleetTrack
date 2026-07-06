@@ -136,6 +136,42 @@ func mapError(err error) HTTPError {
 			Status:  http.StatusServiceUnavailable,
 		}
 
+	case errors.Is(err, model.ErrInvalidVIN):
+		return HTTPError{
+			Message: "invalid vin",
+			Status:  http.StatusBadRequest,
+		}
+
+	case errors.Is(err, model.ErrDuplicateVIN):
+		return HTTPError{
+			Message: "vehicle with this vin already exists",
+			Status:  http.StatusConflict,
+		}
+
+	case errors.Is(err, model.ErrDuplicatePlate):
+		return HTTPError{
+			Message: "vehicle with this number plate already exists",
+			Status:  http.StatusConflict,
+		}
+
+	case errors.Is(err, model.ErrInvalidNumberPlate):
+		return HTTPError{
+			Message: "invalid number plate",
+			Status:  http.StatusBadRequest,
+		}
+
+	case errors.Is(err, model.ErrInvalidStatus):
+		return HTTPError{
+			Message: "invalid vehicle status",
+			Status:  http.StatusBadRequest,
+		}
+
+	case errors.Is(err, model.ErrInvalidModel):
+		return HTTPError{
+			Message: "invalid car model",
+			Status:  http.StatusBadRequest,
+		}
+
 	default:
 		return HTTPError{
 			Message: "unknown error",

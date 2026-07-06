@@ -38,8 +38,10 @@ CHECK (
 );
 
 ALTER TABLE trips
-ALTER COLUMN status
-SET NOT NULL DEFAULT 'CREATED';
+ALTER COLUMN status SET NOT NULL;
+
+ALTER TABLE trips
+ALTER COLUMN status SET DEFAULT 'CREATED';
 
 ALTER TABLE devices
 ADD CONSTRAINT chk_device_status
@@ -52,8 +54,10 @@ CHECK (
 );
 
 ALTER TABLE devices
-ALTER COLUMN status
-SET NOT NULL DEFAULT 'ACTIVE';
+ALTER COLUMN status SET NOT NULL;
+
+ALTER TABLE devices
+ALTER COLUMN status SET DEFAULT 'ACTIVE';
 
 CREATE INDEX idx_vehicle_organization
 ON vehicles(organization_id);
@@ -70,11 +74,7 @@ ON trips(driver_id);
 CREATE INDEX idx_telemetry_vehicle
 ON telemetry(vehicle_id);
 
-CREATE INDEX idx_telemetry_trip
-ON telemetry(trip_id);
-
-CREATE INDEX idx_device_vehicle
-ON devices(vehicle_id);
-
 CREATE INDEX idx_telemetry_vehicle_created
-ON telemetry(vehicle_id, created_at DESC);
+ON telemetry(vehicle_id, received_at DESC);
+
+DROP TABLE driver_assignments;

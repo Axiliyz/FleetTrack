@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fleettrack/internal/handler/dto"
 	"fleettrack/internal/logger"
-	"fleettrack/internal/middleware"
 	"fleettrack/internal/model"
 	"net/http"
 	"strconv"
@@ -38,62 +37,6 @@ func NewTelemetryHandler(service TelemetryService, logger logger.Logger) *Teleme
 	}
 }
 
-// getRequestID извлекает request ID из контекста
-func getRequestID(ctx context.Context) string {
-	id, ok := ctx.Value(
-		middleware.RequestIDKey,
-	).(string)
-
-	if !ok {
-		return "unknown"
-	}
-
-	return id
-}
-
-// writeError записывает ошибку в JSON
-func writeError(ctx context.Context, w http.ResponseWriter, message string, code int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-
-	json.NewEncoder(w).Encode(
-		dto.ErrorResponse{
-			Status:    "error",
-			Message:   message,
-			RequestID: getRequestID(ctx),
-		},
-	)
-}
-
-// respondError логирует ошибку и отправляет ответ
-func (h *TelemetryHandler) respondError(w http.ResponseWriter, r *http.Request, err error) {
-	apiError := mapError(err)
-	if apiError.Status >= 500 {
-		h.logger.Error(err.Error())
-	} else {
-		h.logger.Warn(err.Error())
-	}
-
-	writeError(r.Context(), w, apiError.Message, apiError.Status)
-}
-
-// respondSuccess записывает JSON ответа
-func (h *TelemetryHandler) respondSuccess(w http.ResponseWriter, r *http.Request, message string, data any) {
-
-	apiResponse := dto.APIResponse{
-		Status:    "success",
-		Message:   message,
-		RequestID: getRequestID(r.Context()),
-		Data:      data,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(apiResponse); err != nil {
-		h.logger.Error(err.Error())
-	}
-}
-
 // HandleTelemetry принимает входящий JSON
 func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
@@ -102,7 +45,7 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 
 	err := json.NewDecoder(r.Body).Decode(&telemetryData)
 	if err != nil {
-		h.respondError(w, r, model.ErrInvalidJSON)
+		respondError(w, r, h.logger, model.ErrInvalidJSON)
 		return
 	}
 	telemetry := telemetryData.ToDomainModel()
@@ -112,7 +55,7 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 	)
 
 	if err != nil {
-		h.respondError(w, r, err)
+		respondError(w, r, h.logger, err)
 		return
 	}
 
@@ -123,19 +66,20 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 		ReceivedAt:  savedTelemetry.ReceivedAt,
 	}
 
-	h.respondSuccess(w, r, "Telemetry got to post", telemetryResponse)
+	respondSuccess(w, r, "Telemetry got to post", h.logger, telemetryResponse)
 }
 
 // HandleGetTelemetry возвращает список телеметрии
-func (h *TelemetryHandler) HandleGetTelemetry(w http.ResponseWriter, r *http.Request) {
+func (h *TelemetryHandler) HandleGetListTelemetry(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
 	filter, err := dto.ParseTelemetryFilter(r.URL.Query())
 	if err != nil {
-		h.respondError(w, r, err)
+		respondError(w, r, h.logger, err)
 		return
 	}
 	telemetries, err := h.telemetryService.GetTelemetryList(r.Context(), filter)
 	if err != nil {
-		h.respondError(w, r, err)
+		respondError(w, r, h.logger, err)
 		return
 	}
 
@@ -149,21 +93,22 @@ func (h *TelemetryHandler) HandleGetTelemetry(w http.ResponseWriter, r *http.Req
 		})
 	}
 
-	h.respondSuccess(w, r, "Telemetry list", responses)
+	respondSuccess(w, r, "Telemetry list", h.logger, responses)
 }
 
 // HandleGetTelemetryByID возвращает запись телеметрии по ID
 func (h *TelemetryHandler) HandleGetTelemetryByID(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		h.respondError(w, r, model.ErrInvalidTelemetryID)
+		respondError(w, r, h.logger, model.ErrInvalidTelemetryID)
 		return
 	}
 
 	telemetry, err := h.telemetryService.GetTelemetryByID(r.Context(), id)
 	if err != nil {
-		h.respondError(w, r, err)
+		respondError(w, r, h.logger, err)
 		return
 	}
 
@@ -174,21 +119,22 @@ func (h *TelemetryHandler) HandleGetTelemetryByID(w http.ResponseWriter, r *http
 		ReceivedAt:  telemetry.ReceivedAt,
 	}
 
-	h.respondSuccess(w, r, "Telemetry found", telemetryResponse)
+	respondSuccess(w, r, "Telemetry found", h.logger, telemetryResponse)
 }
 
 // HandleGetTelemetryByVehicle возвращает все записи телеметрии по ID машины
 func (h *TelemetryHandler) HandleGetTelemetryByVehicle(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		h.respondError(w, r, model.ErrInvalidVehicleID)
+		respondError(w, r, h.logger, model.ErrInvalidVehicleID)
 		return
 	}
 
 	telemetries, err := h.telemetryService.GetTelemetryByVehicle(r.Context(), id)
 	if err != nil {
-		h.respondError(w, r, err)
+		respondError(w, r, h.logger, err)
 		return
 	}
 
@@ -202,20 +148,21 @@ func (h *TelemetryHandler) HandleGetTelemetryByVehicle(w http.ResponseWriter, r 
 		})
 	}
 
-	h.respondSuccess(w, r, "Telemetry list", responses)
+	respondSuccess(w, r, "Telemetry list", h.logger, responses)
 }
 
 // HandleDeleteTelemetryByID удаляет телеметрию по её ID
 func (h *TelemetryHandler) HandleDeleteTelemetryByID(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		h.respondError(w, r, model.ErrInvalidTelemetryID)
+		respondError(w, r, h.logger, model.ErrInvalidTelemetryID)
 		return
 	}
 	t, err := h.telemetryService.DeleteTelemetryByID(r.Context(), id)
 	if err != nil {
-		h.respondError(w, r, err)
+		respondError(w, r, h.logger, err)
 		return
 	}
 
@@ -226,20 +173,21 @@ func (h *TelemetryHandler) HandleDeleteTelemetryByID(w http.ResponseWriter, r *h
 		ReceivedAt:  t.ReceivedAt,
 	}
 
-	h.respondSuccess(w, r, "Telemetry deleted", telemetryResponse)
+	respondSuccess(w, r, "Telemetry deleted", h.logger, telemetryResponse)
 }
 
 // HandleDeleteTelemetryByVehicle удаляет телеметрию по машине по её ID
 func (h *TelemetryHandler) HandleDeleteTelemetryByVehicleID(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		h.respondError(w, r, model.ErrInvalidVehicleID)
+		respondError(w, r, h.logger, model.ErrInvalidVehicleID)
 		return
 	}
 	telemetries, err := h.telemetryService.DeleteTelemetryByVehicle(r.Context(), id)
 	if err != nil {
-		h.respondError(w, r, err)
+		respondError(w, r, h.logger, err)
 		return
 	}
 	responses := make([]dto.TelemetryResponse, 0, len(telemetries))
@@ -252,5 +200,5 @@ func (h *TelemetryHandler) HandleDeleteTelemetryByVehicleID(w http.ResponseWrite
 		})
 	}
 
-	h.respondSuccess(w, r, "Telemetries of vehicle deleted", responses)
+	respondSuccess(w, r, "Telemetries of vehicle deleted", h.logger, responses)
 }

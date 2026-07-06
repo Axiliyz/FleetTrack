@@ -3,6 +3,7 @@ package model
 
 import "time"
 
+// TelemetryFilter участвует в фильтрации через Query параметры
 type TelemetryFilter struct {
 	VehicleID      *int
 	DeviceID       *int

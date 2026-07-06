@@ -97,48 +97,39 @@ func (s *TelemetryService) ProcessTelemetry(ctx context.Context, t model.Telemet
 // Возвращает срез всех телеметрий(с возможностью фильтрации), либо ошибку
 func (s *TelemetryService) GetTelemetryList(ctx context.Context, filter model.TelemetryFilter) ([]model.Telemetry, error) {
 	if filter.From != nil && filter.To != nil && filter.From.After(*filter.To) {
-		s.logger.Error("Wrong datetime(from>to)")
 		return nil, model.ErrInvalidTimestamp
 	}
 	if filter.FuelMin != nil && filter.FuelMax != nil &&
 		*filter.FuelMin > *filter.FuelMax {
-		s.logger.Error("Wrong fuel(min>max)")
 		return nil, model.ErrInvalidFuel
 	}
 	if filter.LatMin != nil && filter.LatMax != nil &&
 		*filter.LatMin > *filter.LatMax {
-		s.logger.Error("Wrong coords(min>max)")
 		return nil, model.ErrInvalidCoords
 	}
 
 	if filter.LonMin != nil && filter.LonMax != nil &&
 		*filter.LonMin > *filter.LonMax {
-		s.logger.Error("Wrong coords(min>max)")
 		return nil, model.ErrInvalidCoords
 	}
 
 	if filter.DeviceID != nil && *filter.DeviceID < 0 {
-		s.logger.Error("wrong device id(must be > 0)")
 		return nil, model.ErrInvalidDeviceID
 	}
 
 	if filter.VehicleID != nil && *filter.VehicleID < 0 {
-		s.logger.Error("wrong vehicle id(must be > 0)")
 		return nil, model.ErrInvalidVehicleID
 	}
 
 	if filter.DriverID != nil && *filter.DriverID < 0 {
-		s.logger.Error("wrong driver id(must be > 0)")
 		return nil, model.ErrInvalidDriverID
 	}
 
 	if filter.TripID != nil && *filter.TripID < 0 {
-		s.logger.Error("wrong trip id(must be > 0)")
 		return nil, model.ErrInvalidTripID
 	}
 
 	if filter.OrganizationID != nil && *filter.OrganizationID < 0 {
-		s.logger.Error("wrong organization id(must be > 0)")
 		return nil, model.ErrInvalidOrganizationID
 	}
 
