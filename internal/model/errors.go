@@ -25,4 +25,12 @@ var (
 	ErrInvalidFloat          = errors.New("invalid float(must be > 0)")
 	ErrMissingDBVars         = errors.New("missing required DB env vars")
 	ErrConnectingDB          = errors.New("error connecting to DB")
+
+	// Vehicle errors
+	ErrInvalidVIN         = errors.New("invalid vin")
+	ErrInvalidStatus      = errors.New("invalid status")
+	ErrInvalidModel       = errors.New("invalid car model")
+	ErrDuplicateVIN       = errors.New("vehicle with this vin already exists")
+	ErrDuplicatePlate     = errors.New("vehicle with this number plate already exists")
+	ErrInvalidNumberPlate = errors.New("invalid number plate")
 )
