@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"fleettrack/internal/logger"
 )
 
@@ -21,6 +20,6 @@ func NewAssignmentService(a AssignmentRepository, d DeviceRepository, v VehicleR
 	}
 }
 
-func (s *AssignmentService) AssignDevice(ctx context.Context, deviceID int, vehicleID int) error {
+// func (s *AssignmentService) AssignDevice(ctx context.Context, deviceID int, vehicleID int) error {
 
-}
+// }
