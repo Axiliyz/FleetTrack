@@ -33,4 +33,9 @@ var (
 	ErrDuplicateVIN       = errors.New("vehicle with this vin already exists")
 	ErrDuplicatePlate     = errors.New("vehicle with this number plate already exists")
 	ErrInvalidNumberPlate = errors.New("invalid number plate")
+	ErrVehicleIsBusy      = errors.New("vehicle is busy")
+
+	// Devices errors
+	ErrDeviceAlreadyAssigned = errors.New("device is already assigned")
+	ErrDeviceIsBusy          = errors.New("device is active or on maintenance")
 )

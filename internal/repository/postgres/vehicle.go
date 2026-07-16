@@ -10,7 +10,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const pgUniqueViolationCode = "23505"
@@ -38,9 +37,9 @@ type PostgresVehicleRepository struct {
 }
 
 // NewPostgresVehicleRepository создаёт новый репозиторий автомобилей
-func NewPostgresVehicleRepository(pool *pgxpool.Pool) *PostgresVehicleRepository {
+func NewPostgresVehicleRepository(db DBTX) *PostgresVehicleRepository {
 	return &PostgresVehicleRepository{
-		db: pool,
+		db: db,
 	}
 }
 

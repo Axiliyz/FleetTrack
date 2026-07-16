@@ -1,5 +1,7 @@
 package model
 
+import "time"
+
 type DeviceStatus string
 
 const (
@@ -15,6 +17,7 @@ type Device struct {
 	ID           int
 	SerialNumber string
 	Status       DeviceStatus
+	CreatedAt    time.Time
 }
 
 // IsDeviceStatusValid проверяет, входит ли статус в допустимый список

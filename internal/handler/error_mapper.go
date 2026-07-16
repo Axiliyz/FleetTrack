@@ -172,6 +172,24 @@ func mapError(err error) HTTPError {
 			Status:  http.StatusBadRequest,
 		}
 
+	case errors.Is(err, model.ErrDeviceAlreadyAssigned):
+		return HTTPError{
+			Message: "device is already assigned",
+			Status:  http.StatusConflict,
+		}
+
+	case errors.Is(err, model.ErrVehicleIsBusy):
+		return HTTPError{
+			Message: "vehicle is busy",
+			Status:  http.StatusConflict,
+		}
+
+	case errors.Is(err, model.ErrDeviceIsBusy):
+		return HTTPError{
+			Message: "device is active or on maintenance",
+			Status:  http.StatusConflict,
+		}
+
 	default:
 		return HTTPError{
 			Message: "unknown error",
