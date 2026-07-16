@@ -34,18 +34,20 @@ func mapUniqueViolation(err error) error {
 
 // PostgresVehicleRepository хранит автомобили в PostgreSQL
 type PostgresVehicleRepository struct {
-	pool *pgxpool.Pool
+	db DBTX
 }
 
 // NewPostgresVehicleRepository создаёт новый репозиторий автомобилей
 func NewPostgresVehicleRepository(pool *pgxpool.Pool) *PostgresVehicleRepository {
 	return &PostgresVehicleRepository{
-		pool: pool,
+		db: pool,
 	}
 }
 
 // Create для PostgresVehicleRepository сохраняет новую машину в БД
 func (r *PostgresVehicleRepository) Create(ctx context.Context, v *model.Vehicle) error {
+	ctx, cancel := SetDBTimeout(ctx, 2)
+	defer cancel()
 	const query = `
 	INSERT INTO vehicles (
 		organization_id,
@@ -55,7 +57,7 @@ func (r *PostgresVehicleRepository) Create(ctx context.Context, v *model.Vehicle
 		status
 	)
 	VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at`
-	err := r.pool.QueryRow(ctx,
+	err := r.db.QueryRow(ctx,
 		query,
 		v.OrganizationID,
 		v.VIN,
@@ -75,7 +77,7 @@ func (r *PostgresVehicleRepository) GetByID(ctx context.Context, id int) (model.
 	SELECT id, organization_id, vin, number_plate, model, status, created_at, updated_at
 	FROM vehicles WHERE id = $1`
 	var v model.Vehicle
-	err := r.pool.QueryRow(ctx, query, id).Scan(
+	err := r.db.QueryRow(ctx, query, id).Scan(
 		&v.ID, &v.OrganizationID, &v.VIN, &v.NumberPlate,
 		&v.Model, &v.Status, &v.CreatedAt, &v.UpdatedAt,
 	)
@@ -136,6 +138,9 @@ func buildVehicleWhereClause(filter model.VehicleFilter) (string, []any) {
 
 // GetList для PostgresVehicleRepository возвращает список машин
 func (r *PostgresVehicleRepository) GetList(ctx context.Context, filter model.VehicleFilter) ([]model.Vehicle, error) {
+	ctx, cancel := SetDBTimeout(ctx, 5)
+	defer cancel()
+
 	whereVehicleClause, args := buildVehicleWhereClause(filter)
 	query := fmt.Sprintf(`
 		SELECT 
@@ -151,7 +156,7 @@ func (r *PostgresVehicleRepository) GetList(ctx context.Context, filter model.Ve
 		whereVehicleClause, len(args)+1, len(args)+2,
 	)
 	args = append(args, filter.Limit, filter.Offset)
-	rows, err := r.pool.Query(ctx, query, args...)
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -173,12 +178,14 @@ func (r *PostgresVehicleRepository) GetList(ctx context.Context, filter model.Ve
 
 // Delete для PostgresVehicleRepository удаляет машину по её ID
 func (r *PostgresVehicleRepository) Delete(ctx context.Context, id int) (model.Vehicle, error) {
+	ctx, cancel := SetDBTimeout(ctx, 5)
+	defer cancel()
 	const query = `
 	UPDATE vehicles SET status = 'DELETED'
 	WHERE id = $1
 	RETURNING id, organization_id, vin, number_plate, model, status, created_at, updated_at`
 	var v model.Vehicle
-	err := r.pool.QueryRow(ctx, query, id).Scan(
+	err := r.db.QueryRow(ctx, query, id).Scan(
 		&v.ID, &v.OrganizationID, &v.VIN, &v.NumberPlate,
 		&v.Model, &v.Status, &v.CreatedAt, &v.UpdatedAt,
 	)
@@ -219,6 +226,8 @@ func buildVehicleSetClause(updater model.UpdateVehicle) (string, []any) {
 
 // Update для PostgresVehicleRepository обновляет некоторые данные авто по ID
 func (r *PostgresVehicleRepository) Update(ctx context.Context, id int, upd model.UpdateVehicle) (model.Vehicle, error) {
+	ctx, cancel := SetDBTimeout(ctx, 2)
+	defer cancel()
 	setClause, args := buildVehicleSetClause(upd)
 	if setClause == "" {
 		return r.GetByID(ctx, id)
@@ -232,7 +241,7 @@ func (r *PostgresVehicleRepository) Update(ctx context.Context, id int, upd mode
 
 	var v model.Vehicle
 	args = append(args, id)
-	err := r.pool.QueryRow(ctx, query, args...).Scan(
+	err := r.db.QueryRow(ctx, query, args...).Scan(
 		&v.ID, &v.OrganizationID, &v.VIN, &v.NumberPlate,
 		&v.Model, &v.Status, &v.CreatedAt, &v.UpdatedAt,
 	)

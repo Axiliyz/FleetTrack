@@ -10,12 +10,19 @@ import (
 	"fleettrack/internal/repository/postgres"
 	"fleettrack/internal/service"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	logger := logger.NewStdLogger(logger.DebugLevel)
 
 	cfg, err := config.Load()
@@ -62,10 +69,25 @@ func main() {
 		Addr:    ":" + cfg.API.Port,
 		Handler: router,
 	}
-	err = srv.ListenAndServe()
-	if err != nil && err != http.ErrServerClosed {
+
+	go func() {
+		err = srv.ListenAndServe()
+		if err != nil && err != http.ErrServerClosed {
+			logger.Error(err.Error())
+			return
+		}
+	}()
+
+	<-ctx.Done()
+	logger.Info("Got signal to shutdown")
+	shutdownCtx, cancel := context.WithTimeout(
+		context.Background(), 10*time.Second,
+	)
+
+	defer cancel()
+	if err = srv.Shutdown(shutdownCtx); err != nil {
 		logger.Error(err.Error())
 		return
 	}
-
+	logger.Info("Served successfully stopped")
 }
