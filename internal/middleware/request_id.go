@@ -1,4 +1,4 @@
-// Package middleware для выставления uuid запроса
+// Package middleware для автоматической обработки запросов
 package middleware
 
 import (
