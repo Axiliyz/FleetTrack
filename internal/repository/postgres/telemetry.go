@@ -7,6 +7,7 @@ import (
 	"fleettrack/internal/model"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,6 +16,11 @@ import (
 // PostgresTelemetryRepository позволяет сохранять данные в PostgreSQL
 type PostgresTelemetryRepository struct {
 	pool *pgxpool.Pool
+}
+
+// SetDBTimeout нужен чтобы отменять контекст через N секунд
+func SetDBTimeout(ctx context.Context, dur time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(ctx, dur*time.Second)
 }
 
 // NewPostgresTelemetryRepository создаёт репозиторий для сохранения в БД PostgreSQL
@@ -27,8 +33,19 @@ func NewPostgresTelemetryRepository(pool *pgxpool.Pool) *PostgresTelemetryReposi
 // Save для PostgresTelemetryRepository сохраняет телеметрию в БД PostgreSQL
 // Возвращает ошибку
 func (r *PostgresTelemetryRepository) Save(ctx context.Context, t *model.Telemetry) error {
+	ctx, cancel := SetDBTimeout(ctx, 2)
+	defer cancel()
+
 	err := r.pool.QueryRow(ctx,
-		"insert into telemetry(organization_id, vehicle_id, device_id, latitude, longitude, fuel) values ($1, $2, $3, $4, $5, $6) RETURNING id",
+		`INSERT INTO telemetry
+		(organization_id, 
+		vehicle_id, 
+		device_id, 
+		latitude, 
+		longitude, 
+		fuel) 
+		VALUES ($1, $2, $3, $4, $5, $6) 
+		RETURNING id`,
 		1, t.VehicleID, t.DeviceID, t.Lat, t.Lon, t.Fuel,
 	).Scan(&t.TelemetryID)
 	return err
@@ -102,6 +119,9 @@ func buildWhereClause(filter model.TelemetryFilter) (string, []any) {
 
 // GetList для PostgresTelemetryRepository возвращает полный список телеметрии
 func (r *PostgresTelemetryRepository) GetList(ctx context.Context, filter model.TelemetryFilter) ([]model.Telemetry, error) {
+	ctx, cancel := SetDBTimeout(ctx, 5)
+	defer cancel()
+
 	whereClause, args := buildWhereClause(filter)
 	query := fmt.Sprintf(`SELECT id, device_id, vehicle_id, latitude, longitude, fuel, received_at, device_timestamp
 		FROM telemetry %s ORDER BY received_at DESC LIMIT $%d OFFSET $%d`, whereClause, len(args)+1, len(args)+2)
@@ -143,6 +163,9 @@ func (r *PostgresTelemetryRepository) GetItemByID(ctx context.Context, id int) (
 
 // GetListByVehicle для PostgresTelemetryRepository возвращает всю телеметрию для конкретной машины
 func (r *PostgresTelemetryRepository) GetListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error) {
+	ctx, cancel := SetDBTimeout(ctx, 5)
+	defer cancel()
+
 	query := `SELECT id, organization_id, vehicle_id, device_id, latitude, longitude, fuel, received_at, device_timestamp FROM telemetry WHERE vehicle_id = $1`
 	rows, err := r.pool.Query(ctx, query, id)
 	if err != nil {
@@ -170,6 +193,9 @@ func (r *PostgresTelemetryRepository) GetListByVehicle(ctx context.Context, id i
 
 // DeleteListByVehicle для PostgresTelemetryRepository удаляет всю телеметрию для конкретной машины
 func (r *PostgresTelemetryRepository) DeleteListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error) {
+	ctx, cancel := SetDBTimeout(ctx, 5)
+	defer cancel()
+
 	query := `DELETE FROM telemetry WHERE vehicle_id = $1
 		RETURNING id, organization_id, vehicle_id, device_id, latitude, longitude, fuel, received_at, device_timestamp`
 	rows, err := r.pool.Query(ctx, query, id)

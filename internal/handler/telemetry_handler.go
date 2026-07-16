@@ -71,7 +71,6 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 
 // HandleGetTelemetry возвращает список телеметрии
 func (h *TelemetryHandler) HandleGetListTelemetry(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	filter, err := dto.ParseTelemetryFilter(r.URL.Query())
 	if err != nil {
 		respondError(w, r, h.logger, err)
@@ -98,7 +97,6 @@ func (h *TelemetryHandler) HandleGetListTelemetry(w http.ResponseWriter, r *http
 
 // HandleGetTelemetryByID возвращает запись телеметрии по ID
 func (h *TelemetryHandler) HandleGetTelemetryByID(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -124,7 +122,6 @@ func (h *TelemetryHandler) HandleGetTelemetryByID(w http.ResponseWriter, r *http
 
 // HandleGetTelemetryByVehicle возвращает все записи телеметрии по ID машины
 func (h *TelemetryHandler) HandleGetTelemetryByVehicle(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -153,7 +150,6 @@ func (h *TelemetryHandler) HandleGetTelemetryByVehicle(w http.ResponseWriter, r 
 
 // HandleDeleteTelemetryByID удаляет телеметрию по её ID
 func (h *TelemetryHandler) HandleDeleteTelemetryByID(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -178,7 +174,6 @@ func (h *TelemetryHandler) HandleDeleteTelemetryByID(w http.ResponseWriter, r *h
 
 // HandleDeleteTelemetryByVehicle удаляет телеметрию по машине по её ID
 func (h *TelemetryHandler) HandleDeleteTelemetryByVehicleID(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {

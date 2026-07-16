@@ -72,7 +72,6 @@ func (h *VehicleHandler) HandlePostVehicle(w http.ResponseWriter, r *http.Reques
 
 // HandleDeleteVehicle обрабатывает DELETE запрос на удаление автомобиля по ID
 func (h *VehicleHandler) HandleDeleteVehicle(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -100,7 +99,6 @@ func (h *VehicleHandler) HandleDeleteVehicle(w http.ResponseWriter, r *http.Requ
 
 // HandleGetListVehicle возвращает список автомобилей с фильтрами
 func (h *VehicleHandler) HandleGetListVehicle(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	filter, err := dto.ParseVehicleFilter(r.URL.Query())
 	if err != nil {
 		respondError(w, r, h.logger, err)
@@ -163,7 +161,6 @@ func (h *VehicleHandler) HandlePatchVehicle(w http.ResponseWriter, r *http.Reque
 
 // HandleGetVehicleByID получает машину по ID
 func (h *VehicleHandler) HandleGetVehicleByID(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
 		respondError(w, r, h.logger, model.ErrInvalidVehicleID)
