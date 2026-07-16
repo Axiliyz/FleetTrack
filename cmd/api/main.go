@@ -31,7 +31,12 @@ func main() {
 		return
 	}
 
-	pool, err := pgxpool.New(context.Background(), cfg.DB.DSN())
+	pool, err := pgxpool.New(ctx, cfg.DB.DSN())
+	if err != nil {
+		logger.Error(err.Error())
+		return
+	}
+	err = pool.Ping(ctx)
 	if err != nil {
 		logger.Error(err.Error())
 		return
@@ -48,6 +53,7 @@ func main() {
 
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
+	router.Use(middleware.TimeoutMiddleware(config.RequestTimeout))
 	router.MethodNotAllowed((func(w http.ResponseWriter, r *http.Request) {
 		logger.Error(model.ErrInvalidMethod.Error())
 		w.WriteHeader(http.StatusMethodNotAllowed)
