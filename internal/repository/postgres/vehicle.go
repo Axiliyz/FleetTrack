@@ -46,8 +46,6 @@ func NewPostgresVehicleRepository(pool *pgxpool.Pool) *PostgresVehicleRepository
 
 // Create для PostgresVehicleRepository сохраняет новую машину в БД
 func (r *PostgresVehicleRepository) Create(ctx context.Context, v *model.Vehicle) error {
-	ctx, cancel := SetDBTimeout(ctx, 2)
-	defer cancel()
 	const query = `
 	INSERT INTO vehicles (
 		organization_id,
@@ -138,9 +136,6 @@ func buildVehicleWhereClause(filter model.VehicleFilter) (string, []any) {
 
 // GetList для PostgresVehicleRepository возвращает список машин
 func (r *PostgresVehicleRepository) GetList(ctx context.Context, filter model.VehicleFilter) ([]model.Vehicle, error) {
-	ctx, cancel := SetDBTimeout(ctx, 5)
-	defer cancel()
-
 	whereVehicleClause, args := buildVehicleWhereClause(filter)
 	query := fmt.Sprintf(`
 		SELECT 
@@ -178,8 +173,6 @@ func (r *PostgresVehicleRepository) GetList(ctx context.Context, filter model.Ve
 
 // Delete для PostgresVehicleRepository удаляет машину по её ID
 func (r *PostgresVehicleRepository) Delete(ctx context.Context, id int) (model.Vehicle, error) {
-	ctx, cancel := SetDBTimeout(ctx, 5)
-	defer cancel()
 	const query = `
 	UPDATE vehicles SET status = 'DELETED'
 	WHERE id = $1
@@ -226,8 +219,6 @@ func buildVehicleSetClause(updater model.UpdateVehicle) (string, []any) {
 
 // Update для PostgresVehicleRepository обновляет некоторые данные авто по ID
 func (r *PostgresVehicleRepository) Update(ctx context.Context, id int, upd model.UpdateVehicle) (model.Vehicle, error) {
-	ctx, cancel := SetDBTimeout(ctx, 2)
-	defer cancel()
 	setClause, args := buildVehicleSetClause(upd)
 	if setClause == "" {
 		return r.GetByID(ctx, id)

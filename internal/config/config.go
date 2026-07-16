@@ -7,6 +7,8 @@ import (
 	"os"
 )
 
+const RequestTimeout = 5
+
 type Config struct {
 	DB  DBConfig
 	API APIConfig
