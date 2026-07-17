@@ -1,4 +1,3 @@
-// Package model содержит основные сущности логики
 package model
 
 import "errors"
@@ -27,6 +26,7 @@ var (
 	ErrConnectingDB          = errors.New("error connecting to DB")
 
 	// Vehicle errors
+
 	ErrInvalidVIN         = errors.New("invalid vin")
 	ErrInvalidStatus      = errors.New("invalid status")
 	ErrInvalidModel       = errors.New("invalid car model")
@@ -36,6 +36,7 @@ var (
 	ErrVehicleIsBusy      = errors.New("vehicle is busy")
 
 	// Devices errors
+
 	ErrDeviceAlreadyAssigned = errors.New("device is already assigned")
 	ErrDeviceIsBusy          = errors.New("device is active or on maintenance")
 )

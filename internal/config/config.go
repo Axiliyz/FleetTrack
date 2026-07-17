@@ -1,4 +1,4 @@
-// package config определяет параметры подключения к БД и API
+// Package config определяет параметры подключения к БД и API
 package config
 
 import (
@@ -7,13 +7,16 @@ import (
 	"os"
 )
 
+// RequestTimeout — таймаут в секундах, применяемый к каждому HTTP-запросу.
 const RequestTimeout = 5
 
+// Config хранит все параметры конфигурации приложения.
 type Config struct {
 	DB  DBConfig
 	API APIConfig
 }
 
+// DBConfig хранит параметры подключения к PostgreSQL.
 type DBConfig struct {
 	User     string
 	Password string
@@ -22,10 +25,12 @@ type DBConfig struct {
 	Name     string
 }
 
+// APIConfig хранит параметры HTTP API.
 type APIConfig struct {
 	Port string
 }
 
+// DSN формирует строку подключения к PostgreSQL из параметров DBConfig.
 func (c DBConfig) DSN() string {
 	u := url.URL{
 		Scheme: "postgres",
@@ -36,6 +41,7 @@ func (c DBConfig) DSN() string {
 	return u.String()
 }
 
+// Load читает конфигурацию из переменных окружения.
 func Load() (*Config, error) {
 	cfg := &Config{
 		DB: DBConfig{

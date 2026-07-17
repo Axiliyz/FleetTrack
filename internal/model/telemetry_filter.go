@@ -1,4 +1,3 @@
-// Package model содержит основные сущности логики
 package model
 
 import "time"

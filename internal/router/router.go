@@ -1,3 +1,4 @@
+// Package router собирает HTTP-роуты приложения и подключает middleware.
 package router
 
 import (
@@ -11,7 +12,8 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func NewRouter(telemetryHandler *handler.TelemetryHandler, vehicleHandler *handler.VehicleHandler, logger logger.Logger) http.Handler {
+// NewRouter собирает HTTP-роутер приложения и подключает middleware
+func NewRouter(telemetryHandler *handler.TelemetryHandler, vehicleHandler *handler.VehicleHandler, assignmentHandler *handler.AssignmentHandler, logger logger.Logger) http.Handler {
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(middleware.TimeoutMiddleware(config.RequestTimeout))
@@ -32,5 +34,6 @@ func NewRouter(telemetryHandler *handler.TelemetryHandler, vehicleHandler *handl
 	router.Delete("/vehicles/{id}", vehicleHandler.HandleDeleteVehicle)
 	router.Patch("/vehicles/{id}", vehicleHandler.HandlePatchVehicle)
 
+	router.Post("/assignments", assignmentHandler.HandlePostAssignment)
 	return router
 }

@@ -1,4 +1,3 @@
-// package postgres отвечает за взаимодействие с БД PostgreSQL
 package postgres
 
 import (

@@ -1,4 +1,3 @@
-// Package handler содержит приём данных из внешнего мира
 package handler
 
 import (

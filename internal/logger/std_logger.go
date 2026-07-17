@@ -1,4 +1,3 @@
-// Package logger нужен для самописного логгера
 package logger
 
 import (

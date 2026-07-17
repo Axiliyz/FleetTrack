@@ -1,4 +1,3 @@
-// Package dto для транспортировки данных
 package dto
 
 import (

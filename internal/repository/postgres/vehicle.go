@@ -4,6 +4,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fleettrack/internal/database"
 	"fleettrack/internal/model"
 	"fmt"
 	"strings"
@@ -33,11 +34,11 @@ func mapUniqueViolation(err error) error {
 
 // PostgresVehicleRepository хранит автомобили в PostgreSQL
 type PostgresVehicleRepository struct {
-	db DBTX
+	db database.DBTX
 }
 
 // NewPostgresVehicleRepository создаёт новый репозиторий автомобилей
-func NewPostgresVehicleRepository(db DBTX) *PostgresVehicleRepository {
+func NewPostgresVehicleRepository(db database.DBTX) *PostgresVehicleRepository {
 	return &PostgresVehicleRepository{
 		db: db,
 	}

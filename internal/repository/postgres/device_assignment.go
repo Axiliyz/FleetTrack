@@ -3,21 +3,25 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fleettrack/internal/database"
 	"fleettrack/internal/model"
 
 	"github.com/jackc/pgx/v5"
 )
 
+// PostgresAssignmentRepository хранит связи устройств и автомобилей в PostgreSQL
 type PostgresAssignmentRepository struct {
-	db DBTX
+	db database.DBTX
 }
 
-func NewPostgresAssignmentRepository(db DBTX) *PostgresAssignmentRepository {
+// NewPostgresAssignmentRepository создаёт новый репозиторий связей устройств и автомобилей
+func NewPostgresAssignmentRepository(db database.DBTX) *PostgresAssignmentRepository {
 	return &PostgresAssignmentRepository{
 		db: db,
 	}
 }
 
+// GetActiveAssignment возвращает активную (незавершённую) связь устройства с автомобилем
 func (r *PostgresAssignmentRepository) GetActiveAssignment(ctx context.Context, deviceID int) (model.DeviceAssignment, error) {
 	query := `SELECT id, vehicle_id, device_id, started_at, ended_at FROM device_assignments WHERE device_id=$1 AND ended_at IS NULL`
 	var as model.DeviceAssignment
@@ -31,6 +35,7 @@ func (r *PostgresAssignmentRepository) GetActiveAssignment(ctx context.Context, 
 	return as, nil
 }
 
+// CreateAssignment создаёт новую связь устройства с автомобилем
 func (r *PostgresAssignmentRepository) CreateAssignment(ctx context.Context, a *model.DeviceAssignment) error {
 	err := r.db.QueryRow(ctx,
 		`INSERT INTO device_assignments
@@ -40,6 +45,7 @@ func (r *PostgresAssignmentRepository) CreateAssignment(ctx context.Context, a *
 	return err
 }
 
+// EndAssignment завершает активную связь устройства, выставляя ended_at
 func (r *PostgresAssignmentRepository) EndAssignment(ctx context.Context, deviceID int) error {
 	query := `
 	UPDATE device_assignments

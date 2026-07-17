@@ -3,21 +3,25 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fleettrack/internal/database"
 	"fleettrack/internal/model"
 
 	"github.com/jackc/pgx/v5"
 )
 
+// PostgresDeviceRepository хранит устройства в PostgreSQL
 type PostgresDeviceRepository struct {
-	db DBTX
+	db database.DBTX
 }
 
-func NewPostgresDeviceRepository(db DBTX) *PostgresDeviceRepository {
+// NewPostgresDeviceRepository создаёт новый репозиторий устройств
+func NewPostgresDeviceRepository(db database.DBTX) *PostgresDeviceRepository {
 	return &PostgresDeviceRepository{
 		db: db,
 	}
 }
 
+// GetByID возвращает устройство по его ID
 func (r *PostgresDeviceRepository) GetByID(ctx context.Context, id int) (model.Device, error) {
 	query := `SELECT id, serial_number, status, created_at FROM devices WHERE id=$1`
 	var d model.Device

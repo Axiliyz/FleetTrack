@@ -2,6 +2,7 @@ package model
 
 import "time"
 
+// DeviceStatus описывает текущее состояние устройства.
 type DeviceStatus string
 
 const (
@@ -13,6 +14,7 @@ const (
 	DeviceStatusMaintenance DeviceStatus = "MAINTENANCE"
 )
 
+// Device — устройство слежения, которое может быть привязано к автомобилю.
 type Device struct {
 	ID           int
 	SerialNumber string

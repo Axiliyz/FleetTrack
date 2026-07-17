@@ -1,4 +1,3 @@
-// Package DTO для транспортировки данных
 package dto
 
 import "time"

@@ -1,4 +1,3 @@
-// Package dto для транспортировки данных
 package dto
 
 // ErrorResponse определяет структуру JSON ответа при ошибке
