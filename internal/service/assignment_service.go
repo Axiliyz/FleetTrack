@@ -15,7 +15,6 @@ type AssignmentService struct {
 	deviceRepository     DeviceRepository
 	vehicleRepository    VehicleRepository
 	pool                 *pgxpool.Pool
-	logger               logger.Logger
 }
 
 type DeviceRepository interface {
@@ -34,7 +33,6 @@ func NewAssignmentService(a AssignmentRepository, d DeviceRepository, v VehicleR
 		deviceRepository:     d,
 		vehicleRepository:    v,
 		pool:                 p,
-		logger:               l,
 	}
 }
 
@@ -46,78 +44,78 @@ func (s *AssignmentService) GetActiveAssignment(ctx context.Context, id int) mod
 	return assign
 }
 
-func (s *AssignmentService) CreateAssignment(ctx context.Context) {
-
-}
-
-func (s *AssignmentService) AssignDevice(ctx context.Context, deviceID int, vehicleID int) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		s.logger.Error(err.Error())
-		return err
-	}
-	defer tx.Rollback(ctx)
-
-	deviceRepo := postgres.NewPostgresDeviceRepository(tx)
-	assignmentRepo := postgres.NewPostgresAssignmentRepository(tx)
-	vehicleRepo := postgres.NewPostgresVehicleRepository(tx)
-	// get device
+// ValidateDevice проверяет, что устройство существует и свободно.
+func (s *AssignmentService) ValidateDevice(ctx context.Context, deviceID int, deviceRepo DeviceRepository) error {
 	device, err := deviceRepo.GetByID(ctx, deviceID)
-
-	// validate device
 	if err != nil {
-		s.logger.Error(err.Error())
 		return err
 	}
 	if device.Status != model.DeviceStatusActive {
-		s.logger.Error(model.ErrDeviceIsBusy.Error())
 		return model.ErrDeviceIsBusy
 	}
-	// get vehicle
+	return nil
+}
+
+// ValidateVehicle проверяет, что автомобиль существует и свободен.
+func (s *AssignmentService) ValidateVehicle(ctx context.Context, vehicleID int, vehicleRepo VehicleRepository) error {
 	vehicle, err := vehicleRepo.GetByID(ctx, vehicleID)
-	// validate vehicle
 	if err != nil {
-		s.logger.Error(err.Error())
 		return err
 	}
 	if vehicle.Status != model.VehicleStatusIdle {
-		s.logger.Error(model.ErrVehicleIsBusy.Error())
 		return model.ErrVehicleIsBusy
 	}
-	// check assignment
-	_, err = assignmentRepo.GetActiveAssignment(ctx, deviceID)
+	return nil
+}
 
-	if err != nil && !errors.Is(err, model.ErrNotFound) {
-		s.logger.Error(err.Error())
+// EndPreviousAssignment завершает активную связь устройства, если она есть.
+// Отсутствие активной связи ошибкой не считается.
+func (s *AssignmentService) EndPreviousAssignment(ctx context.Context, deviceID int, assignmentRepo AssignmentRepository) error {
+	_, err := assignmentRepo.GetActiveAssignment(ctx, deviceID)
+	if err == nil {
+		return assignmentRepo.EndAssignment(ctx, deviceID)
+	}
+	if !errors.Is(err, model.ErrNotFound) {
 		return err
 	}
-	// create assignment
+	return nil
+}
+
+// CreateAssignment создаёт запись о связи устройства и автомобиля в БД.
+func (s *AssignmentService) CreateAssignment(ctx context.Context, deviceID int, vehicleID int, assignmentRepo AssignmentRepository) error {
 	newAssignment := model.DeviceAssignment{
 		DeviceID:  deviceID,
 		VehicleID: vehicleID,
 	}
-	switch {
-	case errors.Is(err, model.ErrNotFound):
-		if err := assignmentRepo.CreateAssignment(ctx, &newAssignment); err != nil {
-			return err
-		}
-	case err != nil:
-		s.logger.Error(err.Error())
-		return err
-	default:
-		err := assignmentRepo.EndAssignment(ctx, deviceID)
-		if err != nil {
-			return err
-		}
-		if err := assignmentRepo.CreateAssignment(ctx, &newAssignment); err != nil {
-			return err
-		}
-		if err != nil {
-			return err
-		}
-	}
-	if err := tx.Commit(ctx); err != nil {
+	return assignmentRepo.CreateAssignment(ctx, &newAssignment)
+}
+
+// AssignDevice соединяет весь пайплайн проверки и создания связи
+func (s *AssignmentService) AssignDevice(ctx context.Context, deviceID int, vehicleID int) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
 		return err
 	}
-	return nil
+	defer tx.Rollback(ctx)
+
+	// Временное решение: создание tx-bound репозиториев собрано в одном месте,
+	// позже этим займётся TransactionManager.
+	assignmentRepo := postgres.NewPostgresAssignmentRepository(tx)
+	deviceRepo := postgres.NewPostgresDeviceRepository(tx)
+	vehicleRepo := postgres.NewPostgresVehicleRepository(tx)
+
+	if err := s.ValidateDevice(ctx, deviceID, deviceRepo); err != nil {
+		return err
+	}
+	if err := s.ValidateVehicle(ctx, vehicleID, vehicleRepo); err != nil {
+		return err
+	}
+	if err := s.EndPreviousAssignment(ctx, deviceID, assignmentRepo); err != nil {
+		return err
+	}
+	if err := s.CreateAssignment(ctx, deviceID, vehicleID, assignmentRepo); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
 }
