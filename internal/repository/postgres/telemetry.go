@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // PostgresTelemetryRepository позволяет сохранять данные в PostgreSQL
@@ -18,9 +17,9 @@ type PostgresTelemetryRepository struct {
 }
 
 // NewPostgresTelemetryRepository создаёт репозиторий для сохранения в БД PostgreSQL
-func NewPostgresTelemetryRepository(pool *pgxpool.Pool) *PostgresTelemetryRepository {
+func NewPostgresTelemetryRepository(db DBTX) *PostgresTelemetryRepository {
 	return &PostgresTelemetryRepository{
-		db: pool,
+		db: db,
 	}
 }
 
