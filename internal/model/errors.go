@@ -39,4 +39,6 @@ var (
 
 	ErrDeviceAlreadyAssigned = errors.New("device is already assigned")
 	ErrDeviceIsBusy          = errors.New("device is active or on maintenance")
+	ErrInvalidSerialNumber   = errors.New("invalid serial number")
+	ErrDuplicateSerialNumber = errors.New("device with this serial number already exists")
 )

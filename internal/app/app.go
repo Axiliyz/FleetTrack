@@ -46,6 +46,10 @@ func New(cfg config.Config) (*App, error) {
 	)
 	assignmentHandler := handler.NewAssignmentHandler(assignmentService, logger)
 
+	deviceRepo := postgres.NewPostgresDeviceRepository(pool)
+	deviceService := service.NewDeviceService(deviceRepo, logger, txManager, repoFactory)
+	deviceHandler := handler.NewDeviceHandler(deviceService, logger)
+
 	telemetryRepo := postgres.NewPostgresTelemetryRepository(pool)
 	telemetryService := service.NewTelemetryService(telemetryRepo, logger)
 	telemetryHandler := handler.NewTelemetryHandler(telemetryService, logger)
@@ -54,7 +58,7 @@ func New(cfg config.Config) (*App, error) {
 	vehicleService := service.NewVehicleService(vehicleRepo, logger)
 	vehicleHandler := handler.NewVehicleHandler(vehicleService, logger)
 
-	router := router.NewRouter(telemetryHandler, vehicleHandler, assignmentHandler, logger)
+	router := router.NewRouter(telemetryHandler, vehicleHandler, assignmentHandler, deviceHandler, logger)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.API.Port,

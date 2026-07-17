@@ -27,6 +27,8 @@ func mapUniqueViolation(err error) error {
 		return model.ErrDuplicateVIN
 	case "vehicles_number_plate_key":
 		return model.ErrDuplicatePlate
+	case "devices_serial_number_key":
+		return model.ErrDuplicateSerialNumber
 	default:
 		return err
 	}
