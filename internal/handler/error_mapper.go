@@ -190,6 +190,18 @@ func mapError(err error) HTTPError {
 			Status:  http.StatusConflict,
 		}
 
+	case errors.Is(err, model.ErrInvalidSerialNumber):
+		return HTTPError{
+			Message: "invalid serial number",
+			Status:  http.StatusBadRequest,
+		}
+
+	case errors.Is(err, model.ErrDuplicateSerialNumber):
+		return HTTPError{
+			Message: "device with this serial number already exists",
+			Status:  http.StatusConflict,
+		}
+
 	default:
 		return HTTPError{
 			Message: "unknown error",

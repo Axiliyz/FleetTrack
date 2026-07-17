@@ -55,5 +55,12 @@ type VehicleRepository interface {
 
 // DeviceRepository описывает доступ к устройствам, необходимый сервису связей.
 type DeviceRepository interface {
+	// GetByID возвращает данные по девайсу по его ID
+	// Или ошибку, если не нашлось
 	GetByID(ctx context.Context, deviceID int) (model.Device, error)
+	// Create создаёт новый девайс
+	// Возвращает ошибку если не удалось
+	Create(ctx context.Context, d *model.Device) error
+	// Delete удаляет девайс по ID
+	Delete(ctx context.Context, id int) (model.Device, error)
 }
