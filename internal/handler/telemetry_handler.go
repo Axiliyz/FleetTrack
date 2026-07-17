@@ -69,7 +69,7 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 	respondSuccess(w, r, "Telemetry got to post", h.logger, telemetryResponse)
 }
 
-// HandleGetTelemetry возвращает список телеметрии
+// HandleGetListTelemetry возвращает список телеметрии
 func (h *TelemetryHandler) HandleGetListTelemetry(w http.ResponseWriter, r *http.Request) {
 	filter, err := dto.ParseTelemetryFilter(r.URL.Query())
 	if err != nil {
@@ -172,7 +172,7 @@ func (h *TelemetryHandler) HandleDeleteTelemetryByID(w http.ResponseWriter, r *h
 	respondSuccess(w, r, "Telemetry deleted", h.logger, telemetryResponse)
 }
 
-// HandleDeleteTelemetryByVehicle удаляет телеметрию по машине по её ID
+// HandleDeleteTelemetryByVehicleID удаляет телеметрию по машине по её ID
 func (h *TelemetryHandler) HandleDeleteTelemetryByVehicleID(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)

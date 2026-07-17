@@ -1,4 +1,3 @@
-// Package middleware для автоматической обработки запросов
 package middleware
 
 import (
@@ -7,6 +6,8 @@ import (
 	"time"
 )
 
+// TimeoutMiddleware ограничивает время обработки запроса, отменяя контекст
+// запроса по истечении timeout.
 func TimeoutMiddleware(timeout time.Duration) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

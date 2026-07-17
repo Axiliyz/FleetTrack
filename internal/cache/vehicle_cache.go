@@ -1,3 +1,4 @@
+// Package cache содержит in-memory кэш для доменных сущностей.
 package cache
 
 import (

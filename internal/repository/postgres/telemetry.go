@@ -1,9 +1,9 @@
-// package postgres отвечает за взаимодействие с БД PostgreSQL
 package postgres
 
 import (
 	"context"
 	"errors"
+	"fleettrack/internal/database"
 	"fleettrack/internal/model"
 	"fmt"
 	"strings"
@@ -13,11 +13,11 @@ import (
 
 // PostgresTelemetryRepository позволяет сохранять данные в PostgreSQL
 type PostgresTelemetryRepository struct {
-	db DBTX
+	db database.DBTX
 }
 
 // NewPostgresTelemetryRepository создаёт репозиторий для сохранения в БД PostgreSQL
-func NewPostgresTelemetryRepository(db DBTX) *PostgresTelemetryRepository {
+func NewPostgresTelemetryRepository(db database.DBTX) *PostgresTelemetryRepository {
 	return &PostgresTelemetryRepository{
 		db: db,
 	}

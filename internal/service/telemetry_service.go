@@ -5,35 +5,19 @@ import (
 	"context"
 	"fleettrack/internal/logger"
 	"fleettrack/internal/model"
+	"fleettrack/internal/repository"
 	"fmt"
 	"time"
 )
 
-// TelemetryRepository определяет контракт сохранения телеметрии
-type TelemetryRepository interface {
-	// Save сохраняет телеметрию в хранилище
-	// Возвращает ошибку если сохранение не удалось
-	Save(ctx context.Context, t *model.Telemetry) error
-	// GetList возвращает список всей телеметрии
-	GetList(ctx context.Context, filter model.TelemetryFilter) ([]model.Telemetry, error)
-	// GetItemByID возвращает запись телеметрии по её ID
-	GetItemByID(ctx context.Context, id int) (model.Telemetry, error)
-	// GetListByVehicle возвращает срез телеметрий по ID машины
-	GetListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error)
-	// DeleteItemByID удаляет запись по её ID
-	DeleteItemByID(ctx context.Context, id int) (model.Telemetry, error)
-	// DeleteListByVehicle удаляет список записей по ID машины
-	DeleteListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error)
-}
-
 // TelemetryService обрабатывает и валидирует телеметрию
 type TelemetryService struct {
-	repository TelemetryRepository
+	repository repository.TelemetryRepository
 	logger     logger.Logger
 }
 
 // NewTelemetryService создаёт новый сервис с заданным репозиторием и логгером
-func NewTelemetryService(r TelemetryRepository, logger logger.Logger) *TelemetryService {
+func NewTelemetryService(r repository.TelemetryRepository, logger logger.Logger) *TelemetryService {
 	return &TelemetryService{
 		repository: r,
 		logger:     logger,

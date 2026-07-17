@@ -1,40 +1,22 @@
-// Package service содержит бизнес-логику приложения
 package service
 
 import (
 	"context"
 	"fleettrack/internal/logger"
 	"fleettrack/internal/model"
+	"fleettrack/internal/repository"
 	"fleettrack/internal/validator"
 	"fmt"
 )
 
-// VehicleRepository определяет контракт хранения автомобилей в системе
-type VehicleRepository interface {
-	// Create создаёт новый автомобиль
-	// Возвращает ошибку если не удалось
-	Create(ctx context.Context, v *model.Vehicle) error
-	// GetByID возвращает данные по автомобилю по его ID
-	// Или ошибку, если не нашлось
-	GetByID(ctx context.Context, id int) (model.Vehicle, error)
-	// GetList возвращает срез автомобилей
-	// Или ошибку
-	GetList(ctx context.Context, filter model.VehicleFilter) ([]model.Vehicle, error)
-	// Delete удаляет машину по ID
-	// Возвращает удалённую машину, и ошибку, если не удалось
-	Delete(ctx context.Context, id int) (model.Vehicle, error)
-	// Update обновляет некоторые поля по авто
-	Update(ctx context.Context, id int, upd model.UpdateVehicle) (model.Vehicle, error)
-}
-
 // VehicleService нужен для обработки автомобилей
 type VehicleService struct {
-	repository VehicleRepository
+	repository repository.VehicleRepository
 	logger     logger.Logger
 }
 
-// NewVehicleSesrvice создаёт новый сервис с репозиторием и логгером
-func NewVehicleService(r VehicleRepository, l logger.Logger) *VehicleService {
+// NewVehicleService создаёт новый сервис с репозиторием и логгером
+func NewVehicleService(r repository.VehicleRepository, l logger.Logger) *VehicleService {
 	return &VehicleService{
 		repository: r,
 		logger:     l,

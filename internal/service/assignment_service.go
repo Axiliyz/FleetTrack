@@ -3,39 +3,35 @@ package service
 import (
 	"context"
 	"errors"
-	"fleettrack/internal/logger"
+	"fleettrack/internal/database"
 	"fleettrack/internal/model"
-	"fleettrack/internal/repository/postgres"
-
-	"github.com/jackc/pgx/v5/pgxpool"
+	"fleettrack/internal/repository"
+	"fleettrack/internal/repository/factory"
+	"fleettrack/internal/transaction"
 )
 
+// AssignmentService реализует бизнес-логику привязки устройств к автомобилям.
 type AssignmentService struct {
-	assignmentRepository AssignmentRepository
-	deviceRepository     DeviceRepository
-	vehicleRepository    VehicleRepository
-	pool                 *pgxpool.Pool
+	assignmentRepository repository.AssignmentRepository
+	deviceRepository     repository.DeviceRepository
+	vehicleRepository    repository.VehicleRepository
+	txManager            transaction.TransactionManager
+	repoFactory          factory.RepositoryFactory
 }
 
-type DeviceRepository interface {
-	GetByID(ctx context.Context, deviceID int) (model.Device, error)
-}
-
-type AssignmentRepository interface {
-	GetActiveAssignment(ctx context.Context, deviceID int) (model.DeviceAssignment, error)
-	CreateAssignment(ctx context.Context, assignment *model.DeviceAssignment) error
-	EndAssignment(ctx context.Context, deviceID int) error
-}
-
-func NewAssignmentService(a AssignmentRepository, d DeviceRepository, v VehicleRepository, p *pgxpool.Pool, l logger.Logger) *AssignmentService {
+// NewAssignmentService создаёт новый сервис связей устройств и автомобилей.
+func NewAssignmentService(ar repository.AssignmentRepository, dr repository.DeviceRepository, vr repository.VehicleRepository, tm transaction.TransactionManager, rf factory.RepositoryFactory) *AssignmentService {
 	return &AssignmentService{
-		assignmentRepository: a,
-		deviceRepository:     d,
-		vehicleRepository:    v,
-		pool:                 p,
+		assignmentRepository: ar,
+		deviceRepository:     dr,
+		vehicleRepository:    vr,
+		txManager:            tm,
+		repoFactory:          rf,
 	}
 }
 
+// GetActiveAssignment возвращает активную связь устройства с автомобилем.
+// При ошибке возвращает нулевое значение model.DeviceAssignment.
 func (s *AssignmentService) GetActiveAssignment(ctx context.Context, id int) model.DeviceAssignment {
 	assign, err := s.assignmentRepository.GetActiveAssignment(ctx, id)
 	if err != nil {
@@ -45,11 +41,8 @@ func (s *AssignmentService) GetActiveAssignment(ctx context.Context, id int) mod
 }
 
 // ValidateDevice проверяет, что устройство существует и свободно.
-func (s *AssignmentService) ValidateDevice(ctx context.Context, deviceID int, deviceRepo DeviceRepository) error {
-	device, err := deviceRepo.GetByID(ctx, deviceID)
-	if err != nil {
-		return err
-	}
+func (s *AssignmentService) ValidateDevice(ctx context.Context, device model.Device) error {
+
 	if device.Status != model.DeviceStatusActive {
 		return model.ErrDeviceIsBusy
 	}
@@ -57,11 +50,7 @@ func (s *AssignmentService) ValidateDevice(ctx context.Context, deviceID int, de
 }
 
 // ValidateVehicle проверяет, что автомобиль существует и свободен.
-func (s *AssignmentService) ValidateVehicle(ctx context.Context, vehicleID int, vehicleRepo VehicleRepository) error {
-	vehicle, err := vehicleRepo.GetByID(ctx, vehicleID)
-	if err != nil {
-		return err
-	}
+func (s *AssignmentService) ValidateVehicle(ctx context.Context, vehicle model.Vehicle) error {
 	if vehicle.Status != model.VehicleStatusIdle {
 		return model.ErrVehicleIsBusy
 	}
@@ -70,7 +59,7 @@ func (s *AssignmentService) ValidateVehicle(ctx context.Context, vehicleID int, 
 
 // EndPreviousAssignment завершает активную связь устройства, если она есть.
 // Отсутствие активной связи ошибкой не считается.
-func (s *AssignmentService) EndPreviousAssignment(ctx context.Context, deviceID int, assignmentRepo AssignmentRepository) error {
+func (s *AssignmentService) EndPreviousAssignment(ctx context.Context, deviceID int, assignmentRepo repository.AssignmentRepository) error {
 	_, err := assignmentRepo.GetActiveAssignment(ctx, deviceID)
 	if err == nil {
 		return assignmentRepo.EndAssignment(ctx, deviceID)
@@ -81,41 +70,31 @@ func (s *AssignmentService) EndPreviousAssignment(ctx context.Context, deviceID 
 	return nil
 }
 
-// CreateAssignment создаёт запись о связи устройства и автомобиля в БД.
-func (s *AssignmentService) CreateAssignment(ctx context.Context, deviceID int, vehicleID int, assignmentRepo AssignmentRepository) error {
-	newAssignment := model.DeviceAssignment{
-		DeviceID:  deviceID,
-		VehicleID: vehicleID,
-	}
-	return assignmentRepo.CreateAssignment(ctx, &newAssignment)
-}
-
 // AssignDevice соединяет весь пайплайн проверки и создания связи
 func (s *AssignmentService) AssignDevice(ctx context.Context, deviceID int, vehicleID int) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
+	return s.txManager.WithTx(ctx, func(tx database.DBTX) error {
+		repos := s.repoFactory.New(tx)
 
-	// Временное решение: создание tx-bound репозиториев собрано в одном месте,
-	// позже этим займётся TransactionManager.
-	assignmentRepo := postgres.NewPostgresAssignmentRepository(tx)
-	deviceRepo := postgres.NewPostgresDeviceRepository(tx)
-	vehicleRepo := postgres.NewPostgresVehicleRepository(tx)
-
-	if err := s.ValidateDevice(ctx, deviceID, deviceRepo); err != nil {
-		return err
-	}
-	if err := s.ValidateVehicle(ctx, vehicleID, vehicleRepo); err != nil {
-		return err
-	}
-	if err := s.EndPreviousAssignment(ctx, deviceID, assignmentRepo); err != nil {
-		return err
-	}
-	if err := s.CreateAssignment(ctx, deviceID, vehicleID, assignmentRepo); err != nil {
-		return err
-	}
-
-	return tx.Commit(ctx)
+		device, err := repos.Device.GetByID(ctx, deviceID)
+		if err != nil {
+			return err
+		}
+		vehicle, err := repos.Vehicle.GetByID(ctx, vehicleID)
+		if err != nil {
+			return err
+		}
+		if err := s.ValidateDevice(ctx, device); err != nil {
+			return err
+		}
+		if err := s.ValidateVehicle(ctx, vehicle); err != nil {
+			return err
+		}
+		if err := s.EndPreviousAssignment(ctx, deviceID, repos.Assignment); err != nil {
+			return err
+		}
+		return repos.Assignment.CreateAssignment(ctx, &model.DeviceAssignment{
+			DeviceID:  deviceID,
+			VehicleID: vehicleID,
+		})
+	})
 }

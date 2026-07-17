@@ -9,6 +9,7 @@ type UpdateVehicleRequest struct {
 	Status         *model.VehicleStatus `json:"status"`
 }
 
+// ToDomainModel преобразует UpdateVehicleRequest в доменную модель
 func (u *UpdateVehicleRequest) ToDomainModel() model.UpdateVehicle {
 	return model.UpdateVehicle{
 		OrganizationID: u.OrganizationID,
