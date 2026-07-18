@@ -58,7 +58,11 @@ func New(cfg config.Config) (*App, error) {
 	vehicleService := service.NewVehicleService(vehicleRepo, logger)
 	vehicleHandler := handler.NewVehicleHandler(vehicleService, logger)
 
-	router := router.NewRouter(telemetryHandler, vehicleHandler, assignmentHandler, deviceHandler, logger)
+	orgRepo := postgres.NewPostgresOrgRepository(pool)
+	orgService := service.NewOrgService(orgRepo, logger)
+	orgHandler := handler.NewOrgHandler(orgService, logger)
+
+	router := router.NewRouter(telemetryHandler, vehicleHandler, assignmentHandler, deviceHandler, orgHandler, logger)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.API.Port,
