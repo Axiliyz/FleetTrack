@@ -41,4 +41,8 @@ var (
 	ErrDeviceIsBusy          = errors.New("device is active or on maintenance")
 	ErrInvalidSerialNumber   = errors.New("invalid serial number")
 	ErrDuplicateSerialNumber = errors.New("device with this serial number already exists")
+
+	// Organization errors
+
+	ErrInvalidOrgName = errors.New("invalid organization name")
 )

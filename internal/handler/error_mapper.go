@@ -202,6 +202,12 @@ func mapError(err error) HTTPError {
 			Status:  http.StatusConflict,
 		}
 
+	case errors.Is(err, model.ErrInvalidOrgName):
+		return HTTPError{
+			Message: "invalid organization name",
+			Status:  http.StatusBadRequest,
+		}
+
 	default:
 		return HTTPError{
 			Message: "unknown error",

@@ -64,3 +64,10 @@ type DeviceRepository interface {
 	// Delete удаляет девайс по ID
 	Delete(ctx context.Context, id int) (model.Device, error)
 }
+
+// OrgRepository определяет контракт хранения организаций
+type OrgRepository interface {
+	// CreateOrg создаёт новую организацию
+	// Возвращает ошибку если не удалось
+	CreateOrg(ctx context.Context, o *model.Org) error
+}

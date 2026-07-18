@@ -13,7 +13,7 @@ import (
 )
 
 // NewRouter собирает HTTP-роутер приложения и подключает middleware
-func NewRouter(telemetryHandler *handler.TelemetryHandler, vehicleHandler *handler.VehicleHandler, assignmentHandler *handler.AssignmentHandler, deviceHandler *handler.DeviceHandler, logger logger.Logger) http.Handler {
+func NewRouter(telemetryHandler *handler.TelemetryHandler, vehicleHandler *handler.VehicleHandler, assignmentHandler *handler.AssignmentHandler, deviceHandler *handler.DeviceHandler, orgHandler *handler.OrgHandler, logger logger.Logger) http.Handler {
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(middleware.TimeoutMiddleware(config.RequestTimeout))
@@ -39,5 +39,7 @@ func NewRouter(telemetryHandler *handler.TelemetryHandler, vehicleHandler *handl
 	router.Post("/devices", deviceHandler.HandlePostDevice)
 	router.Get("/devices/{id}", deviceHandler.HandleGetDeviceByID)
 	router.Delete("/devices/{id}", deviceHandler.HandleDeleteDeviceByID)
+
+	router.Post("/organizations", orgHandler.HandlePostOrg)
 	return router
 }
