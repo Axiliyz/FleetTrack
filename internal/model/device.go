@@ -16,10 +16,10 @@ const (
 
 // Device — устройство слежения, которое может быть привязано к автомобилю.
 type Device struct {
-	ID           int
-	SerialNumber string
-	Status       DeviceStatus
-	CreatedAt    time.Time
+	ID           int          `json:"id"`
+	SerialNumber string       `json:"serial_number"`
+	Status       DeviceStatus `json:"status"`
+	CreatedAt    time.Time    `json:"created_at"`
 }
 
 // IsDeviceStatusValid проверяет, входит ли статус в допустимый список

@@ -5,10 +5,11 @@ import (
 	"fleettrack/internal/model"
 	"net/url"
 	"os"
+	"time"
 )
 
-// RequestTimeout — таймаут в секундах, применяемый к каждому HTTP-запросу.
-const RequestTimeout = 5
+// RequestTimeout — таймаут, применяемый к каждому HTTP-запросу.
+const RequestTimeout = 5 * time.Second
 
 // Config хранит все параметры конфигурации приложения.
 type Config struct {
