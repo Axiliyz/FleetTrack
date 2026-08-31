@@ -9,16 +9,19 @@ import (
 	"net/http"
 )
 
+// AssignmentHandler обрабатывает HTTP запросы, связанные со связками устройство-автомобиль
 type AssignmentHandler struct {
 	assignmentService AssignmentService
 	logger            logger.Logger
 }
 
+// AssignmentService определяет контракт бизнес-логики, необходимой AssignmentHandler
 type AssignmentService interface {
 	AssignDevice(ctx context.Context, deviceID, vehicleID int) error
 	GetActiveAssignment(ctx context.Context, deviceID int) model.DeviceAssignment
 }
 
+// NewAssignmentHandler создаёт новый AssignmentHandler с переданными сервисом и логгером
 func NewAssignmentHandler(as AssignmentService, l logger.Logger) *AssignmentHandler {
 	return &AssignmentHandler{
 		assignmentService: as,
@@ -26,6 +29,7 @@ func NewAssignmentHandler(as AssignmentService, l logger.Logger) *AssignmentHand
 	}
 }
 
+// HandlePostAssignment обрабатывает POST запрос на создание связки устройство-автомобиль
 func (h *AssignmentHandler) HandlePostAssignment(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 

@@ -11,17 +11,21 @@ Fleet management system backend. Collects vehicle telemetry data, tracks device 
 ### Running with Docker
 
 ```bash
-# Start all services (PostgreSQL, API, migrations)
+# Start all services: PostgreSQL, then migrations, then the API
 docker compose up --build
 
 # API will be available at http://localhost:8080
 ```
 
+`fleettrack-postgres-migrate` runs once PostgreSQL is healthy, applies all pending migrations, and exits;
+`api` waits for it to finish successfully before starting. To manage migrations manually (e.g. rolling back),
+use `make migrate-up` / `make migrate-down` — see [Useful Commands](#useful-commands).
+
 ### Local Development
 
 ```bash
-# Start only PostgreSQL
-docker compose up postgres -d
+# Start PostgreSQL and apply migrations
+docker compose up postgres fleettrack-postgres-migrate -d
 
 # Install dependencies
 go mod tidy
@@ -91,7 +95,7 @@ docker exec -it fleettrack-postgres-1 psql -U postgres -d fleettrack
 Insert test data:
 ```sql
 INSERT INTO organizations DEFAULT VALUES;
-INSERT INTO devices (serial_number, status) VALUES ('device-001', 'active');
+INSERT INTO devices (serial_number, status) VALUES ('device-001', 'ACTIVE');
 INSERT INTO vehicles (organization_id, vin, number_plate) VALUES (1, 'VIN123', 'ABC-001');
 INSERT INTO device_assignments (vehicle_id, device_id) VALUES (1, 1);
 ```

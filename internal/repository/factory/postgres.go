@@ -6,18 +6,22 @@ import (
 	"fleettrack/internal/repository/postgres"
 )
 
+// Repositories собирает репозитории, работающие поверх одного соединения/транзакции
 type Repositories struct {
 	Device     repository.DeviceRepository
 	Vehicle    repository.VehicleRepository
 	Assignment repository.AssignmentRepository
 }
 
+// PostgresRepositoryFactory - реализация RepositoryFactory поверх PostgreSQL
 type PostgresRepositoryFactory struct{}
 
+// NewPostgresRepositoryFactory создаёт новую фабрику репозиториев PostgreSQL
 func NewPostgresRepositoryFactory() *PostgresRepositoryFactory {
 	return &PostgresRepositoryFactory{}
 }
 
+// New создаёт набор PostgreSQL-репозиториев поверх переданного соединения/транзакции
 func (f *PostgresRepositoryFactory) New(tx database.DBTX) Repositories {
 	return Repositories{
 		Device:     postgres.NewPostgresDeviceRepository(tx),

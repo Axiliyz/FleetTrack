@@ -23,6 +23,8 @@ type StdLogger struct {
 	level Level
 }
 
+var _ Logger = (*StdLogger)(nil)
+
 // NewStdLogger создаёт новый стандартный логгер
 func NewStdLogger(level Level) *StdLogger {
 	return &StdLogger{level: level}
