@@ -162,7 +162,7 @@ func mapError(err error) HTTPError {
 
 	case errors.Is(err, model.ErrInvalidStatus):
 		return HTTPError{
-			Message: "invalid vehicle status",
+			Message: "invalid status",
 			Status:  http.StatusBadRequest,
 		}
 
@@ -205,6 +205,42 @@ func mapError(err error) HTTPError {
 	case errors.Is(err, model.ErrInvalidOrgName):
 		return HTTPError{
 			Message: "invalid organization name",
+			Status:  http.StatusBadRequest,
+		}
+
+	case errors.Is(err, model.ErrTripAlreadyFinished):
+		return HTTPError{
+			Message: "trip is already finished",
+			Status:  http.StatusConflict,
+		}
+
+	case errors.Is(err, model.ErrInvalidDriverName):
+		return HTTPError{
+			Message: "invalid driver name",
+			Status:  http.StatusBadRequest,
+		}
+
+	case errors.Is(err, model.ErrDriverHasActiveTrips):
+		return HTTPError{
+			Message: "driver has trips and can't be deleted",
+			Status:  http.StatusConflict,
+		}
+
+	case errors.Is(err, model.ErrCalculating):
+		return HTTPError{
+			Message: "can't calculate motion",
+			Status:  http.StatusBadRequest,
+		}
+
+	case errors.Is(err, model.ErrInvalidTime):
+		return HTTPError{
+			Message: "invalid time",
+			Status:  http.StatusBadRequest,
+		}
+
+	case errors.Is(err, model.ErrNoValue):
+		return HTTPError{
+			Message: "no previous value to calculate",
 			Status:  http.StatusBadRequest,
 		}
 

@@ -82,7 +82,7 @@ func TestProcessVehicle(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			v := vehicleFixture()
 			tt.mutate(&v)
-			_, err := svc.ProcessVehicle(context.Background(), v)
+			_, err := svc.CreateVehicle(context.Background(), v)
 			if err != tt.wantErr {
 				t.Errorf("got %v, want %v", err, tt.wantErr)
 			}
@@ -95,13 +95,13 @@ func TestProcessVehicle_RepositoryError(t *testing.T) {
 	log := logger.NewStdLogger(logger.DebugLevel)
 	svc := NewVehicleService(repo, log)
 
-	_, err := svc.ProcessVehicle(context.Background(), vehicleFixture())
+	_, err := svc.CreateVehicle(context.Background(), vehicleFixture())
 	if err != model.ErrDuplicateVIN {
 		t.Errorf("got %v, want %v", err, model.ErrDuplicateVIN)
 	}
 }
 
-func strPtr(v string) *string                               { return &v }
+func strPtr(v string) *string                              { return &v }
 func statusPtr(v model.VehicleStatus) *model.VehicleStatus { return &v }
 
 func TestGetVehicleList(t *testing.T) {

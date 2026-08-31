@@ -23,8 +23,8 @@ func NewVehicleService(r repository.VehicleRepository, l logger.Logger) *Vehicle
 	}
 }
 
-// ProcessVehicle добавляет в БД новую машину
-func (s *VehicleService) ProcessVehicle(ctx context.Context, v model.Vehicle) (model.Vehicle, error) {
+// CreateVehicle добавляет в БД новую машину
+func (s *VehicleService) CreateVehicle(ctx context.Context, v model.Vehicle) (model.Vehicle, error) {
 	if err := validator.ValidateVehicle(v); err != nil {
 		return model.Vehicle{}, err
 	}

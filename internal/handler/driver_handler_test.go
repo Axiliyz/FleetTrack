@@ -12,87 +12,68 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-type mockVehicleService struct {
+type mockDriverService struct {
 	returnError error
 }
 
-func (m *mockVehicleService) CreateVehicle(ctx context.Context, v model.Vehicle) (model.Vehicle, error) {
+func (m *mockDriverService) CreateDriver(ctx context.Context, d model.Driver) (model.Driver, error) {
 	if m.returnError != nil {
-		return model.Vehicle{}, m.returnError
+		return model.Driver{}, m.returnError
 	}
-	v.ID = 1
-	return v, nil
+	d.ID = 1
+	return d, nil
 }
 
-func (m *mockVehicleService) GetVehicleList(ctx context.Context, filter model.VehicleFilter) ([]model.Vehicle, error) {
+func (m *mockDriverService) GetDriverByID(ctx context.Context, id int) (model.Driver, error) {
+	if m.returnError != nil {
+		return model.Driver{}, m.returnError
+	}
+	return model.Driver{ID: id}, nil
+}
+
+func (m *mockDriverService) GetDriverList(ctx context.Context, filter model.DriverFilter) ([]model.Driver, error) {
 	if m.returnError != nil {
 		return nil, m.returnError
 	}
-	return []model.Vehicle{}, nil
+	return []model.Driver{}, nil
 }
 
-func (m *mockVehicleService) GetVehicleByID(ctx context.Context, id int) (model.Vehicle, error) {
+func (m *mockDriverService) DeleteDriverByID(ctx context.Context, id int) (model.Driver, error) {
 	if m.returnError != nil {
-		return model.Vehicle{}, m.returnError
+		return model.Driver{}, m.returnError
 	}
-	return model.Vehicle{ID: id}, nil
+	return model.Driver{ID: id}, nil
 }
 
-func (m *mockVehicleService) DeleteVehicleByID(ctx context.Context, id int) (model.Vehicle, error) {
+func (m *mockDriverService) UpdateDriverByID(ctx context.Context, id int, upd model.UpdateDriver) (model.Driver, error) {
 	if m.returnError != nil {
-		return model.Vehicle{}, m.returnError
+		return model.Driver{}, m.returnError
 	}
-	return model.Vehicle{ID: id, Status: model.VehicleStatusDeleted}, nil
+	return model.Driver{ID: id}, nil
 }
 
-func (m *mockVehicleService) UpdateVehicleByID(ctx context.Context, id int, upd model.UpdateVehicle) (model.Vehicle, error) {
-	if m.returnError != nil {
-		return model.Vehicle{}, m.returnError
-	}
-	return model.Vehicle{ID: id}, nil
-}
-
-func TestHandlePostVehicle(t *testing.T) {
+func TestHandlePostDriver(t *testing.T) {
 	tests := []struct {
 		name           string
-		serviceError   error
 		requestBody    string
+		serviceError   error
 		expectedStatus int
 	}{
-		{
-			name:           "success",
-			requestBody:    `{"organization_id": 1, "vin": "1HGCM82633A123456", "number_plate": "A123BC77", "model": "Camry"}`,
-			expectedStatus: http.StatusOK,
-		},
-		{
-			name:           "invalid json",
-			requestBody:    `not-json`,
-			expectedStatus: http.StatusBadRequest,
-		},
-		{
-			name:           "invalid vin",
-			serviceError:   model.ErrInvalidVIN,
-			requestBody:    `{"organization_id": 1, "vin": "SHORT", "number_plate": "A123BC77", "model": "Camry"}`,
-			expectedStatus: http.StatusBadRequest,
-		},
-		{
-			name:           "duplicate vin",
-			serviceError:   model.ErrDuplicateVIN,
-			requestBody:    `{"organization_id": 1, "vin": "1HGCM82633A123456", "number_plate": "A123BC77", "model": "Camry"}`,
-			expectedStatus: http.StatusConflict,
-		},
+		{name: "success", requestBody: `{"organization_id": 1, "name": "Ivan Petrov"}`, expectedStatus: http.StatusOK},
+		{name: "invalid json", requestBody: `not-json`, expectedStatus: http.StatusBadRequest},
+		{name: "invalid name", requestBody: `{"organization_id": 1, "name": ""}`, serviceError: model.ErrInvalidDriverName, expectedStatus: http.StatusBadRequest},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := &mockVehicleService{returnError: tt.serviceError}
+			service := &mockDriverService{returnError: tt.serviceError}
 			log := logger.NewStdLogger(logger.DebugLevel)
-			h := NewVehicleHandler(service, log)
+			h := NewDriverHandler(service, log)
 
 			r := chi.NewRouter()
-			r.Post("/vehicles", h.HandlePostVehicle)
+			r.Post("/drivers", h.HandlePostDriver)
 
-			request := httptest.NewRequest("POST", "/vehicles", strings.NewReader(tt.requestBody))
+			request := httptest.NewRequest("POST", "/drivers", strings.NewReader(tt.requestBody))
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
 
@@ -103,7 +84,7 @@ func TestHandlePostVehicle(t *testing.T) {
 	}
 }
 
-func TestHandleGetVehicleByID(t *testing.T) {
+func TestHandleGetDriverByID(t *testing.T) {
 	tests := []struct {
 		name           string
 		urlID          string
@@ -117,14 +98,14 @@ func TestHandleGetVehicleByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := &mockVehicleService{returnError: tt.serviceError}
+			service := &mockDriverService{returnError: tt.serviceError}
 			log := logger.NewStdLogger(logger.DebugLevel)
-			h := NewVehicleHandler(service, log)
+			h := NewDriverHandler(service, log)
 
 			r := chi.NewRouter()
-			r.Get("/vehicles/{id}", h.HandleGetVehicleByID)
+			r.Get("/drivers/{id}", h.HandleGetDriverByID)
 
-			request := httptest.NewRequest("GET", "/vehicles/"+tt.urlID, nil)
+			request := httptest.NewRequest("GET", "/drivers/"+tt.urlID, nil)
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
 
@@ -135,7 +116,7 @@ func TestHandleGetVehicleByID(t *testing.T) {
 	}
 }
 
-func TestHandleDeleteVehicle(t *testing.T) {
+func TestHandleDeleteDriver(t *testing.T) {
 	tests := []struct {
 		name           string
 		urlID          string
@@ -143,20 +124,21 @@ func TestHandleDeleteVehicle(t *testing.T) {
 		expectedStatus int
 	}{
 		{name: "ok", urlID: "31", expectedStatus: http.StatusOK},
+		{name: "has active trips", urlID: "1", serviceError: model.ErrDriverHasActiveTrips, expectedStatus: http.StatusConflict},
 		{name: "not found", urlID: "7777777", serviceError: model.ErrNotFound, expectedStatus: http.StatusNotFound},
 		{name: "invalid id", urlID: "hello", expectedStatus: http.StatusBadRequest},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := &mockVehicleService{returnError: tt.serviceError}
+			service := &mockDriverService{returnError: tt.serviceError}
 			log := logger.NewStdLogger(logger.DebugLevel)
-			h := NewVehicleHandler(service, log)
+			h := NewDriverHandler(service, log)
 
 			r := chi.NewRouter()
-			r.Delete("/vehicles/{id}", h.HandleDeleteVehicle)
+			r.Delete("/drivers/{id}", h.HandleDeleteDriver)
 
-			request := httptest.NewRequest("DELETE", "/vehicles/"+tt.urlID, nil)
+			request := httptest.NewRequest("DELETE", "/drivers/"+tt.urlID, nil)
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
 
@@ -167,7 +149,7 @@ func TestHandleDeleteVehicle(t *testing.T) {
 	}
 }
 
-func TestHandleGetListVehicle(t *testing.T) {
+func TestHandleGetListDriver(t *testing.T) {
 	tests := []struct {
 		name           string
 		query          string
@@ -181,14 +163,14 @@ func TestHandleGetListVehicle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := &mockVehicleService{returnError: tt.serviceError}
+			service := &mockDriverService{returnError: tt.serviceError}
 			log := logger.NewStdLogger(logger.DebugLevel)
-			h := NewVehicleHandler(service, log)
+			h := NewDriverHandler(service, log)
 
 			r := chi.NewRouter()
-			r.Get("/vehicles", h.HandleGetListVehicle)
+			r.Get("/drivers", h.HandleGetListDriver)
 
-			request := httptest.NewRequest("GET", "/vehicles"+tt.query, nil)
+			request := httptest.NewRequest("GET", "/drivers"+tt.query, nil)
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
 
@@ -199,7 +181,7 @@ func TestHandleGetListVehicle(t *testing.T) {
 	}
 }
 
-func TestHandlePatchVehicle(t *testing.T) {
+func TestHandlePatchDriver(t *testing.T) {
 	tests := []struct {
 		name           string
 		urlID          string
@@ -207,7 +189,7 @@ func TestHandlePatchVehicle(t *testing.T) {
 		serviceError   error
 		expectedStatus int
 	}{
-		{name: "ok", urlID: "31", requestBody: `{"number_plate": "B999XY77"}`, expectedStatus: http.StatusOK},
+		{name: "ok", urlID: "31", requestBody: `{"name": "New Name"}`, expectedStatus: http.StatusOK},
 		{name: "invalid id", urlID: "hello", requestBody: `{}`, expectedStatus: http.StatusBadRequest},
 		{name: "invalid json", urlID: "31", requestBody: `not-json`, expectedStatus: http.StatusBadRequest},
 		{name: "not found", urlID: "999", requestBody: `{}`, serviceError: model.ErrNotFound, expectedStatus: http.StatusNotFound},
@@ -215,14 +197,14 @@ func TestHandlePatchVehicle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := &mockVehicleService{returnError: tt.serviceError}
+			service := &mockDriverService{returnError: tt.serviceError}
 			log := logger.NewStdLogger(logger.DebugLevel)
-			h := NewVehicleHandler(service, log)
+			h := NewDriverHandler(service, log)
 
 			r := chi.NewRouter()
-			r.Patch("/vehicles/{id}", h.HandlePatchVehicle)
+			r.Patch("/drivers/{id}", h.HandlePatchDriver)
 
-			request := httptest.NewRequest("PATCH", "/vehicles/"+tt.urlID, strings.NewReader(tt.requestBody))
+			request := httptest.NewRequest("PATCH", "/drivers/"+tt.urlID, strings.NewReader(tt.requestBody))
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
 

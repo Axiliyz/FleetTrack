@@ -20,8 +20,8 @@ type VehicleHandler struct {
 
 // VehicleService определяет контракт бизнес-логики, необходимой VehicleHandler
 type VehicleService interface {
-	// ProcessVehicle валидирует и сохраняет новый автомобиль
-	ProcessVehicle(ctx context.Context, v model.Vehicle) (model.Vehicle, error)
+	// CreateVehicle валидирует и сохраняет новый автомобиль
+	CreateVehicle(ctx context.Context, v model.Vehicle) (model.Vehicle, error)
 	// GetVehicleList возвращает список автомобилей по фильтру
 	GetVehicleList(ctx context.Context, filter model.VehicleFilter) ([]model.Vehicle, error)
 	// GetVehicleByID возвращает автомобиль по его ID
@@ -52,7 +52,7 @@ func (h *VehicleHandler) HandlePostVehicle(w http.ResponseWriter, r *http.Reques
 	}
 
 	vehicle := vehicleData.ToDomainModel()
-	savedVehicle, err := h.vehicleService.ProcessVehicle(r.Context(), vehicle)
+	savedVehicle, err := h.vehicleService.CreateVehicle(r.Context(), vehicle)
 	if err != nil {
 		respondError(w, r, h.logger, err)
 		return

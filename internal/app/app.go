@@ -62,7 +62,15 @@ func New(cfg config.Config) (*App, error) {
 	orgService := service.NewOrgService(orgRepo, logger)
 	orgHandler := handler.NewOrgHandler(orgService, logger)
 
-	router := router.NewRouter(telemetryHandler, vehicleHandler, assignmentHandler, deviceHandler, orgHandler, logger)
+	tripRepo := postgres.NewPostgresTripRepository(pool)
+	tripService := service.NewTripService(tripRepo, logger)
+	tripHandler := handler.NewTripHandler(tripService, logger)
+
+	driverRepo := postgres.NewPostgresDriverRepository(pool)
+	driverService := service.NewDriverService(driverRepo, logger)
+	driverHandler := handler.NewDriverHandler(driverService, logger)
+
+	router := router.NewRouter(telemetryHandler, vehicleHandler, assignmentHandler, deviceHandler, orgHandler, tripHandler, driverHandler, logger)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.API.Port,

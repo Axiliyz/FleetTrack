@@ -1,0 +1,1 @@
+ALTER TABLE trips ALTER COLUMN started_at SET DEFAULT NOW();

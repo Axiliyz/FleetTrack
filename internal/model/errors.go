@@ -45,4 +45,19 @@ var (
 	// Organization errors
 
 	ErrInvalidOrgName = errors.New("invalid organization name")
+
+	// Trip errors
+
+	ErrTripAlreadyFinished = errors.New("trip is already finished")
+
+	// Driver errors
+
+	ErrInvalidDriverName    = errors.New("invalid driver name")
+	ErrDriverHasActiveTrips = errors.New("driver has trips and can't be deleted")
+
+	// Calculation errors
+
+	ErrCalculating = errors.New("can't calculate motion")
+	ErrInvalidTime = errors.New("invalid time")
+	ErrNoValue     = errors.New("no value to calculate")
 )
