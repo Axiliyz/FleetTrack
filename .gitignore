@@ -20,7 +20,7 @@ dist/
 # test output
 *.test
 *.out
-
+/out
 
 # ======================
 # IDE

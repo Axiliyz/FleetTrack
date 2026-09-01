@@ -73,6 +73,16 @@ func resolveActiveTrip(ctx context.Context, repos factory.Repositories, vehicleI
 	return trips[0], nil
 }
 
+// resolveVehicleOrg позволяет получить OrgID по машине
+// Возвращает ID организации или ошибку
+func resolveVehicleOrg(ctx context.Context, repos factory.Repositories, vehicleID int) (int, error) {
+	vehicle, err := repos.Vehicle.GetByID(ctx, vehicleID)
+	if err != nil {
+		return 0, err
+	}
+	return vehicle.OrganizationID, nil
+}
+
 // resolveLastTelemetry находит предыдущую точку телеметрии машины.
 // Если точки ещё не было - возвращает (nil, nil), это не ошибка.
 func resolveLastTelemetry(ctx context.Context, repos factory.Repositories, vehicleID int) (*model.Telemetry, error) {
@@ -135,6 +145,12 @@ func (s *TelemetryService) ProcessTelemetry(ctx context.Context, t model.Telemet
 		if err := s.applyMotion(ctx, repos, last, trip, &t); err != nil {
 			return err
 		}
+
+		orgID, err := resolveVehicleOrg(ctx, repos, t.VehicleID)
+		if err != nil {
+			return err
+		}
+		t.OrganizationID = orgID
 
 		return repos.Telemetry.Save(ctx, &t)
 	})

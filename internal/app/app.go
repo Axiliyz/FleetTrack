@@ -14,6 +14,7 @@ import (
 	"fleettrack/internal/service"
 	"fleettrack/internal/transaction"
 	"net/http"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -74,8 +75,12 @@ func New(cfg config.Config) (*App, error) {
 	router := router.NewRouter(telemetryHandler, vehicleHandler, assignmentHandler, deviceHandler, orgHandler, tripHandler, driverHandler, logger)
 
 	srv := &http.Server{
-		Addr:    ":" + cfg.API.Port,
-		Handler: router,
+		Addr:              ":" + cfg.API.Port,
+		Handler:           router,
+		ReadTimeout:       10 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	return &App{
