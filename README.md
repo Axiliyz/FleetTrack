@@ -153,3 +153,5 @@ go test ./...
 ```bash
 make build
 ```
+
+![CI](https://github.com/Axiliyz/FleetTrack/actions/workflows/ci.yml/badge.svg)

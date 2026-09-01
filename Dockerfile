@@ -10,8 +10,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -o fleettrack-api ./cmd/api
 
 #runtime stage
-FROM alpine
-WORKDIR /app:1.26.3
+FROM alpine:3.20
+WORKDIR /app
 
 COPY --from=builder /app/fleettrack-api .
 EXPOSE 8080

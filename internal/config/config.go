@@ -48,8 +48,8 @@ func Load() (*Config, error) {
 		DB: DBConfig{
 			User:     os.Getenv("DB_USER"),
 			Password: os.Getenv("DB_PASSWORD"),
-			Host:     "postgres",
-			Port:     "5432",
+			Host:     os.Getenv("DB_HOST"),
+			Port:     os.Getenv("DB_PORT"),
 			Name:     os.Getenv("DB_NAME"),
 		},
 		API: APIConfig{
