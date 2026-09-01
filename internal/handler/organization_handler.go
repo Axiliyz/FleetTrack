@@ -19,6 +19,8 @@ type OrgHandler struct {
 type OrgService interface {
 	// CreateOrg валидирует и сохраняет новую организацию
 	CreateOrg(ctx context.Context, o model.Org) (model.Org, error)
+	// GetOrgList возвращает список всех организаций
+	GetOrgList(ctx context.Context) ([]model.Org, error)
 }
 
 // NewOrgHandler создаёт новый хендлер организаций
@@ -46,4 +48,20 @@ func (h *OrgHandler) HandlePostOrg(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondSuccess(w, r, "organization created", h.logger, dto.NewOrgResponse(org))
+}
+
+// HandleGetListOrg возвращает список всех организаций
+func (h *OrgHandler) HandleGetListOrg(w http.ResponseWriter, r *http.Request) {
+	orgs, err := h.orgService.GetOrgList(r.Context())
+	if err != nil {
+		respondError(w, r, h.logger, err)
+		return
+	}
+
+	responses := make([]dto.OrgResponse, 0, len(orgs))
+	for _, o := range orgs {
+		responses = append(responses, dto.NewOrgResponse(o))
+	}
+
+	respondSuccess(w, r, "organizations list", h.logger, responses)
 }

@@ -25,15 +25,24 @@ type TelemetryRepository interface {
 	// Возвращает ошибку если сохранение не удалось
 	Save(ctx context.Context, t *model.Telemetry) error
 	// GetList возвращает список всей телеметрии
+	// Возвращает ошибку, если не может найти
 	GetList(ctx context.Context, filter model.TelemetryFilter) ([]model.Telemetry, error)
 	// GetItemByID возвращает запись телеметрии по её ID
+	// Возвращает ошибку, если не может найти
 	GetItemByID(ctx context.Context, id int) (model.Telemetry, error)
 	// GetListByVehicle возвращает срез телеметрий по ID машины
+	// Возвращает ошибку, если не может найти
 	GetListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error)
 	// DeleteItemByID удаляет запись по её ID
+	// Возвращает ошибку, если не удалось удалить
 	DeleteItemByID(ctx context.Context, id int) (model.Telemetry, error)
 	// DeleteListByVehicle удаляет список записей по ID машины
+	// Возвращает ошибку, если не удалось удалить
 	DeleteListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error)
+	// GetLastByVehicle получает последнюю телеметрию по ID машины
+	// Возвращает model.ErrNotFound, если у машины ещё не было телеметрии - это
+	// ожидаемый случай (первая точка), а не сбой; любая другая ошибка - реальный сбой
+	GetLastByVehicle(ctx context.Context, id int) (model.Telemetry, error)
 }
 
 // VehicleRepository определяет контракт хранения автомобилей в системе
@@ -72,6 +81,9 @@ type OrgRepository interface {
 	// CreateOrg создаёт новую организацию
 	// Возвращает ошибку если не удалось
 	CreateOrg(ctx context.Context, o *model.Org) error
+	// GetList возвращает список всех организаций
+	// Возвращает ошибку, если не удалось получить
+	GetList(ctx context.Context) ([]model.Org, error)
 }
 
 // DriverRepository определяет контракт хранения водителей
@@ -97,16 +109,19 @@ type TripRepository interface {
 	// CreateTrip создаёт новую поездку, заполняя ID, StartedAt и Status в t
 	// Возвращает ошибку, если не удалось
 	CreateTrip(ctx context.Context, t *model.Trip) error
-
 	// GetListTrips возвращает список рейсов(с фильтрами в Query параметрах)
 	// Или ошибку, если не нашлось
 	GetListTrips(ctx context.Context, f *model.TripFilter) ([]model.Trip, error)
-
 	// UpdateTrip обновляет статус рейса
 	// Возвращает новый объект рейса, либо ошибку
 	UpdateTrip(ctx context.Context, upd model.Trip) (model.Trip, error)
-
 	// DeleteTrip выставляет статус Cancelled по ID и выставляет время
 	// Возвращает удалённую запись или ошибку
 	DeleteTrip(ctx context.Context, id int) (model.Trip, error)
+	// UpdateTripStats позволяет обновить расстояние и статистику скорости по рейсу
+	// Возвращает итоговый рейс или ошибку
+	UpdateTripStats(ctx context.Context, id int, distance, speed float64) (model.Trip, error)
+	// GetByID возвращает рейс по его ID
+	// Возвращает model.ErrNotFound если не нашёл
+	GetByID(ctx context.Context, id int) (model.Trip, error)
 }

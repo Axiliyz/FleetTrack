@@ -2,13 +2,20 @@ package service
 
 import (
 	"context"
+	"errors"
+	"fleettrack/internal/database"
 	"fleettrack/internal/logger"
 	"fleettrack/internal/model"
+	"fleettrack/internal/repository"
+	"fleettrack/internal/repository/factory"
 	"testing"
 	"time"
 )
 
-type mockRepository struct{}
+type mockRepository struct {
+	lastTelemetry model.Telemetry
+	lastErr       error
+}
 
 func (m *mockRepository) Save(ctx context.Context, t *model.Telemetry) error {
 	return nil
@@ -32,6 +39,45 @@ func (m *mockRepository) DeleteItemByID(ctx context.Context, id int) (model.Tele
 
 func (r *mockRepository) DeleteListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error) {
 	return []model.Telemetry{}, nil
+}
+
+func (r *mockRepository) GetLastByVehicle(ctx context.Context, id int) (model.Telemetry, error) {
+	return r.lastTelemetry, r.lastErr
+}
+
+// fakeTxManager - подмена transaction.TransactionManager: выполняет fn без реальной БД.
+type fakeTxManager struct {
+	err error
+}
+
+func (m *fakeTxManager) WithTx(ctx context.Context, fn func(tx database.DBTX) error) error {
+	if m.err != nil {
+		return m.err
+	}
+	return fn(nil)
+}
+
+// fakeRepoFactory - подмена factory.RepositoryFactory: отдаёт заранее заданные моки репозиториев.
+type fakeRepoFactory struct {
+	telemetry repository.TelemetryRepository
+	trip      repository.TripRepository
+}
+
+func (f *fakeRepoFactory) New(tx database.DBTX) factory.Repositories {
+	return factory.Repositories{
+		Telemetry: f.telemetry,
+		Trip:      f.trip,
+	}
+}
+
+// fakeMotionService - подмена MotionService с заранее заданным результатом.
+type fakeMotionService struct {
+	data *model.MotionData
+	err  error
+}
+
+func (m *fakeMotionService) Calculate(last *model.Telemetry, cur model.Telemetry) (*model.MotionData, error) {
+	return m.data, m.err
 }
 
 func TestProcessTelemetry(t *testing.T) {
@@ -186,8 +232,12 @@ func TestProcessTelemetry(t *testing.T) {
 	}
 
 	repo := &mockRepository{}
-	logger := logger.NewStdLogger(logger.DebugLevel)
-	service := NewTelemetryService(repo, logger)
+	tripRepo := &mockTripRepository{trips: []model.Trip{{ID: 1, Status: model.TripStatusRunning}}}
+	txManager := &fakeTxManager{}
+	repoFactory := &fakeRepoFactory{telemetry: repo, trip: tripRepo}
+	motion := &fakeMotionService{data: &model.MotionData{DistanceKm: 1.2, SpeedKmh: 40}}
+	log := logger.NewStdLogger(logger.DebugLevel)
+	service := NewTelemetryService(repo, log, txManager, repoFactory, motion)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -199,9 +249,47 @@ func TestProcessTelemetry(t *testing.T) {
 	}
 }
 
-func intPtr(v int) *int             { return &v }
-func float32Ptr(v float32) *float32 { return &v }
-func float64Ptr(v float64) *float64 { return &v }
+// TestProcessTelemetry_NoActiveTrip проверяет, что при отсутствии рейса RUNNING
+// у машины пайплайн отказывает с model.ErrNoActiveTrip, а не сохраняет телеметрию.
+func TestProcessTelemetry_NoActiveTrip(t *testing.T) {
+	repo := &mockRepository{}
+	tripRepo := &mockTripRepository{} // trips не задан - активного рейса нет
+	txManager := &fakeTxManager{}
+	repoFactory := &fakeRepoFactory{telemetry: repo, trip: tripRepo}
+	log := logger.NewStdLogger(logger.DebugLevel)
+	service := NewTelemetryService(repo, log, txManager, repoFactory, &fakeMotionService{})
+
+	valid := model.Telemetry{DeviceID: 1, VehicleID: 1, Lat: 55.75, Lon: 37.61, Fuel: 0.8}
+	_, err := service.ProcessTelemetry(context.Background(), valid)
+	if !errors.Is(err, model.ErrNoActiveTrip) {
+		t.Errorf("got %v, want %v", err, model.ErrNoActiveTrip)
+	}
+}
+
+// TestProcessTelemetry_FirstPointForVehicle проверяет, что отсутствие предыдущей точки
+// (первая телеметрия машины) - не ошибка: запись сохраняется с нулевыми DistanceKm/SpeedKmh,
+// а MotionService.Calculate не вызывается.
+func TestProcessTelemetry_FirstPointForVehicle(t *testing.T) {
+	repo := &mockRepository{lastErr: model.ErrNotFound}
+	tripRepo := &mockTripRepository{trips: []model.Trip{{ID: 1, Status: model.TripStatusRunning}}}
+	txManager := &fakeTxManager{}
+	repoFactory := &fakeRepoFactory{telemetry: repo, trip: tripRepo}
+	log := logger.NewStdLogger(logger.DebugLevel)
+	service := NewTelemetryService(repo, log, txManager, repoFactory, &fakeMotionService{})
+
+	valid := model.Telemetry{DeviceID: 1, VehicleID: 1, Lat: 55.75, Lon: 37.61, Fuel: 0.8}
+	got, err := service.ProcessTelemetry(context.Background(), valid)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.DistanceKm != 0 || got.SpeedKmh != 0 {
+		t.Errorf("expected zero motion for first point, got distance=%f speed=%f", got.DistanceKm, got.SpeedKmh)
+	}
+}
+
+func intPtr(v int) *int              { return &v }
+func float32Ptr(v float32) *float32  { return &v }
+func float64Ptr(v float64) *float64  { return &v }
 func timePtr(v time.Time) *time.Time { return &v }
 
 func TestGetTelemetryList(t *testing.T) {
@@ -257,7 +345,7 @@ func TestGetTelemetryList(t *testing.T) {
 
 	repo := &mockRepository{}
 	logger := logger.NewStdLogger(logger.DebugLevel)
-	service := NewTelemetryService(repo, logger)
+	service := NewTelemetryService(repo, logger, nil, nil, nil)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

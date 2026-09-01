@@ -20,10 +20,14 @@ const (
 
 // Trip определяет структуру рейса
 type Trip struct {
-	ID        int        `json:"id"`
-	DriverID  int        `json:"driver_id"`
-	VehicleID int        `json:"vehicle_id"`
-	StartedAt time.Time  `json:"started_at"`
-	EndedAt   *time.Time `json:"ended_at"`
-	Status    TripStatus `json:"status"`
+	ID             int        `json:"id"`
+	DriverID       int        `json:"driver_id"`
+	VehicleID      int        `json:"vehicle_id"`
+	StartedAt      time.Time  `json:"started_at"`
+	EndedAt        *time.Time `json:"ended_at"`
+	Status         TripStatus `json:"status"`
+	DistanceKm     float64    `json:"distance_km"`
+	AvgSpeedKmh    float64    `json:"avg_speed_kmh"`
+	MaxSpeedKmh    float64    `json:"max_speed_kmh"`
+	TelemetryCount int        `json:"telemetry_count"`
 }

@@ -76,6 +76,33 @@ func (s *TripService) GetListTrips(ctx context.Context, filter model.TripFilter)
 	if filter.VehicleID != nil && *filter.VehicleID <= 0 {
 		return nil, model.ErrInvalidVehicleID
 	}
+	if filter.MinDistance != nil && *filter.MinDistance <= 0 {
+		return nil, model.ErrInvalidDistance
+	}
+	if filter.MaxDistance != nil && *filter.MaxDistance <= 0 {
+		return nil, model.ErrInvalidDistance
+	}
+	if filter.MaxDistance != nil && filter.MinDistance != nil && *filter.MaxDistance < *filter.MinDistance {
+		return nil, model.ErrInvalidDistance
+	}
+	if filter.MinAvgSpeed != nil && *filter.MinAvgSpeed <= 0 {
+		return nil, model.ErrInvalidSpeed
+	}
+	if filter.MaxAvgSpeed != nil && *filter.MaxAvgSpeed <= 0 {
+		return nil, model.ErrInvalidSpeed
+	}
+	if filter.MinAvgSpeed != nil && filter.MaxAvgSpeed != nil && *filter.MinAvgSpeed > *filter.MaxAvgSpeed {
+		return nil, model.ErrInvalidSpeed
+	}
+	if filter.MinMaxSpeed != nil && *filter.MinMaxSpeed <= 0 {
+		return nil, model.ErrInvalidSpeed
+	}
+	if filter.MaxMaxSpeed != nil && *filter.MaxMaxSpeed <= 0 {
+		return nil, model.ErrInvalidSpeed
+	}
+	if filter.MinMaxSpeed != nil && filter.MaxMaxSpeed != nil && *filter.MinMaxSpeed > *filter.MaxMaxSpeed {
+		return nil, model.ErrInvalidSpeed
+	}
 
 	trips, err := s.repository.GetListTrips(ctx, &filter)
 	if err != nil {
@@ -97,4 +124,18 @@ func (s *TripService) DeleteTrip(ctx context.Context, id int) (model.Trip, error
 	}
 	s.logger.Info(fmt.Sprintf("Cancelled trip %d", t.ID))
 	return t, nil
+}
+
+// GetTripByID возвращает рейс по его ID
+func (s *TripService) GetTripByID(ctx context.Context, id int) (model.Trip, error) {
+	if id <= 0 {
+		return model.Trip{}, model.ErrInvalidTripID
+	}
+	res, err := s.repository.GetByID(ctx, id)
+	if err != nil {
+		return model.Trip{}, err
+	}
+	message := fmt.Sprintf("Got trip with id %d", id)
+	s.logger.Info(message)
+	return res, nil
 }

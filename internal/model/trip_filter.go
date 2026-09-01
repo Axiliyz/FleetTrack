@@ -11,6 +11,13 @@ type TripFilter struct {
 	StartedFrom *time.Time
 	StartedTo   *time.Time
 
+	MinDistance *float64
+	MaxDistance *float64
+	MinAvgSpeed *float64
+	MaxAvgSpeed *float64
+	MinMaxSpeed *float64
+	MaxMaxSpeed *float64
+
 	Limit  int
 	Offset int
 }

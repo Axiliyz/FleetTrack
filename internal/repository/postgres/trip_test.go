@@ -52,6 +52,42 @@ func TestBuildTripWhereClause(t *testing.T) {
 			},
 		},
 		{
+			name:      "min_distance only",
+			filter:    &model.TripFilter{MinDistance: float64Ptr(10)},
+			wantWhere: "WHERE distance_km >= $1",
+			wantArgs:  []any{10.0},
+		},
+		{
+			name:      "max_distance only",
+			filter:    &model.TripFilter{MaxDistance: float64Ptr(100)},
+			wantWhere: "WHERE distance_km <= $1",
+			wantArgs:  []any{100.0},
+		},
+		{
+			name:      "min_avg_speed only",
+			filter:    &model.TripFilter{MinAvgSpeed: float64Ptr(20)},
+			wantWhere: "WHERE avg_speed_kmh >= $1",
+			wantArgs:  []any{20.0},
+		},
+		{
+			name:      "max_avg_speed only",
+			filter:    &model.TripFilter{MaxAvgSpeed: float64Ptr(80)},
+			wantWhere: "WHERE avg_speed_kmh <= $1",
+			wantArgs:  []any{80.0},
+		},
+		{
+			name:      "min_max_speed only",
+			filter:    &model.TripFilter{MinMaxSpeed: float64Ptr(30)},
+			wantWhere: "WHERE max_speed_kmh >= $1",
+			wantArgs:  []any{30.0},
+		},
+		{
+			name:      "max_max_speed only",
+			filter:    &model.TripFilter{MaxMaxSpeed: float64Ptr(120)},
+			wantWhere: "WHERE max_speed_kmh <= $1",
+			wantArgs:  []any{120.0},
+		},
+		{
 			name: "all filters combined preserve argument order",
 			filter: &model.TripFilter{
 				DriverID:    intPtr(5),

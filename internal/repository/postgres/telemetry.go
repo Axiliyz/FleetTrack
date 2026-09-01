@@ -28,15 +28,18 @@ func NewPostgresTelemetryRepository(db database.DBTX) *PostgresTelemetryReposito
 func (r *PostgresTelemetryRepository) Save(ctx context.Context, t *model.Telemetry) error {
 	err := r.db.QueryRow(ctx,
 		`INSERT INTO telemetry
-		(organization_id, 
-		vehicle_id, 
-		device_id, 
-		latitude, 
-		longitude, 
-		fuel) 
-		VALUES ($1, $2, $3, $4, $5, $6) 
+		(organization_id,
+		vehicle_id,
+		device_id,
+		latitude,
+		longitude,
+		fuel,
+		trip_id,
+		distance_km,
+		speed_kmh)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id`,
-		1, t.VehicleID, t.DeviceID, t.Lat, t.Lon, t.Fuel,
+		1, t.VehicleID, t.DeviceID, t.Lat, t.Lon, t.Fuel, t.TripID, t.DistanceKm, t.SpeedKmh,
 	).Scan(&t.TelemetryID)
 	return err
 }
@@ -110,7 +113,7 @@ func buildWhereClause(filter model.TelemetryFilter) (string, []any) {
 // GetList для PostgresTelemetryRepository возвращает полный список телеметрии
 func (r *PostgresTelemetryRepository) GetList(ctx context.Context, filter model.TelemetryFilter) ([]model.Telemetry, error) {
 	whereClause, args := buildWhereClause(filter)
-	query := fmt.Sprintf(`SELECT id, device_id, vehicle_id, latitude, longitude, fuel, received_at, device_timestamp
+	query := fmt.Sprintf(`SELECT id, device_id, vehicle_id, latitude, longitude, fuel, received_at, device_timestamp, trip_id, distance_km, speed_kmh
 		FROM telemetry %s ORDER BY received_at DESC LIMIT $%d OFFSET $%d`, whereClause, len(args)+1, len(args)+2)
 	args = append(args, filter.Limit, filter.Offset)
 	rows, err := r.db.Query(ctx, query, args...)
@@ -121,7 +124,7 @@ func (r *PostgresTelemetryRepository) GetList(ctx context.Context, filter model.
 	var telemetries []model.Telemetry
 	for rows.Next() {
 		var t model.Telemetry
-		err = rows.Scan(&t.TelemetryID, &t.DeviceID, &t.VehicleID, &t.Lat, &t.Lon, &t.Fuel, &t.ReceivedAt, &t.DeviceTimestamp)
+		err = rows.Scan(&t.TelemetryID, &t.DeviceID, &t.VehicleID, &t.Lat, &t.Lon, &t.Fuel, &t.ReceivedAt, &t.DeviceTimestamp, &t.TripID, &t.DistanceKm, &t.SpeedKmh)
 		if err != nil {
 			return nil, err
 		}
@@ -132,12 +135,13 @@ func (r *PostgresTelemetryRepository) GetList(ctx context.Context, filter model.
 
 // GetItemByID для PostgresTelemetryRepository возвращает конкретную запись телеметрии по её ID
 func (r *PostgresTelemetryRepository) GetItemByID(ctx context.Context, id int) (model.Telemetry, error) {
-	query := `SELECT id, organization_id, device_id, vehicle_id, latitude, longitude, fuel, received_at, device_timestamp FROM telemetry WHERE id = $1`
+	query := `SELECT id, organization_id, device_id, vehicle_id, latitude, longitude, fuel, received_at, device_timestamp, trip_id, distance_km, speed_kmh FROM telemetry WHERE id = $1`
 	var t model.Telemetry
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&t.TelemetryID, &t.OrganizationID, &t.DeviceID,
 		&t.VehicleID, &t.Lat, &t.Lon, &t.Fuel,
 		&t.ReceivedAt, &t.DeviceTimestamp,
+		&t.TripID, &t.DistanceKm, &t.SpeedKmh,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -150,7 +154,7 @@ func (r *PostgresTelemetryRepository) GetItemByID(ctx context.Context, id int) (
 
 // GetListByVehicle для PostgresTelemetryRepository возвращает всю телеметрию для конкретной машины
 func (r *PostgresTelemetryRepository) GetListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error) {
-	query := `SELECT id, organization_id, vehicle_id, device_id, latitude, longitude, fuel, received_at, device_timestamp FROM telemetry WHERE vehicle_id = $1`
+	query := `SELECT id, organization_id, vehicle_id, device_id, latitude, longitude, fuel, received_at, device_timestamp, trip_id, distance_km, speed_kmh FROM telemetry WHERE vehicle_id = $1`
 	rows, err := r.db.Query(ctx, query, id)
 	if err != nil {
 		return nil, err
@@ -163,6 +167,7 @@ func (r *PostgresTelemetryRepository) GetListByVehicle(ctx context.Context, id i
 			&t.TelemetryID, &t.OrganizationID, &t.VehicleID, &t.DeviceID,
 			&t.Lat, &t.Lon, &t.Fuel,
 			&t.ReceivedAt, &t.DeviceTimestamp,
+			&t.TripID, &t.DistanceKm, &t.SpeedKmh,
 		)
 		if err != nil {
 			return nil, err
@@ -178,7 +183,7 @@ func (r *PostgresTelemetryRepository) GetListByVehicle(ctx context.Context, id i
 // DeleteListByVehicle для PostgresTelemetryRepository удаляет всю телеметрию для конкретной машины
 func (r *PostgresTelemetryRepository) DeleteListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error) {
 	query := `DELETE FROM telemetry WHERE vehicle_id = $1
-		RETURNING id, organization_id, vehicle_id, device_id, latitude, longitude, fuel, received_at, device_timestamp`
+		RETURNING id, organization_id, vehicle_id, device_id, latitude, longitude, fuel, received_at, device_timestamp, trip_id, distance_km, speed_kmh`
 	rows, err := r.db.Query(ctx, query, id)
 	if err != nil {
 		return nil, err
@@ -191,6 +196,7 @@ func (r *PostgresTelemetryRepository) DeleteListByVehicle(ctx context.Context, i
 			&t.TelemetryID, &t.OrganizationID, &t.VehicleID, &t.DeviceID,
 			&t.Lat, &t.Lon, &t.Fuel,
 			&t.ReceivedAt, &t.DeviceTimestamp,
+			&t.TripID, &t.DistanceKm, &t.SpeedKmh,
 		)
 		if err != nil {
 			return nil, err
@@ -206,12 +212,47 @@ func (r *PostgresTelemetryRepository) DeleteListByVehicle(ctx context.Context, i
 // DeleteItemByID для PostgresTelemetryRepository удаляет телеметрию по её ID
 func (r *PostgresTelemetryRepository) DeleteItemByID(ctx context.Context, id int) (model.Telemetry, error) {
 	query := `DELETE FROM telemetry WHERE id = $1
-		RETURNING id, organization_id, vehicle_id, device_id, latitude, longitude, fuel, received_at, device_timestamp`
+		RETURNING id, organization_id, vehicle_id, device_id, latitude, longitude, fuel, received_at, device_timestamp, trip_id, distance_km, speed_kmh`
 	var t model.Telemetry
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&t.TelemetryID, &t.OrganizationID, &t.VehicleID, &t.DeviceID,
 		&t.Lat, &t.Lon, &t.Fuel,
 		&t.ReceivedAt, &t.DeviceTimestamp,
+		&t.TripID, &t.DistanceKm, &t.SpeedKmh,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return model.Telemetry{}, model.ErrNotFound
+		}
+		return model.Telemetry{}, err
+	}
+	return t, nil
+}
+
+// GetLastByVehicle получает последнюю телеметрию для машины
+func (r *PostgresTelemetryRepository) GetLastByVehicle(ctx context.Context, id int) (model.Telemetry, error) {
+	const query = `SELECT 
+	id, 
+	organization_id, 
+	device_id, 
+	vehicle_id, 
+	latitude, 
+	longitude, 
+	fuel, 
+	received_at, 
+	device_timestamp, 
+	trip_id, 
+	distance_km, 
+	speed_kmh 
+	FROM telemetry 
+	WHERE vehicle_id = $1
+	ORDER BY device_timestamp DESC LIMIT 1`
+	var t model.Telemetry
+	err := r.db.QueryRow(ctx, query, id).Scan(
+		&t.TelemetryID, &t.OrganizationID, &t.DeviceID,
+		&t.VehicleID, &t.Lat, &t.Lon, &t.Fuel,
+		&t.ReceivedAt, &t.DeviceTimestamp,
+		&t.TripID, &t.DistanceKm, &t.SpeedKmh,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

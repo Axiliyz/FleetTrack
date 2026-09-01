@@ -44,7 +44,8 @@ var (
 
 	// Organization errors
 
-	ErrInvalidOrgName = errors.New("invalid organization name")
+	ErrInvalidOrgName   = errors.New("invalid organization name")
+	ErrDuplicateOrgName = errors.New("organization with this name is already exists")
 
 	// Trip errors
 
@@ -57,7 +58,10 @@ var (
 
 	// Calculation errors
 
-	ErrCalculating = errors.New("can't calculate motion")
-	ErrInvalidTime = errors.New("invalid time")
-	ErrNoValue     = errors.New("no value to calculate")
+	ErrCalculating     = errors.New("can't calculate motion")
+	ErrInvalidTime     = errors.New("invalid time")
+	ErrNoValue         = errors.New("no value to calculate")
+	ErrNoActiveTrip    = errors.New("no trip in status RUNNING")
+	ErrInvalidDistance = errors.New("invalid distance")
+	ErrInvalidSpeed    = errors.New("invalid speed")
 )

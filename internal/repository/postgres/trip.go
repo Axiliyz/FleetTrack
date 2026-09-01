@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // PostgresTripRepository отвечает за сохранение поездок в postgres
@@ -29,14 +30,27 @@ func (r *PostgresTripRepository) CreateTrip(ctx context.Context, t *model.Trip) 
 	INSERT INTO trips(driver_id, vehicle_id, status) VALUES ($1, $2, $3)
 	RETURNING id, started_at, status
 	`
-	return r.db.QueryRow(ctx, query, t.DriverID, t.VehicleID, t.Status).Scan(&t.ID, &t.StartedAt, &t.Status)
+	err := r.db.QueryRow(ctx, query, t.DriverID, t.VehicleID, t.Status).Scan(&t.ID, &t.StartedAt, &t.Status)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == pgForeignKeyViolationCode {
+			switch pgErr.ConstraintName {
+			case "trips_driver_id_fkey":
+				return model.ErrInvalidDriverID
+			case "trips_vehicle_id_fkey":
+				return model.ErrInvalidVehicleID
+			}
+		}
+		return err
+	}
+	return nil
 }
 
 // GetByID возвращает рейс по ID, или ошибку
 func (r *PostgresTripRepository) GetByID(ctx context.Context, id int) (model.Trip, error) {
-	const query = `SELECT id, driver_id, vehicle_id, started_at, ended_at, status FROM trips WHERE id=$1`
+	const query = `SELECT id, driver_id, vehicle_id, started_at, ended_at, status, distance_km, avg_speed_kmh, max_speed_kmh, telemetry_count FROM trips WHERE id=$1`
 	var t model.Trip
-	err := r.db.QueryRow(ctx, query, id).Scan(&t.ID, &t.DriverID, &t.VehicleID, &t.StartedAt, &t.EndedAt, &t.Status)
+	err := r.db.QueryRow(ctx, query, id).Scan(&t.ID, &t.DriverID, &t.VehicleID, &t.StartedAt, &t.EndedAt, &t.Status, &t.DistanceKm, &t.AvgSpeedKmh, &t.MaxSpeedKmh, &t.TelemetryCount)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.Trip{}, model.ErrNotFound
@@ -65,7 +79,7 @@ func (r *PostgresTripRepository) UpdateTrip(ctx context.Context, upd model.Trip)
 		status = $2,
 		ended_at = CASE WHEN $3 THEN NOW() ELSE ended_at END
 	WHERE id = $1 AND status NOT IN ($4, $5)
-	RETURNING id, driver_id, vehicle_id, started_at, ended_at, status
+	RETURNING id, driver_id, vehicle_id, started_at, ended_at, status, distance_km
 	`
 
 	var t model.Trip
@@ -74,7 +88,7 @@ func (r *PostgresTripRepository) UpdateTrip(ctx context.Context, upd model.Trip)
 		upd.ID, upd.Status, isFinalTripStatus(upd.Status),
 		model.TripStatusCancelled, model.TripStatusSucceeded,
 	).Scan(
-		&t.ID, &t.DriverID, &t.VehicleID, &t.StartedAt, &t.EndedAt, &t.Status,
+		&t.ID, &t.DriverID, &t.VehicleID, &t.StartedAt, &t.EndedAt, &t.Status, &t.DistanceKm,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -125,6 +139,36 @@ func buildTripWhereClause(filter *model.TripFilter) (string, []any) {
 		args = append(args, *filter.StartedTo)
 		argN++
 	}
+	if filter.MinDistance != nil {
+		conditions = append(conditions, fmt.Sprintf("distance_km >= $%d", argN))
+		args = append(args, *filter.MinDistance)
+		argN++
+	}
+	if filter.MaxDistance != nil {
+		conditions = append(conditions, fmt.Sprintf("distance_km <= $%d", argN))
+		args = append(args, *filter.MaxDistance)
+		argN++
+	}
+	if filter.MinAvgSpeed != nil {
+		conditions = append(conditions, fmt.Sprintf("avg_speed_kmh >= $%d", argN))
+		args = append(args, *filter.MinAvgSpeed)
+		argN++
+	}
+	if filter.MaxAvgSpeed != nil {
+		conditions = append(conditions, fmt.Sprintf("avg_speed_kmh <= $%d", argN))
+		args = append(args, *filter.MaxAvgSpeed)
+		argN++
+	}
+	if filter.MinMaxSpeed != nil {
+		conditions = append(conditions, fmt.Sprintf("max_speed_kmh >= $%d", argN))
+		args = append(args, *filter.MinMaxSpeed)
+		argN++
+	}
+	if filter.MaxMaxSpeed != nil {
+		conditions = append(conditions, fmt.Sprintf("max_speed_kmh <= $%d", argN))
+		args = append(args, *filter.MaxMaxSpeed)
+		argN++
+	}
 	if len(conditions) == 0 {
 		return "", args
 	}
@@ -135,7 +179,7 @@ func buildTripWhereClause(filter *model.TripFilter) (string, []any) {
 func (r *PostgresTripRepository) GetListTrips(ctx context.Context, filter *model.TripFilter) ([]model.Trip, error) {
 	whereTripClause, args := buildTripWhereClause(filter)
 	query := fmt.Sprintf(`
-	SELECT id, driver_id, vehicle_id, started_at, ended_at, status FROM trips %s ORDER BY id DESC LIMIT $%d OFFSET $%d`,
+	SELECT id, driver_id, vehicle_id, started_at, ended_at, status, distance_km, avg_speed_kmh, max_speed_kmh, telemetry_count FROM trips %s ORDER BY id DESC LIMIT $%d OFFSET $%d`,
 		whereTripClause, len(args)+1, len(args)+2)
 	args = append(args, filter.Limit, filter.Offset)
 	rows, err := r.db.Query(ctx, query, args...)
@@ -148,7 +192,7 @@ func (r *PostgresTripRepository) GetListTrips(ctx context.Context, filter *model
 	for rows.Next() {
 		var t model.Trip
 		err = rows.Scan(
-			&t.ID, &t.DriverID, &t.VehicleID, &t.StartedAt, &t.EndedAt, &t.Status,
+			&t.ID, &t.DriverID, &t.VehicleID, &t.StartedAt, &t.EndedAt, &t.Status, &t.DistanceKm, &t.AvgSpeedKmh, &t.MaxSpeedKmh, &t.TelemetryCount,
 		)
 		if err != nil {
 			return nil, err
@@ -156,4 +200,35 @@ func (r *PostgresTripRepository) GetListTrips(ctx context.Context, filter *model
 		trips = append(trips, t)
 	}
 	return trips, rows.Err()
+}
+
+// UpdateTripStats атомарно обновляет статистику скорости и длинну рейса с указанным id
+// Возвращает новый объект model.Trip, либо model.ErrNotFound, если рейса нет
+func (r *PostgresTripRepository) UpdateTripStats(ctx context.Context, id int, distance, speed float64) (model.Trip, error) {
+	const query = `
+	UPDATE trips
+	SET 
+	distance_km = distance_km + $2,
+	max_speed_kmh = GREATEST(max_speed_kmh, $3),
+	avg_speed_kmh = (avg_speed_kmh * telemetry_count + $3) / (telemetry_count + 1),
+	telemetry_count = telemetry_count + 1
+	WHERE id = $1 
+	RETURNING id, driver_id, vehicle_id, 
+	started_at, ended_at, status, distance_km, 
+	avg_speed_kmh, max_speed_kmh, telemetry_count
+	`
+	var t model.Trip
+	err := r.db.QueryRow(ctx, query, id, distance, speed).Scan(
+		&t.ID, &t.DriverID, &t.VehicleID,
+		&t.StartedAt, &t.EndedAt, &t.Status,
+		&t.DistanceKm, &t.AvgSpeedKmh, &t.MaxSpeedKmh,
+		&t.TelemetryCount,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return model.Trip{}, model.ErrNotFound
+		}
+		return model.Trip{}, err
+	}
+	return t, nil
 }

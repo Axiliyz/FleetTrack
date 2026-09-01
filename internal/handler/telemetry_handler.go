@@ -64,6 +64,9 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 		VehicleID:   savedTelemetry.VehicleID,
 		DeviceID:    savedTelemetry.DeviceID,
 		ReceivedAt:  savedTelemetry.ReceivedAt,
+		TripID:      savedTelemetry.TripID,
+		DistanceKm:  savedTelemetry.DistanceKm,
+		SpeedKmh:    savedTelemetry.SpeedKmh,
 	}
 
 	respondSuccess(w, r, "Telemetry got to post", h.logger, telemetryResponse)
@@ -89,6 +92,9 @@ func (h *TelemetryHandler) HandleGetListTelemetry(w http.ResponseWriter, r *http
 			VehicleID:   t.VehicleID,
 			DeviceID:    t.DeviceID,
 			ReceivedAt:  t.ReceivedAt,
+			TripID:      t.TripID,
+			DistanceKm:  t.DistanceKm,
+			SpeedKmh:    t.SpeedKmh,
 		})
 	}
 
@@ -115,6 +121,9 @@ func (h *TelemetryHandler) HandleGetTelemetryByID(w http.ResponseWriter, r *http
 		VehicleID:   telemetry.VehicleID,
 		DeviceID:    telemetry.DeviceID,
 		ReceivedAt:  telemetry.ReceivedAt,
+		TripID:      telemetry.TripID,
+		DistanceKm:  telemetry.DistanceKm,
+		SpeedKmh:    telemetry.SpeedKmh,
 	}
 
 	respondSuccess(w, r, "Telemetry found", h.logger, telemetryResponse)
@@ -142,6 +151,9 @@ func (h *TelemetryHandler) HandleGetTelemetryByVehicle(w http.ResponseWriter, r 
 			VehicleID:   t.VehicleID,
 			DeviceID:    t.DeviceID,
 			ReceivedAt:  t.ReceivedAt,
+			TripID:      t.TripID,
+			DistanceKm:  t.DistanceKm,
+			SpeedKmh:    t.SpeedKmh,
 		})
 	}
 
@@ -167,6 +179,9 @@ func (h *TelemetryHandler) HandleDeleteTelemetryByID(w http.ResponseWriter, r *h
 		VehicleID:   t.VehicleID,
 		DeviceID:    t.DeviceID,
 		ReceivedAt:  t.ReceivedAt,
+		TripID:      t.TripID,
+		DistanceKm:  t.DistanceKm,
+		SpeedKmh:    t.SpeedKmh,
 	}
 
 	respondSuccess(w, r, "Telemetry deleted", h.logger, telemetryResponse)
@@ -192,6 +207,9 @@ func (h *TelemetryHandler) HandleDeleteTelemetryByVehicleID(w http.ResponseWrite
 			VehicleID:   t.VehicleID,
 			DeviceID:    t.DeviceID,
 			ReceivedAt:  t.ReceivedAt,
+			TripID:      t.TripID,
+			DistanceKm:  t.DistanceKm,
+			SpeedKmh:    t.SpeedKmh,
 		})
 	}
 

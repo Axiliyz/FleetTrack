@@ -26,6 +26,13 @@ func (m *mockOrgService) CreateOrg(ctx context.Context, o model.Org) (model.Org,
 	}, nil
 }
 
+func (m *mockOrgService) GetOrgList(ctx context.Context) ([]model.Org, error) {
+	if m.returnError != nil {
+		return nil, m.returnError
+	}
+	return []model.Org{}, nil
+}
+
 func TestHandlePostOrg(t *testing.T) {
 	tests := []struct {
 		name           string
