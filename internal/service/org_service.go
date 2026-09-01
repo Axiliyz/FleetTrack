@@ -36,3 +36,13 @@ func (s *OrgService) CreateOrg(ctx context.Context, o model.Org) (model.Org, err
 	s.logger.Info(fmt.Sprintf("Organization %d created", o.ID))
 	return o, nil
 }
+
+// GetOrgList возвращает список всех организаций.
+func (s *OrgService) GetOrgList(ctx context.Context) ([]model.Org, error) {
+	orgs, err := s.repository.GetList(ctx)
+	if err != nil {
+		return nil, err
+	}
+	s.logger.Info("Got organizations list")
+	return orgs, nil
+}

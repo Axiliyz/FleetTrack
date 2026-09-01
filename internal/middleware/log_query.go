@@ -22,7 +22,7 @@ func LogQuery(logger logger.Logger) func(http.Handler) http.Handler {
 				statusCode:     http.StatusOK,
 			}
 
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(rw, r)
 
 			duration := time.Since(start)
 

@@ -21,6 +21,7 @@ type TripHandler struct {
 // TripService определяет контракт бизнес-логики, необходимой TripHandler
 type TripService interface {
 	AssignTrip(ctx context.Context, driverID int, vehicleID int) (model.Trip, error)
+	GetTripByID(ctx context.Context, id int) (model.Trip, error)
 	UpdateTrip(ctx context.Context, id int, upd model.Trip) (model.Trip, error)
 	DeleteTrip(ctx context.Context, id int) (model.Trip, error)
 	GetListTrips(ctx context.Context, filter model.TripFilter) ([]model.Trip, error)
@@ -111,4 +112,21 @@ func (h *TripHandler) HandleGetListTrips(w http.ResponseWriter, r *http.Request)
 	}
 
 	respondSuccess(w, r, "trips list", h.logger, trips)
+}
+
+// HandleGetTripByID возвращает рейс по ID
+func (h *TripHandler) HandleGetTripByID(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		respondError(w, r, h.logger, model.ErrInvalidTripID)
+		return
+	}
+
+	trip, err := h.tripService.GetTripByID(r.Context(), id)
+	if err != nil {
+		respondError(w, r, h.logger, err)
+		return
+	}
+	respondSuccess(w, r, "trip found", h.logger, trip)
 }

@@ -31,6 +31,30 @@ func ParseTripFilter(vals url.Values) (model.TripFilter, error) {
 	if err != nil {
 		return f, model.ErrInvalidTimestamp
 	}
+	f.MinDistance, err = parseFloat64Param(vals, "min_distance")
+	if err != nil {
+		return f, model.ErrInvalidDistance
+	}
+	f.MaxDistance, err = parseFloat64Param(vals, "max_distance")
+	if err != nil {
+		return f, model.ErrInvalidDistance
+	}
+	f.MinAvgSpeed, err = parseFloat64Param(vals, "min_avg_speed")
+	if err != nil {
+		return f, model.ErrInvalidSpeed
+	}
+	f.MaxAvgSpeed, err = parseFloat64Param(vals, "max_avg_speed")
+	if err != nil {
+		return f, model.ErrInvalidSpeed
+	}
+	f.MinMaxSpeed, err = parseFloat64Param(vals, "min_max_speed")
+	if err != nil {
+		return f, model.ErrInvalidSpeed
+	}
+	f.MaxMaxSpeed, err = parseFloat64Param(vals, "max_max_speed")
+	if err != nil {
+		return f, model.ErrInvalidSpeed
+	}
 	f.Limit, err = parseLimitParam(vals, "limit", 500)
 	if err != nil {
 		return f, model.ErrInvalidLimit

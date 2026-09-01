@@ -244,6 +244,30 @@ func mapError(err error) HTTPError {
 			Status:  http.StatusBadRequest,
 		}
 
+	case errors.Is(err, model.ErrNoActiveTrip):
+		return HTTPError{
+			Message: "no active trip",
+			Status:  http.StatusConflict,
+		}
+
+	case errors.Is(err, model.ErrInvalidSpeed):
+		return HTTPError{
+			Message: "invalid speed",
+			Status:  http.StatusBadRequest,
+		}
+
+	case errors.Is(err, model.ErrInvalidDistance):
+		return HTTPError{
+			Message: "invalid distance",
+			Status:  http.StatusBadRequest,
+		}
+
+	case errors.Is(err, model.ErrDuplicateOrgName):
+		return HTTPError{
+			Message: "organization with this name already exists",
+			Status:  http.StatusConflict,
+		}
+
 	default:
 		return HTTPError{
 			Message: "unknown error",

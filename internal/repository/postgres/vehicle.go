@@ -29,6 +29,8 @@ func mapUniqueViolation(err error) error {
 		return model.ErrDuplicatePlate
 	case "devices_serial_number_key":
 		return model.ErrDuplicateSerialNumber
+	case "organizations_name_key":
+		return model.ErrDuplicateOrgName
 	default:
 		return err
 	}

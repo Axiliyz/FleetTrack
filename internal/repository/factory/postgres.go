@@ -11,6 +11,8 @@ type Repositories struct {
 	Device     repository.DeviceRepository
 	Vehicle    repository.VehicleRepository
 	Assignment repository.AssignmentRepository
+	Telemetry  repository.TelemetryRepository
+	Trip       repository.TripRepository
 }
 
 // PostgresRepositoryFactory - реализация RepositoryFactory поверх PostgreSQL
@@ -27,5 +29,7 @@ func (f *PostgresRepositoryFactory) New(tx database.DBTX) Repositories {
 		Device:     postgres.NewPostgresDeviceRepository(tx),
 		Vehicle:    postgres.NewPostgresVehicleRepository(tx),
 		Assignment: postgres.NewPostgresAssignmentRepository(tx),
+		Telemetry:  postgres.NewPostgresTelemetryRepository(tx),
+		Trip:       postgres.NewPostgresTripRepository(tx),
 	}
 }

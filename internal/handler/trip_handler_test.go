@@ -44,6 +44,10 @@ func (m *mockTripService) GetListTrips(ctx context.Context, filter model.TripFil
 	return []model.Trip{}, nil
 }
 
+func (m *mockTripService) GetTripByID(ctx context.Context, id int) (model.Trip, error) {
+	return model.Trip{}, nil
+}
+
 func TestHandleAssignTrip(t *testing.T) {
 	tests := []struct {
 		name           string

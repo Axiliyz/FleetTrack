@@ -3,29 +3,38 @@ package service
 
 import (
 	"context"
+	"errors"
+	"fleettrack/internal/database"
 	"fleettrack/internal/logger"
 	"fleettrack/internal/model"
 	"fleettrack/internal/repository"
+	"fleettrack/internal/repository/factory"
+	"fleettrack/internal/transaction"
 	"fmt"
 	"time"
 )
 
 // TelemetryService обрабатывает и валидирует телеметрию
 type TelemetryService struct {
-	repository repository.TelemetryRepository
-	logger     logger.Logger
+	repository    repository.TelemetryRepository
+	logger        logger.Logger
+	txManager     transaction.TransactionManager
+	repoFactory   factory.RepositoryFactory
+	motionService MotionService
 }
 
 // NewTelemetryService создаёт новый сервис с заданным репозиторием и логгером
-func NewTelemetryService(r repository.TelemetryRepository, logger logger.Logger) *TelemetryService {
+func NewTelemetryService(r repository.TelemetryRepository, logger logger.Logger, tx transaction.TransactionManager, rf factory.RepositoryFactory, ms MotionService) *TelemetryService {
 	return &TelemetryService{
-		repository: r,
-		logger:     logger,
+		repository:    r,
+		logger:        logger,
+		txManager:     tx,
+		repoFactory:   rf,
+		motionService: ms,
 	}
 }
 
-// ProcessTelemetry валидирует телеметрию и сохраняет в репозиторий.
-// Возвращает сохраненную телеметрию или ошибку валидации.
+// validateTelemetry проверяет входные данные телеметрии.
 //
 // Проверяет:
 // - DeviceID >= 0
@@ -33,33 +42,102 @@ func NewTelemetryService(r repository.TelemetryRepository, logger logger.Logger)
 // - Lat в диапазоне [-90, 90]
 // - Lon в диапазоне [-180, 180]
 // - Fuel в диапазоне [0, 1]
+func validateTelemetry(t model.Telemetry) error {
+	if t.DeviceID < 0 {
+		return model.ErrInvalidDeviceID
+	}
+	if t.VehicleID < 0 {
+		return model.ErrInvalidVehicleID
+	}
+	if t.Lat < -90 || t.Lat > 90 || t.Lon < -180 || t.Lon > 180 {
+		return model.ErrInvalidCoords
+	}
+	if t.Fuel < 0.0 || t.Fuel > 1.0 {
+		return model.ErrInvalidFuel
+	}
+	return nil
+}
+
+// resolveActiveTrip находит активный (RUNNING) рейс машины.
+// Возвращает model.ErrNoActiveTrip, если такого рейса нет.
+func resolveActiveTrip(ctx context.Context, repos factory.Repositories, vehicleID int) (model.Trip, error) {
+	running := model.TripStatusRunning
+	filter := &model.TripFilter{VehicleID: &vehicleID, Status: &running, Limit: 1}
+	trips, err := repos.Trip.GetListTrips(ctx, filter)
+	if err != nil {
+		return model.Trip{}, err
+	}
+	if len(trips) == 0 {
+		return model.Trip{}, model.ErrNoActiveTrip
+	}
+	return trips[0], nil
+}
+
+// resolveLastTelemetry находит предыдущую точку телеметрии машины.
+// Если точки ещё не было - возвращает (nil, nil), это не ошибка.
+func resolveLastTelemetry(ctx context.Context, repos factory.Repositories, vehicleID int) (*model.Telemetry, error) {
+	found, err := repos.Telemetry.GetLastByVehicle(ctx, vehicleID)
+	if err != nil {
+		if errors.Is(err, model.ErrNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &found, nil
+}
+
+// applyMotion считает пройденное расстояние и скорость по предыдущей точке
+// и прибавляет расстояние к рейсу. Если предыдущей точки не было - ничего не делает.
+func (s *TelemetryService) applyMotion(ctx context.Context, repos factory.Repositories, last *model.Telemetry, trip model.Trip, t *model.Telemetry) error {
+	if last == nil {
+		return nil
+	}
+	motion, err := s.motionService.Calculate(last, *t)
+	if err != nil {
+		return err
+	}
+	t.DistanceKm = motion.DistanceKm
+	t.SpeedKmh = motion.SpeedKmh
+	_, err = repos.Trip.UpdateTripStats(ctx, trip.ID, t.DistanceKm, t.SpeedKmh)
+	return err
+}
+
+// ProcessTelemetry валидирует телеметрию и сохраняет в репозиторий.
+// Возвращает сохраненную телеметрию или ошибку валидации.
 //
 // Если DeviceTimestamp не указан - устанавливает текущее время.
 // ReceivedAt всегда ставится в текущее время
 func (s *TelemetryService) ProcessTelemetry(ctx context.Context, t model.Telemetry) (model.Telemetry, error) {
-	if t.DeviceID < 0 {
-		return model.Telemetry{}, model.ErrInvalidDeviceID
+	if err := validateTelemetry(t); err != nil {
+		return model.Telemetry{}, err
 	}
 
-	if t.VehicleID < 0 {
-		return model.Telemetry{}, model.ErrInvalidVehicleID
-	}
-
-	if t.Lat < -90 || t.Lat > 90 || t.Lon < -180 || t.Lon > 180 {
-		return model.Telemetry{}, model.ErrInvalidCoords
-	}
-
-	if t.Fuel < 0.0 || t.Fuel > 1.0 {
-		return model.Telemetry{}, model.ErrInvalidFuel
-	}
-
-	// Если пришло без времени отправления ставим Now
+	// Если пришло без времени отправления = Now
 	if t.DeviceTimestamp.IsZero() {
 		t.DeviceTimestamp = time.Now()
 	}
-
 	t.ReceivedAt = time.Now()
-	err := s.repository.Save(ctx, &t)
+
+	err := s.txManager.WithTx(ctx, func(tx database.DBTX) error {
+		repos := s.repoFactory.New(tx)
+
+		trip, err := resolveActiveTrip(ctx, repos, t.VehicleID)
+		if err != nil {
+			return err
+		}
+		t.TripID = trip.ID
+
+		last, err := resolveLastTelemetry(ctx, repos, t.VehicleID)
+		if err != nil {
+			return err
+		}
+
+		if err := s.applyMotion(ctx, repos, last, trip, &t); err != nil {
+			return err
+		}
+
+		return repos.Telemetry.Save(ctx, &t)
+	})
 	if err != nil {
 		return model.Telemetry{}, err
 	}

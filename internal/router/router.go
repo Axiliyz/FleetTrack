@@ -44,9 +44,11 @@ func NewRouter(telemetryHandler *handler.TelemetryHandler, vehicleHandler *handl
 	router.Delete("/devices/{id}", deviceHandler.HandleDeleteDeviceByID)
 
 	router.Post("/organizations", orgHandler.HandlePostOrg)
+	router.Get("/organizations", orgHandler.HandleGetListOrg)
 
 	router.Post("/trips", tripHandler.HandleAssignTrip)
 	router.Get("/trips", tripHandler.HandleGetListTrips)
+	router.Get("/trips/{id}", tripHandler.HandleGetTripByID)
 	router.Patch("/trips/{id}", tripHandler.HandleUpdateTrip)
 	router.Delete("/trips/{id}", tripHandler.HandleDeleteTrip)
 

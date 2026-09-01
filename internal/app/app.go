@@ -50,8 +50,9 @@ func New(cfg config.Config) (*App, error) {
 	deviceService := service.NewDeviceService(deviceRepo, logger, txManager, repoFactory)
 	deviceHandler := handler.NewDeviceHandler(deviceService, logger)
 
+	motionService := service.NewMotionServiceImpl()
 	telemetryRepo := postgres.NewPostgresTelemetryRepository(pool)
-	telemetryService := service.NewTelemetryService(telemetryRepo, logger)
+	telemetryService := service.NewTelemetryService(telemetryRepo, logger, txManager, repoFactory, motionService)
 	telemetryHandler := handler.NewTelemetryHandler(telemetryService, logger)
 
 	vehicleRepo := postgres.NewPostgresVehicleRepository(pool)

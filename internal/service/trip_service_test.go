@@ -13,6 +13,15 @@ type mockTripRepository struct {
 	listErr   error
 	updateErr error
 	deleteErr error
+	getErr    error
+	trips     []model.Trip
+}
+
+func (m *mockTripRepository) GetByID(ctx context.Context, id int) (model.Trip, error) {
+	if m.getErr != nil {
+		return model.Trip{}, m.getErr
+	}
+	return model.Trip{ID: id}, nil
 }
 
 func (m *mockTripRepository) CreateTrip(ctx context.Context, t *model.Trip) error {
@@ -27,7 +36,7 @@ func (m *mockTripRepository) GetListTrips(ctx context.Context, f *model.TripFilt
 	if m.listErr != nil {
 		return nil, m.listErr
 	}
-	return []model.Trip{}, nil
+	return m.trips, nil
 }
 
 func (m *mockTripRepository) UpdateTrip(ctx context.Context, upd model.Trip) (model.Trip, error) {
@@ -42,6 +51,10 @@ func (m *mockTripRepository) DeleteTrip(ctx context.Context, id int) (model.Trip
 		return model.Trip{}, m.deleteErr
 	}
 	return model.Trip{ID: id, Status: model.TripStatusCancelled}, nil
+}
+
+func (m *mockTripRepository) UpdateTripStats(ctx context.Context, id int, distance, speed float64) (model.Trip, error) {
+	return model.Trip{}, nil
 }
 
 func TestAssignTrip(t *testing.T) {
@@ -164,6 +177,20 @@ func TestGetListTrips(t *testing.T) {
 				Limit:       100,
 			},
 			wantErr: model.ErrInvalidTimestamp,
+		},
+		{name: "min_avg_speed zero", filter: model.TripFilter{MinAvgSpeed: float64Ptr(0), Limit: 100}, wantErr: model.ErrInvalidSpeed},
+		{name: "max_avg_speed zero", filter: model.TripFilter{MaxAvgSpeed: float64Ptr(0), Limit: 100}, wantErr: model.ErrInvalidSpeed},
+		{
+			name:    "min_avg_speed greater than max_avg_speed",
+			filter:  model.TripFilter{MinAvgSpeed: float64Ptr(20), MaxAvgSpeed: float64Ptr(10), Limit: 100},
+			wantErr: model.ErrInvalidSpeed,
+		},
+		{name: "min_max_speed zero", filter: model.TripFilter{MinMaxSpeed: float64Ptr(0), Limit: 100}, wantErr: model.ErrInvalidSpeed},
+		{name: "max_max_speed zero", filter: model.TripFilter{MaxMaxSpeed: float64Ptr(0), Limit: 100}, wantErr: model.ErrInvalidSpeed},
+		{
+			name:    "min_max_speed greater than max_max_speed",
+			filter:  model.TripFilter{MinMaxSpeed: float64Ptr(120), MaxMaxSpeed: float64Ptr(30), Limit: 100},
+			wantErr: model.ErrInvalidSpeed,
 		},
 	}
 
