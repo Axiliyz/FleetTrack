@@ -61,12 +61,14 @@ func (m *fakeTxManager) WithTx(ctx context.Context, fn func(tx database.DBTX) er
 type fakeRepoFactory struct {
 	telemetry repository.TelemetryRepository
 	trip      repository.TripRepository
+	vehicle   repository.VehicleRepository
 }
 
 func (f *fakeRepoFactory) New(tx database.DBTX) factory.Repositories {
 	return factory.Repositories{
 		Telemetry: f.telemetry,
 		Trip:      f.trip,
+		Vehicle:   f.vehicle,
 	}
 }
 
@@ -234,7 +236,7 @@ func TestProcessTelemetry(t *testing.T) {
 	repo := &mockRepository{}
 	tripRepo := &mockTripRepository{trips: []model.Trip{{ID: 1, Status: model.TripStatusRunning}}}
 	txManager := &fakeTxManager{}
-	repoFactory := &fakeRepoFactory{telemetry: repo, trip: tripRepo}
+	repoFactory := &fakeRepoFactory{telemetry: repo, trip: tripRepo, vehicle: &mockVehicleRepository{}}
 	motion := &fakeMotionService{data: &model.MotionData{DistanceKm: 1.2, SpeedKmh: 40}}
 	log := logger.NewStdLogger(logger.DebugLevel)
 	service := NewTelemetryService(repo, log, txManager, repoFactory, motion)
@@ -255,7 +257,7 @@ func TestProcessTelemetry_NoActiveTrip(t *testing.T) {
 	repo := &mockRepository{}
 	tripRepo := &mockTripRepository{} // trips не задан - активного рейса нет
 	txManager := &fakeTxManager{}
-	repoFactory := &fakeRepoFactory{telemetry: repo, trip: tripRepo}
+	repoFactory := &fakeRepoFactory{telemetry: repo, trip: tripRepo, vehicle: &mockVehicleRepository{}}
 	log := logger.NewStdLogger(logger.DebugLevel)
 	service := NewTelemetryService(repo, log, txManager, repoFactory, &fakeMotionService{})
 
@@ -273,7 +275,7 @@ func TestProcessTelemetry_FirstPointForVehicle(t *testing.T) {
 	repo := &mockRepository{lastErr: model.ErrNotFound}
 	tripRepo := &mockTripRepository{trips: []model.Trip{{ID: 1, Status: model.TripStatusRunning}}}
 	txManager := &fakeTxManager{}
-	repoFactory := &fakeRepoFactory{telemetry: repo, trip: tripRepo}
+	repoFactory := &fakeRepoFactory{telemetry: repo, trip: tripRepo, vehicle: &mockVehicleRepository{}}
 	log := logger.NewStdLogger(logger.DebugLevel)
 	service := NewTelemetryService(repo, log, txManager, repoFactory, &fakeMotionService{})
 
