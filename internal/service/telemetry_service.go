@@ -52,7 +52,7 @@ func validateTelemetry(t model.Telemetry) error {
 	if t.Lat < -90 || t.Lat > 90 || t.Lon < -180 || t.Lon > 180 {
 		return model.ErrInvalidCoords
 	}
-	if t.Fuel < 0.0 || t.Fuel > 1.0 {
+	if t.Fuel != nil && (*t.Fuel < 0.0 || *t.Fuel > 1.0) {
 		return model.ErrInvalidFuel
 	}
 	return nil
@@ -158,15 +158,28 @@ func (s *TelemetryService) ProcessTelemetry(ctx context.Context, t model.Telemet
 		return model.Telemetry{}, err
 	}
 
-	message := fmt.Sprintf(
-		"data stored: ID: %d Device: %d Vehicle: %d Lat: %f Lon: %f Fuel: %f",
-		t.TelemetryID,
-		t.DeviceID,
-		t.VehicleID,
-		t.Lat,
-		t.Lon,
-		t.Fuel,
-	)
+	var message string
+	if t.Fuel != nil {
+		message = fmt.Sprintf(
+			"data stored: ID: %d Device: %d Vehicle: %d Lat: %f Lon: %f Fuel: %f",
+			t.TelemetryID,
+			t.DeviceID,
+			t.VehicleID,
+			t.Lat,
+			t.Lon,
+			*t.Fuel,
+		)
+	} else {
+		message = fmt.Sprintf(
+			"data stored: ID: %d Device: %d Vehicle: %d Lat: %f Lon: %f Fuel: %s",
+			t.TelemetryID,
+			t.DeviceID,
+			t.VehicleID,
+			t.Lat,
+			t.Lon,
+			"No data",
+		)
+	}
 	s.logger.Info(message)
 	return t, nil
 }

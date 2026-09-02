@@ -16,6 +16,8 @@ type mockTelemetryService struct {
 	returnError error
 }
 
+func float32Ptr(v float32) *float32 { return &v }
+
 func (m *mockTelemetryService) ProcessTelemetry(ctx context.Context, t model.Telemetry) (model.Telemetry, error) {
 	if m.returnError != nil {
 		return model.Telemetry{}, m.returnError
@@ -26,7 +28,7 @@ func (m *mockTelemetryService) ProcessTelemetry(ctx context.Context, t model.Tel
 			DeviceID:    12,
 			Lat:         44.4,
 			Lon:         44.4,
-			Fuel:        0.5,
+			Fuel:        float32Ptr(0.5),
 		}, nil
 	}
 }

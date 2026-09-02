@@ -24,13 +24,13 @@ func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		logger.Error(model.ErrConnectingDB.Error())
-		return
+		os.Exit(1)
 	}
 
 	fleetApp, err := app.New(*cfg)
 	if err != nil {
 		logger.Error(err.Error())
-		return
+		os.Exit(1)
 	}
 
 	defer fleetApp.Close()

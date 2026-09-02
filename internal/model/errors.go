@@ -64,4 +64,11 @@ var (
 	ErrNoActiveTrip    = errors.New("no trip in status RUNNING")
 	ErrInvalidDistance = errors.New("invalid distance")
 	ErrInvalidSpeed    = errors.New("invalid speed")
+
+	// Users errors
+	ErrInvalidName       = errors.New("invalid user name")
+	ErrInvalidUserID     = errors.New("invalid user id")
+	ErrInvalidEmail      = errors.New("invalid email")
+	ErrInvalidPassword   = errors.New("invalid password")
+	ErrForbiddenPassword = errors.New("forbidden password")
 )

@@ -268,6 +268,34 @@ func mapError(err error) HTTPError {
 			Status:  http.StatusConflict,
 		}
 
+	case errors.Is(err, model.ErrInvalidName):
+		return HTTPError{
+			Message: "invalid user name",
+			Status:  http.StatusBadRequest,
+		}
+
+	case errors.Is(err, model.ErrInvalidEmail):
+		return HTTPError{
+			Message: "invalid email",
+			Status:  http.StatusBadRequest,
+		}
+
+	case errors.Is(err, model.ErrInvalidPassword):
+		return HTTPError{
+			Message: "invalid password",
+			Status:  http.StatusBadRequest,
+		}
+
+	case errors.Is(err, model.ErrForbiddenPassword):
+		return HTTPError{
+			Message: "forbidden password",
+			Status:  http.StatusConflict,
+		}
+	case errors.Is(err, model.ErrInvalidUserID):
+		return HTTPError{
+			Message: "invalid user id",
+			Status:  http.StatusBadRequest,
+		}
 	default:
 		return HTTPError{
 			Message: "unknown error",

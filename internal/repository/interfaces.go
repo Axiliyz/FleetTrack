@@ -125,3 +125,10 @@ type TripRepository interface {
 	// Возвращает model.ErrNotFound если не нашёл
 	GetByID(ctx context.Context, id int) (model.Trip, error)
 }
+
+// UserRepository задаёт контракт хранения пользователей
+type UserRepository interface {
+	// GetByEmail получает юзера по почте
+	// Возвращает model.ErrNotFound если не нашёл
+	GetByEmail(ctx context.Context, email string) (model.User, error)
+}
