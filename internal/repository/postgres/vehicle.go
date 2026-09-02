@@ -130,7 +130,7 @@ func buildVehicleWhereClause(filter model.VehicleFilter) (string, []any) {
 	if filter.CreatedTo != nil {
 		conditions = append(conditions, fmt.Sprintf("created_at <= $%d", argN))
 		args = append(args, *filter.CreatedTo)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if len(conditions) == 0 {
 		return "", args
@@ -213,7 +213,7 @@ func buildVehicleSetClause(updater model.UpdateVehicle) (string, []any) {
 	if updater.Status != nil {
 		conditions = append(conditions, fmt.Sprintf("status = $%d", argN))
 		args = append(args, *updater.Status)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if len(conditions) == 0 {
 		return "", args
