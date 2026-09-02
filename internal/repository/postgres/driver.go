@@ -60,22 +60,22 @@ func buildDriverWhereClause(filter model.DriverFilter) (string, []any) {
 	if filter.OrganizationID != nil {
 		conditions = append(conditions, fmt.Sprintf("organization_id = $%d", argN))
 		args = append(args, *filter.OrganizationID)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.Name != nil {
 		conditions = append(conditions, fmt.Sprintf("name = $%d", argN))
 		args = append(args, *filter.Name)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.CreatedFrom != nil {
 		conditions = append(conditions, fmt.Sprintf("created_at >= $%d", argN))
 		args = append(args, *filter.CreatedFrom)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.CreatedTo != nil {
 		conditions = append(conditions, fmt.Sprintf("created_at <= $%d", argN))
 		args = append(args, *filter.CreatedTo)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if len(conditions) == 0 {
 		return "", args
@@ -116,12 +116,12 @@ func buildDriverSetClause(upd model.UpdateDriver) (string, []any) {
 	if upd.OrganizationID != nil {
 		conditions = append(conditions, fmt.Sprintf("organization_id = $%d", argN))
 		args = append(args, *upd.OrganizationID)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if upd.Name != nil {
 		conditions = append(conditions, fmt.Sprintf("name = $%d", argN))
 		args = append(args, *upd.Name)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if len(conditions) == 0 {
 		return "", args
