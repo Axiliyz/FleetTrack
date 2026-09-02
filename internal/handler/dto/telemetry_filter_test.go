@@ -5,7 +5,6 @@ import (
 	"fleettrack/internal/model"
 	"net/url"
 	"testing"
-	"time"
 )
 
 func TestParseTelemetryFilter_Errors(t *testing.T) {
@@ -134,13 +133,4 @@ func TestParseTelemetryFilter_FromAfterToIsNotValidatedHere(t *testing.T) {
 	if !f.From.After(*f.To) {
 		t.Fatalf("expected From (%v) to be after To (%v) for this test to be meaningful", f.From, f.To)
 	}
-}
-
-func mustTime(t *testing.T, s string) time.Time {
-	t.Helper()
-	parsed, err := time.Parse(time.RFC3339, s)
-	if err != nil {
-		t.Fatalf("bad test time: %v", err)
-	}
-	return parsed
 }

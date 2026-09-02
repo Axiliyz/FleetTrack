@@ -52,57 +52,57 @@ func buildWhereClause(filter model.TelemetryFilter) (string, []any) {
 	if filter.OrganizationID != nil {
 		conditions = append(conditions, fmt.Sprintf("organization_id = $%d", argN))
 		args = append(args, *filter.OrganizationID)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.VehicleID != nil {
 		conditions = append(conditions, fmt.Sprintf("vehicle_id = $%d", argN))
 		args = append(args, *filter.VehicleID)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.DeviceID != nil {
 		conditions = append(conditions, fmt.Sprintf("device_id = $%d", argN))
 		args = append(args, *filter.DeviceID)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.FuelMin != nil {
 		conditions = append(conditions, fmt.Sprintf("fuel >= $%d", argN))
 		args = append(args, *filter.FuelMin)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.FuelMax != nil {
 		conditions = append(conditions, fmt.Sprintf("fuel <= $%d", argN))
 		args = append(args, *filter.FuelMax)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.LatMin != nil {
 		conditions = append(conditions, fmt.Sprintf("latitude >= $%d", argN))
 		args = append(args, *filter.LatMin)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.LatMax != nil {
 		conditions = append(conditions, fmt.Sprintf("latitude <= $%d", argN))
 		args = append(args, *filter.LatMax)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.LonMin != nil {
 		conditions = append(conditions, fmt.Sprintf("longitude >= $%d", argN))
 		args = append(args, *filter.LonMin)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.LonMax != nil {
 		conditions = append(conditions, fmt.Sprintf("longitude <= $%d", argN))
 		args = append(args, *filter.LonMax)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.From != nil {
 		conditions = append(conditions, fmt.Sprintf("received_at >= $%d", argN))
 		args = append(args, *filter.From)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.To != nil {
 		conditions = append(conditions, fmt.Sprintf("received_at <= $%d", argN))
 		args = append(args, *filter.To)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if len(conditions) < 1 {
 		return "", args

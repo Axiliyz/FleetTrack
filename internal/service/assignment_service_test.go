@@ -7,18 +7,6 @@ import (
 	"testing"
 )
 
-type mockDeviceRepository struct {
-	device model.Device
-	err    error
-}
-
-func (m *mockDeviceRepository) GetByID(ctx context.Context, deviceID int) (model.Device, error) {
-	if m.err != nil {
-		return model.Device{}, m.err
-	}
-	return m.device, nil
-}
-
 type mockAssignmentRepository struct {
 	activeAssignment model.DeviceAssignment
 	getActiveErr     error
@@ -41,36 +29,6 @@ func (m *mockAssignmentRepository) CreateAssignment(ctx context.Context, a *mode
 func (m *mockAssignmentRepository) EndAssignment(ctx context.Context, deviceID int) error {
 	m.endCalled = true
 	return m.endErr
-}
-
-// stubVehicleRepository реализует полный VehicleRepository, но для тестов
-// AssignmentService важен только GetByID.
-type stubVehicleRepository struct {
-	vehicle model.Vehicle
-	err     error
-}
-
-func (s *stubVehicleRepository) Create(ctx context.Context, v *model.Vehicle) error {
-	return nil
-}
-
-func (s *stubVehicleRepository) GetByID(ctx context.Context, id int) (model.Vehicle, error) {
-	if s.err != nil {
-		return model.Vehicle{}, s.err
-	}
-	return s.vehicle, nil
-}
-
-func (s *stubVehicleRepository) GetList(ctx context.Context, filter model.VehicleFilter) ([]model.Vehicle, error) {
-	return nil, nil
-}
-
-func (s *stubVehicleRepository) Delete(ctx context.Context, id int) (model.Vehicle, error) {
-	return model.Vehicle{}, nil
-}
-
-func (s *stubVehicleRepository) Update(ctx context.Context, id int, upd model.UpdateVehicle) (model.Vehicle, error) {
-	return model.Vehicle{}, nil
 }
 
 func TestGetActiveAssignment(t *testing.T) {

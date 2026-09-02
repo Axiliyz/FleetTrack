@@ -23,17 +23,19 @@ func getRequestID(ctx context.Context) string {
 }
 
 // writeError записывает ошибку в JSON
-func writeError(ctx context.Context, w http.ResponseWriter, message string, code int) {
+func writeError(ctx context.Context, w http.ResponseWriter, logger logger.Logger, message string, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 
-	json.NewEncoder(w).Encode(
+	if err := json.NewEncoder(w).Encode(
 		dto.ErrorResponse{
 			Status:    "error",
 			Message:   message,
 			RequestID: getRequestID(ctx),
 		},
-	)
+	); err != nil {
+		logger.Error(err.Error())
+	}
 }
 
 // respondError логирует ошибку и отправляет ответ
@@ -45,7 +47,7 @@ func respondError(w http.ResponseWriter, r *http.Request, logger logger.Logger, 
 		logger.Warn(err.Error())
 	}
 
-	writeError(r.Context(), w, apiError.Message, apiError.Status)
+	writeError(r.Context(), w, logger, apiError.Message, apiError.Status)
 }
 
 // respondSuccess записывает JSON ответа

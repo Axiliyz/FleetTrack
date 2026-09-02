@@ -37,7 +37,9 @@ func TestMemoryVehicleRepository_CreateAndGetByID(t *testing.T) {
 func TestMemoryVehicleRepository_Delete(t *testing.T) {
 	repo := NewMemoryVehicleRepository()
 	v := model.Vehicle{OrganizationID: 1, VIN: "1HGCM82633A123456", NumberPlate: "A123BC77", Model: "Camry", Status: model.VehicleStatusIdle}
-	repo.Create(context.Background(), &v)
+	if err := repo.Create(context.Background(), &v); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	deleted, err := repo.Delete(context.Background(), v.ID)
 	if err != nil {
@@ -65,7 +67,9 @@ func TestMemoryVehicleRepository_Delete(t *testing.T) {
 func TestMemoryVehicleRepository_Update(t *testing.T) {
 	repo := NewMemoryVehicleRepository()
 	v := model.Vehicle{OrganizationID: 1, VIN: "1HGCM82633A123456", NumberPlate: "A123BC77", Model: "Camry", Status: model.VehicleStatusIdle}
-	repo.Create(context.Background(), &v)
+	if err := repo.Create(context.Background(), &v); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	newPlate := "B999XY77"
 	updated, err := repo.Update(context.Background(), v.ID, model.UpdateVehicle{NumberPlate: &newPlate})
@@ -89,10 +93,14 @@ func TestMemoryVehicleRepository_GetList(t *testing.T) {
 	repo := NewMemoryVehicleRepository()
 	for i := 0; i < 3; i++ {
 		v := model.Vehicle{OrganizationID: 1, VIN: "1HGCM82633A123456", NumberPlate: "A123BC77", Model: "Camry", Status: model.VehicleStatusIdle}
-		repo.Create(context.Background(), &v)
+		if err := repo.Create(context.Background(), &v); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 	}
 	v := model.Vehicle{OrganizationID: 2, VIN: "2HGCM82633A123456", NumberPlate: "B999XY77", Model: "Corolla", Status: model.VehicleStatusIdle}
-	repo.Create(context.Background(), &v)
+	if err := repo.Create(context.Background(), &v); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	org1 := 1
 	list, err := repo.GetList(context.Background(), model.VehicleFilter{OrganizationID: &org1, Limit: 100})
