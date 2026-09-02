@@ -167,7 +167,7 @@ func buildTripWhereClause(filter *model.TripFilter) (string, []any) {
 	if filter.MaxMaxSpeed != nil {
 		conditions = append(conditions, fmt.Sprintf("max_speed_kmh <= $%d", argN))
 		args = append(args, *filter.MaxMaxSpeed)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if len(conditions) == 0 {
 		return "", args
