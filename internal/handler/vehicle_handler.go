@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fleettrack/internal/handler/dto"
 	"fleettrack/internal/logger"
+	"fleettrack/internal/middleware"
 	"fleettrack/internal/model"
 	"net/http"
 	"strconv"
@@ -27,9 +28,9 @@ type VehicleService interface {
 	// GetVehicleByID возвращает автомобиль по его ID
 	GetVehicleByID(ctx context.Context, id int) (model.Vehicle, error)
 	// DeleteVehicleByID удаляет автомобиль по его ID
-	DeleteVehicleByID(ctx context.Context, id int) (model.Vehicle, error)
+	DeleteVehicleByID(ctx context.Context, id int, organizationID *int) (model.Vehicle, error)
 	// UpdateVehicle
-	UpdateVehicleByID(ctx context.Context, id int, upd model.UpdateVehicle) (model.Vehicle, error)
+	UpdateVehicleByID(ctx context.Context, id int, upd model.UpdateVehicle, organizationID *int) (model.Vehicle, error)
 }
 
 // NewVehicleHandler создаёт новый VehicleHandler с переданными сервисом и логгером
@@ -51,7 +52,14 @@ func (h *VehicleHandler) HandlePostVehicle(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+
 	vehicle := vehicleData.ToDomainModel()
+	vehicle.OrganizationID = authCtx.OrganizationID
 	savedVehicle, err := h.vehicleService.CreateVehicle(r.Context(), vehicle)
 	if err != nil {
 		respondError(w, r, h.logger, err)
@@ -78,7 +86,14 @@ func (h *VehicleHandler) HandleDeleteVehicle(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	deletedVehicle, err := h.vehicleService.DeleteVehicleByID(r.Context(), id)
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+	orgScope := scopeOrganizationID(authCtx)
+
+	deletedVehicle, err := h.vehicleService.DeleteVehicleByID(r.Context(), id, orgScope)
 	if err != nil {
 		respondError(w, r, h.logger, err)
 		return
@@ -104,6 +119,13 @@ func (h *VehicleHandler) HandleGetListVehicle(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+	filter.OrganizationID = scopeOrganizationID(authCtx)
+
 	vehicles, err := h.vehicleService.GetVehicleList(r.Context(), filter)
 	if err != nil {
 		respondError(w, r, h.logger, err)
@@ -128,6 +150,7 @@ func (h *VehicleHandler) HandleGetListVehicle(w http.ResponseWriter, r *http.Req
 // HandlePatchVehicle отвечает за изменение некоторых данных автомобиля
 func (h *VehicleHandler) HandlePatchVehicle(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
+
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
 		respondError(w, r, h.logger, model.ErrInvalidVehicleID)
@@ -140,8 +163,20 @@ func (h *VehicleHandler) HandlePatchVehicle(w http.ResponseWriter, r *http.Reque
 		respondError(w, r, h.logger, model.ErrInvalidJSON)
 		return
 	}
+
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+	if request.OrganizationID != nil {
+		respondError(w, r, h.logger, model.ErrForbidden)
+		return
+	}
+	orgScope := scopeOrganizationID(authCtx)
+
 	upd := request.ToDomainModel()
-	changed, err := h.vehicleService.UpdateVehicleByID(r.Context(), id, upd)
+	changed, err := h.vehicleService.UpdateVehicleByID(r.Context(), id, upd, orgScope)
 	if err != nil {
 		respondError(w, r, h.logger, err)
 		return
@@ -166,8 +201,18 @@ func (h *VehicleHandler) HandleGetVehicleByID(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+
 	vehicle, err := h.vehicleService.GetVehicleByID(r.Context(), id)
 	if err != nil {
+		respondError(w, r, h.logger, err)
+		return
+	}
+	if err := requireOwnOrg(authCtx, vehicle.OrganizationID); err != nil {
 		respondError(w, r, h.logger, err)
 		return
 	}

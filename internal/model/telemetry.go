@@ -11,7 +11,7 @@ type Telemetry struct {
 	VehicleID       int       `json:"vehicle_id"`
 	Lat             float64   `json:"lat"`
 	Lon             float64   `json:"lon"`
-	Fuel            float32   `json:"fuel"`
+	Fuel            *float32  `json:"fuel"`
 	ReceivedAt      time.Time `json:"received_at"`
 	DeviceTimestamp time.Time `json:"device_timestamp"`
 	TripID          int       `json:"trip_id"`

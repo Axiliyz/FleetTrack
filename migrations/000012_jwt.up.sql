@@ -1,0 +1,16 @@
+ALTER TABLE users
+ALTER COLUMN name SET NOT NULL,
+ADD COLUMN email VARCHAR(100) UNIQUE NOT NULL,
+ADD COLUMN password_hash VARCHAR(255) NOT NULL,
+ADD COLUMN role VARCHAR(15) NOT NULL DEFAULT 'DRIVER',
+
+ADD CONSTRAINT users_role_check
+     CHECK (role IN (
+        'ADMIN',
+        'DISPATCHER',
+        'DRIVER',
+        'ANALYTIC'
+    ));
+
+ALTER TABLE devices
+ADD COLUMN api_key_hash CHAR(64) UNIQUE NOT NULL;

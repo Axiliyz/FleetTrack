@@ -77,8 +77,8 @@ func (s *VehicleService) GetVehicleByID(ctx context.Context, id int) (model.Vehi
 }
 
 // DeleteVehicleByID удаляет машину по её ID
-func (s *VehicleService) DeleteVehicleByID(ctx context.Context, id int) (model.Vehicle, error) {
-	v, err := s.repository.Delete(ctx, id)
+func (s *VehicleService) DeleteVehicleByID(ctx context.Context, id int, organizationID *int) (model.Vehicle, error) {
+	v, err := s.repository.Delete(ctx, id, organizationID)
 	if err != nil {
 		return model.Vehicle{}, err
 	}
@@ -88,8 +88,8 @@ func (s *VehicleService) DeleteVehicleByID(ctx context.Context, id int) (model.V
 
 // UpdateVehicleByID обновляет некоторые данные авто по ID
 // Можно поменять: organization_id, number_plate, status
-func (s *VehicleService) UpdateVehicleByID(ctx context.Context, id int, upd model.UpdateVehicle) (model.Vehicle, error) {
-	v, err := s.repository.Update(ctx, id, upd)
+func (s *VehicleService) UpdateVehicleByID(ctx context.Context, id int, upd model.UpdateVehicle, organizationID *int) (model.Vehicle, error) {
+	v, err := s.repository.Update(ctx, id, upd, organizationID)
 	if err != nil {
 		return model.Vehicle{}, err
 	}

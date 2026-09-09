@@ -32,10 +32,11 @@ func (r *PostgresOrgRepository) CreateOrg(ctx context.Context, o *model.Org) err
 	return nil
 }
 
-// GetList возвращает список всех организаций
-func (r *PostgresOrgRepository) GetList(ctx context.Context) ([]model.Org, error) {
-	const query = `SELECT id, name, created_at, updated_at FROM organizations ORDER BY id DESC`
-	rows, err := r.db.Query(ctx, query)
+// GetList возвращает организацию с данным ID в виде списка из одного элемента
+// (или пустого списка, если она не найдена). Каждый юзер видит только свою организацию.
+func (r *PostgresOrgRepository) GetList(ctx context.Context, organizationID int) ([]model.Org, error) {
+	const query = `SELECT id, name, created_at, updated_at FROM organizations WHERE id = $1 ORDER BY id DESC`
+	rows, err := r.db.Query(ctx, query, organizationID)
 	if err != nil {
 		return nil, err
 	}

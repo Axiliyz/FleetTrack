@@ -19,6 +19,10 @@ func ParseTripFilter(vals url.Values) (model.TripFilter, error) {
 	if err != nil {
 		return f, model.ErrInvalidVehicleID
 	}
+	f.OrganizationID, err = parseIntParam(vals, "organization_id")
+	if err != nil {
+		return f, model.ErrInvalidOrganizationID
+	}
 	f.Status, err = parseTripStatusParam(vals, "status")
 	if err != nil {
 		return f, model.ErrInvalidStatus

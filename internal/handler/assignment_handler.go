@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fleettrack/internal/handler/dto"
 	"fleettrack/internal/logger"
+	"fleettrack/internal/middleware"
 	"fleettrack/internal/model"
 	"net/http"
 )
@@ -17,7 +18,7 @@ type AssignmentHandler struct {
 
 // AssignmentService определяет контракт бизнес-логики, необходимой AssignmentHandler
 type AssignmentService interface {
-	AssignDevice(ctx context.Context, deviceID, vehicleID int) error
+	AssignDevice(ctx context.Context, deviceID, vehicleID int, organizationID int) error
 	GetActiveAssignment(ctx context.Context, deviceID int) model.DeviceAssignment
 }
 
@@ -41,7 +42,13 @@ func (h *AssignmentHandler) HandlePostAssignment(w http.ResponseWriter, r *http.
 		return
 	}
 
-	if err := h.assignmentService.AssignDevice(r.Context(), assignmentData.DeviceID, assignmentData.VehicleID); err != nil {
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+
+	if err := h.assignmentService.AssignDevice(r.Context(), assignmentData.DeviceID, assignmentData.VehicleID, authCtx.OrganizationID); err != nil {
 		respondError(w, r, h.logger, err)
 		return
 	}

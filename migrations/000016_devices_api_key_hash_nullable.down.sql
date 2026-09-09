@@ -1,0 +1,1 @@
+ALTER TABLE devices ALTER COLUMN api_key_hash SET NOT NULL;

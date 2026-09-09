@@ -57,7 +57,7 @@ func (s *DeviceService) GetDeviceByID(ctx context.Context, id int) (model.Device
 // DeleteDevice удаляет устройство по ID.
 // Перед удалением завершает активную связь устройства с автомобилем, если она есть —
 // обе операции выполняются в одной транзакции.
-func (s *DeviceService) DeleteDevice(ctx context.Context, id int) (model.Device, error) {
+func (s *DeviceService) DeleteDevice(ctx context.Context, id int, organizationID *int) (model.Device, error) {
 	var deleted model.Device
 
 	err := s.txManager.WithTx(ctx, func(tx database.DBTX) error {
@@ -67,7 +67,7 @@ func (s *DeviceService) DeleteDevice(ctx context.Context, id int) (model.Device,
 			return err
 		}
 
-		d, err := repos.Device.Delete(ctx, id)
+		d, err := repos.Device.Delete(ctx, id, organizationID)
 		if err != nil {
 			return err
 		}

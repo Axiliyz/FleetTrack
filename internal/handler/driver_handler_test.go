@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fleettrack/internal/logger"
+	"fleettrack/internal/middleware"
 	"fleettrack/internal/model"
 	"net/http"
 	"net/http/httptest"
@@ -28,7 +29,7 @@ func (m *mockDriverService) GetDriverByID(ctx context.Context, id int) (model.Dr
 	if m.returnError != nil {
 		return model.Driver{}, m.returnError
 	}
-	return model.Driver{ID: id}, nil
+	return model.Driver{ID: id, OrganizationID: 1}, nil
 }
 
 func (m *mockDriverService) GetDriverList(ctx context.Context, filter model.DriverFilter) ([]model.Driver, error) {
@@ -38,14 +39,14 @@ func (m *mockDriverService) GetDriverList(ctx context.Context, filter model.Driv
 	return []model.Driver{}, nil
 }
 
-func (m *mockDriverService) DeleteDriverByID(ctx context.Context, id int) (model.Driver, error) {
+func (m *mockDriverService) DeleteDriverByID(ctx context.Context, id int, organizationID *int) (model.Driver, error) {
 	if m.returnError != nil {
 		return model.Driver{}, m.returnError
 	}
 	return model.Driver{ID: id}, nil
 }
 
-func (m *mockDriverService) UpdateDriverByID(ctx context.Context, id int, upd model.UpdateDriver) (model.Driver, error) {
+func (m *mockDriverService) UpdateDriverByID(ctx context.Context, id int, upd model.UpdateDriver, organizationID *int) (model.Driver, error) {
 	if m.returnError != nil {
 		return model.Driver{}, m.returnError
 	}
@@ -74,6 +75,8 @@ func TestHandlePostDriver(t *testing.T) {
 			r.Post("/drivers", h.HandlePostDriver)
 
 			request := httptest.NewRequest("POST", "/drivers", strings.NewReader(tt.requestBody))
+			authCtx := model.AuthContext{Role: model.UserRoleAdmin, OrganizationID: 1}
+			request = request.WithContext(middleware.ContextWithAuth(request.Context(), authCtx))
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
 
@@ -106,6 +109,8 @@ func TestHandleGetDriverByID(t *testing.T) {
 			r.Get("/drivers/{id}", h.HandleGetDriverByID)
 
 			request := httptest.NewRequest("GET", "/drivers/"+tt.urlID, nil)
+			authCtx := model.AuthContext{Role: model.UserRoleAdmin, OrganizationID: 1}
+			request = request.WithContext(middleware.ContextWithAuth(request.Context(), authCtx))
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
 
@@ -139,6 +144,8 @@ func TestHandleDeleteDriver(t *testing.T) {
 			r.Delete("/drivers/{id}", h.HandleDeleteDriver)
 
 			request := httptest.NewRequest("DELETE", "/drivers/"+tt.urlID, nil)
+			authCtx := model.AuthContext{Role: model.UserRoleAdmin, OrganizationID: 1}
+			request = request.WithContext(middleware.ContextWithAuth(request.Context(), authCtx))
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
 
@@ -171,6 +178,8 @@ func TestHandleGetListDriver(t *testing.T) {
 			r.Get("/drivers", h.HandleGetListDriver)
 
 			request := httptest.NewRequest("GET", "/drivers"+tt.query, nil)
+			authCtx := model.AuthContext{Role: model.UserRoleAdmin, OrganizationID: 1}
+			request = request.WithContext(middleware.ContextWithAuth(request.Context(), authCtx))
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
 
@@ -205,6 +214,8 @@ func TestHandlePatchDriver(t *testing.T) {
 			r.Patch("/drivers/{id}", h.HandlePatchDriver)
 
 			request := httptest.NewRequest("PATCH", "/drivers/"+tt.urlID, strings.NewReader(tt.requestBody))
+			authCtx := model.AuthContext{Role: model.UserRoleAdmin, OrganizationID: 1}
+			request = request.WithContext(middleware.ContextWithAuth(request.Context(), authCtx))
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
 

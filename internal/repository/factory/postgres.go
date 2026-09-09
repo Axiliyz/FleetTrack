@@ -13,6 +13,8 @@ type Repositories struct {
 	Assignment repository.AssignmentRepository
 	Telemetry  repository.TelemetryRepository
 	Trip       repository.TripRepository
+	Org        repository.OrgRepository
+	User       repository.UserRepository
 }
 
 // PostgresRepositoryFactory - реализация RepositoryFactory поверх PostgreSQL
@@ -31,5 +33,7 @@ func (f *PostgresRepositoryFactory) New(tx database.DBTX) Repositories {
 		Assignment: postgres.NewPostgresAssignmentRepository(tx),
 		Telemetry:  postgres.NewPostgresTelemetryRepository(tx),
 		Trip:       postgres.NewPostgresTripRepository(tx),
+		Org:        postgres.NewPostgresOrgRepository(tx),
+		User:       postgres.NewPostgresUserRepository(tx),
 	}
 }

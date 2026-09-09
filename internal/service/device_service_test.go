@@ -14,6 +14,7 @@ type mockDeviceRepo struct {
 	createErr error
 	getErr    error
 	deleteErr error
+	device    *model.Device
 }
 
 func (m *mockDeviceRepo) Create(ctx context.Context, d *model.Device) error {
@@ -28,10 +29,13 @@ func (m *mockDeviceRepo) GetByID(ctx context.Context, id int) (model.Device, err
 	if m.getErr != nil {
 		return model.Device{}, m.getErr
 	}
+	if m.device != nil {
+		return *m.device, nil
+	}
 	return model.Device{ID: id}, nil
 }
 
-func (m *mockDeviceRepo) Delete(ctx context.Context, id int) (model.Device, error) {
+func (m *mockDeviceRepo) Delete(ctx context.Context, id int, organizationID *int) (model.Device, error) {
 	if m.deleteErr != nil {
 		return model.Device{}, m.deleteErr
 	}
@@ -49,12 +53,18 @@ func (m *mockTxManager) WithTx(ctx context.Context, fn func(tx database.DBTX) er
 type mockRepoFactory struct {
 	deviceRepo     repository.DeviceRepository
 	assignmentRepo repository.AssignmentRepository
+	orgRepo        repository.OrgRepository
+	userRepo       repository.UserRepository
+	vehicleRepo    repository.VehicleRepository
 }
 
 func (m *mockRepoFactory) New(tx database.DBTX) factory.Repositories {
 	return factory.Repositories{
 		Device:     m.deviceRepo,
 		Assignment: m.assignmentRepo,
+		Org:        m.orgRepo,
+		User:       m.userRepo,
+		Vehicle:    m.vehicleRepo,
 	}
 }
 
@@ -127,7 +137,7 @@ func TestDeleteDevice(t *testing.T) {
 		assignmentRepo := &mockAssignmentRepository{getActiveErr: model.ErrNotFound}
 		svc := NewDeviceService(deviceRepo, logger.NewStdLogger(logger.DebugLevel), &mockTxManager{}, &mockRepoFactory{deviceRepo: deviceRepo, assignmentRepo: assignmentRepo})
 
-		d, err := svc.DeleteDevice(context.Background(), 5)
+		d, err := svc.DeleteDevice(context.Background(), 5, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -141,7 +151,7 @@ func TestDeleteDevice(t *testing.T) {
 		assignmentRepo := &mockAssignmentRepository{activeAssignment: model.DeviceAssignment{ID: 1}}
 		svc := NewDeviceService(deviceRepo, logger.NewStdLogger(logger.DebugLevel), &mockTxManager{}, &mockRepoFactory{deviceRepo: deviceRepo, assignmentRepo: assignmentRepo})
 
-		_, err := svc.DeleteDevice(context.Background(), 5)
+		_, err := svc.DeleteDevice(context.Background(), 5, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -156,7 +166,7 @@ func TestDeleteDevice(t *testing.T) {
 		assignmentRepo := &mockAssignmentRepository{endErr: endErr}
 		svc := NewDeviceService(deviceRepo, logger.NewStdLogger(logger.DebugLevel), &mockTxManager{}, &mockRepoFactory{deviceRepo: deviceRepo, assignmentRepo: assignmentRepo})
 
-		_, err := svc.DeleteDevice(context.Background(), 5)
+		_, err := svc.DeleteDevice(context.Background(), 5, nil)
 		if err != endErr {
 			t.Errorf("got %v, want %v", err, endErr)
 		}
@@ -167,7 +177,7 @@ func TestDeleteDevice(t *testing.T) {
 		assignmentRepo := &mockAssignmentRepository{getActiveErr: model.ErrNotFound}
 		svc := NewDeviceService(deviceRepo, logger.NewStdLogger(logger.DebugLevel), &mockTxManager{}, &mockRepoFactory{deviceRepo: deviceRepo, assignmentRepo: assignmentRepo})
 
-		_, err := svc.DeleteDevice(context.Background(), 999)
+		_, err := svc.DeleteDevice(context.Background(), 999, nil)
 		if err != model.ErrNotFound {
 			t.Errorf("got %v, want %v", err, model.ErrNotFound)
 		}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fleettrack/internal/handler/dto"
 	"fleettrack/internal/logger"
+	"fleettrack/internal/middleware"
 	"fleettrack/internal/model"
 	"net/http"
 )
@@ -19,8 +20,8 @@ type OrgHandler struct {
 type OrgService interface {
 	// CreateOrg валидирует и сохраняет новую организацию
 	CreateOrg(ctx context.Context, o model.Org) (model.Org, error)
-	// GetOrgList возвращает список всех организаций
-	GetOrgList(ctx context.Context) ([]model.Org, error)
+	// GetOrgList возвращает организацию с данным ID в виде списка из одного элемента
+	GetOrgList(ctx context.Context, organizationID int) ([]model.Org, error)
 }
 
 // NewOrgHandler создаёт новый хендлер организаций
@@ -52,7 +53,13 @@ func (h *OrgHandler) HandlePostOrg(w http.ResponseWriter, r *http.Request) {
 
 // HandleGetListOrg возвращает список всех организаций
 func (h *OrgHandler) HandleGetListOrg(w http.ResponseWriter, r *http.Request) {
-	orgs, err := h.orgService.GetOrgList(r.Context())
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+
+	orgs, err := h.orgService.GetOrgList(r.Context(), authCtx.OrganizationID)
 	if err != nil {
 		respondError(w, r, h.logger, err)
 		return

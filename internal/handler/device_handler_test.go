@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fleettrack/internal/logger"
+	"fleettrack/internal/middleware"
 	"fleettrack/internal/model"
 	"net/http"
 	"net/http/httptest"
@@ -28,10 +29,10 @@ func (m *mockDeviceService) GetDeviceByID(ctx context.Context, id int) (model.De
 	if m.returnError != nil {
 		return model.Device{}, m.returnError
 	}
-	return model.Device{ID: id}, nil
+	return model.Device{ID: id, OrganizationID: 1}, nil
 }
 
-func (m *mockDeviceService) DeleteDevice(ctx context.Context, id int) (model.Device, error) {
+func (m *mockDeviceService) DeleteDevice(ctx context.Context, id int, organizationID *int) (model.Device, error) {
 	if m.returnError != nil {
 		return model.Device{}, m.returnError
 	}
@@ -79,6 +80,8 @@ func TestHandlePostDevice(t *testing.T) {
 			r.Post("/devices", h.HandlePostDevice)
 
 			request := httptest.NewRequest("POST", "/devices", strings.NewReader(tt.requestBody))
+			authCtx := model.AuthContext{Role: model.UserRoleAdmin, OrganizationID: 1}
+			request = request.WithContext(middleware.ContextWithAuth(request.Context(), authCtx))
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
 
@@ -111,6 +114,8 @@ func TestHandleGetDeviceByID(t *testing.T) {
 			r.Get("/devices/{id}", h.HandleGetDeviceByID)
 
 			request := httptest.NewRequest("GET", "/devices/"+tt.urlID, nil)
+			authCtx := model.AuthContext{Role: model.UserRoleAdmin, OrganizationID: 1}
+			request = request.WithContext(middleware.ContextWithAuth(request.Context(), authCtx))
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
 
@@ -143,6 +148,8 @@ func TestHandleDeleteDeviceByID(t *testing.T) {
 			r.Delete("/devices/{id}", h.HandleDeleteDeviceByID)
 
 			request := httptest.NewRequest("DELETE", "/devices/"+tt.urlID, nil)
+			authCtx := model.AuthContext{Role: model.UserRoleAdmin, OrganizationID: 1}
+			request = request.WithContext(middleware.ContextWithAuth(request.Context(), authCtx))
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
 

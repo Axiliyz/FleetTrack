@@ -95,7 +95,7 @@ func TestProcessTelemetry(t *testing.T) {
 				VehicleID: 1,
 				Lat:       55.75,
 				Lon:       37.61,
-				Fuel:      0.8,
+				Fuel:      float32Ptr(0.8),
 			},
 			wantErr: nil,
 		},
@@ -106,7 +106,7 @@ func TestProcessTelemetry(t *testing.T) {
 				VehicleID: 1,
 				Lat:       55.75,
 				Lon:       37.61,
-				Fuel:      0.8,
+				Fuel:      float32Ptr(0.8),
 			},
 			wantErr: model.ErrInvalidDeviceID,
 		},
@@ -117,7 +117,7 @@ func TestProcessTelemetry(t *testing.T) {
 				VehicleID: -15,
 				Lat:       55.75,
 				Lon:       37.61,
-				Fuel:      0.8,
+				Fuel:      float32Ptr(0.8),
 			},
 			wantErr: model.ErrInvalidVehicleID,
 		},
@@ -128,7 +128,7 @@ func TestProcessTelemetry(t *testing.T) {
 				VehicleID: 1,
 				Lat:       14.22,
 				Lon:       -180,
-				Fuel:      0.8,
+				Fuel:      float32Ptr(0.8),
 			},
 			wantErr: nil,
 		},
@@ -139,7 +139,7 @@ func TestProcessTelemetry(t *testing.T) {
 				VehicleID: 1,
 				Lat:       -90,
 				Lon:       37.61,
-				Fuel:      0.8,
+				Fuel:      float32Ptr(0.8),
 			},
 			wantErr: nil,
 		},
@@ -150,7 +150,7 @@ func TestProcessTelemetry(t *testing.T) {
 				VehicleID: 1,
 				Lat:       14.22,
 				Lon:       180,
-				Fuel:      0.8,
+				Fuel:      float32Ptr(0.8),
 			},
 			wantErr: nil,
 		},
@@ -161,7 +161,7 @@ func TestProcessTelemetry(t *testing.T) {
 				VehicleID: 1,
 				Lat:       90,
 				Lon:       37.61,
-				Fuel:      0.8,
+				Fuel:      float32Ptr(0.8),
 			},
 			wantErr: nil,
 		},
@@ -172,7 +172,7 @@ func TestProcessTelemetry(t *testing.T) {
 				VehicleID: 1,
 				Lat:       255.75,
 				Lon:       37.61,
-				Fuel:      0.8,
+				Fuel:      float32Ptr(0.8),
 			},
 			wantErr: model.ErrInvalidCoords,
 		},
@@ -183,7 +183,7 @@ func TestProcessTelemetry(t *testing.T) {
 				VehicleID: 1,
 				Lat:       75.75,
 				Lon:       317.61,
-				Fuel:      0.8,
+				Fuel:      float32Ptr(0.8),
 			},
 			wantErr: model.ErrInvalidCoords,
 		},
@@ -194,7 +194,7 @@ func TestProcessTelemetry(t *testing.T) {
 				VehicleID: 1,
 				Lat:       45.75,
 				Lon:       17.61,
-				Fuel:      1.2,
+				Fuel:      float32Ptr(1.2),
 			},
 			wantErr: model.ErrInvalidFuel,
 		},
@@ -205,7 +205,7 @@ func TestProcessTelemetry(t *testing.T) {
 				VehicleID: 1,
 				Lat:       45.75,
 				Lon:       17.61,
-				Fuel:      -0.14,
+				Fuel:      float32Ptr(-0.14),
 			},
 			wantErr: model.ErrInvalidFuel,
 		},
@@ -216,7 +216,7 @@ func TestProcessTelemetry(t *testing.T) {
 				VehicleID: 1,
 				Lat:       45.75,
 				Lon:       17.61,
-				Fuel:      0,
+				Fuel:      float32Ptr(0),
 			},
 			wantErr: nil,
 		},
@@ -227,7 +227,7 @@ func TestProcessTelemetry(t *testing.T) {
 				VehicleID: 1,
 				Lat:       45.75,
 				Lon:       17.61,
-				Fuel:      1,
+				Fuel:      float32Ptr(1),
 			},
 			wantErr: nil,
 		},
@@ -261,7 +261,7 @@ func TestProcessTelemetry_NoActiveTrip(t *testing.T) {
 	log := logger.NewStdLogger(logger.DebugLevel)
 	service := NewTelemetryService(repo, log, txManager, repoFactory, &fakeMotionService{})
 
-	valid := model.Telemetry{DeviceID: 1, VehicleID: 1, Lat: 55.75, Lon: 37.61, Fuel: 0.8}
+	valid := model.Telemetry{DeviceID: 1, VehicleID: 1, Lat: 55.75, Lon: 37.61, Fuel: float32Ptr(0.8)}
 	_, err := service.ProcessTelemetry(context.Background(), valid)
 	if !errors.Is(err, model.ErrNoActiveTrip) {
 		t.Errorf("got %v, want %v", err, model.ErrNoActiveTrip)
@@ -279,7 +279,7 @@ func TestProcessTelemetry_FirstPointForVehicle(t *testing.T) {
 	log := logger.NewStdLogger(logger.DebugLevel)
 	service := NewTelemetryService(repo, log, txManager, repoFactory, &fakeMotionService{})
 
-	valid := model.Telemetry{DeviceID: 1, VehicleID: 1, Lat: 55.75, Lon: 37.61, Fuel: 0.8}
+	valid := model.Telemetry{DeviceID: 1, VehicleID: 1, Lat: 55.75, Lon: 37.61, Fuel: float32Ptr(0.8)}
 	got, err := service.ProcessTelemetry(context.Background(), valid)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

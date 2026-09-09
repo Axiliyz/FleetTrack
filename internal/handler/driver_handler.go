@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fleettrack/internal/handler/dto"
 	"fleettrack/internal/logger"
+	"fleettrack/internal/middleware"
 	"fleettrack/internal/model"
 	"net/http"
 	"strconv"
@@ -27,9 +28,9 @@ type DriverService interface {
 	// GetDriverList возвращает список водителей по фильтру
 	GetDriverList(ctx context.Context, filter model.DriverFilter) ([]model.Driver, error)
 	// DeleteDriverByID удаляет водителя по его ID
-	DeleteDriverByID(ctx context.Context, id int) (model.Driver, error)
+	DeleteDriverByID(ctx context.Context, id int, organizationID *int) (model.Driver, error)
 	// UpdateDriverByID обновляет некоторые данные водителя по ID
-	UpdateDriverByID(ctx context.Context, id int, upd model.UpdateDriver) (model.Driver, error)
+	UpdateDriverByID(ctx context.Context, id int, upd model.UpdateDriver, organizationID *int) (model.Driver, error)
 }
 
 // NewDriverHandler создаёт новый DriverHandler с переданными сервисом и логгером
@@ -51,7 +52,15 @@ func (h *DriverHandler) HandlePostDriver(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	driver, err := h.driverService.CreateDriver(r.Context(), driverData.ToDomainModel())
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+
+	newDriver := driverData.ToDomainModel()
+	newDriver.OrganizationID = authCtx.OrganizationID
+	driver, err := h.driverService.CreateDriver(r.Context(), newDriver)
 	if err != nil {
 		respondError(w, r, h.logger, err)
 		return
@@ -68,8 +77,18 @@ func (h *DriverHandler) HandleGetDriverByID(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+
 	driver, err := h.driverService.GetDriverByID(r.Context(), id)
 	if err != nil {
+		respondError(w, r, h.logger, err)
+		return
+	}
+	if err := requireOwnOrg(authCtx, driver.OrganizationID); err != nil {
 		respondError(w, r, h.logger, err)
 		return
 	}
@@ -84,6 +103,13 @@ func (h *DriverHandler) HandleGetListDriver(w http.ResponseWriter, r *http.Reque
 		respondError(w, r, h.logger, err)
 		return
 	}
+
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+	filter.OrganizationID = scopeOrganizationID(authCtx)
 
 	drivers, err := h.driverService.GetDriverList(r.Context(), filter)
 	if err != nil {
@@ -107,7 +133,14 @@ func (h *DriverHandler) HandleDeleteDriver(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	deletedDriver, err := h.driverService.DeleteDriverByID(r.Context(), id)
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+	orgScope := scopeOrganizationID(authCtx)
+
+	deletedDriver, err := h.driverService.DeleteDriverByID(r.Context(), id, orgScope)
 	if err != nil {
 		respondError(w, r, h.logger, err)
 		return
@@ -132,7 +165,18 @@ func (h *DriverHandler) HandlePatchDriver(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	changed, err := h.driverService.UpdateDriverByID(r.Context(), id, request.ToDomainModel())
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+	if request.OrganizationID != nil {
+		respondError(w, r, h.logger, model.ErrForbidden)
+		return
+	}
+	orgScope := scopeOrganizationID(authCtx)
+
+	changed, err := h.driverService.UpdateDriverByID(r.Context(), id, request.ToDomainModel(), orgScope)
 	if err != nil {
 		respondError(w, r, h.logger, err)
 		return

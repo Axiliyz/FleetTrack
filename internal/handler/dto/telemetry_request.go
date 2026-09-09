@@ -4,11 +4,11 @@ import "fleettrack/internal/model"
 
 // TelemetryRequest определяет структуру DTO запроса
 type TelemetryRequest struct {
-	DeviceID  int     `json:"device_id"`
-	VehicleID int     `json:"vehicle_id"`
-	Lat       float64 `json:"lat"`
-	Lon       float64 `json:"lon"`
-	Fuel      float32 `json:"fuel"`
+	DeviceID  int      `json:"device_id"`
+	VehicleID int      `json:"vehicle_id"`
+	Lat       float64  `json:"lat"`
+	Lon       float64  `json:"lon"`
+	Fuel      *float32 `json:"fuel"`
 }
 
 // ToDomainModel преобразует TelemetryRequest в доменную модель
