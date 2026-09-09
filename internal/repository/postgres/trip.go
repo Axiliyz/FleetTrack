@@ -115,57 +115,62 @@ func buildTripWhereClause(filter *model.TripFilter) (string, []any) {
 	var args []any
 	argN := 1
 	if filter.DriverID != nil {
-		conditions = append(conditions, fmt.Sprintf("driver_id = $%d", argN))
+		conditions = append(conditions, fmt.Sprintf("t.driver_id = $%d", argN))
 		args = append(args, *filter.DriverID)
 		argN++
 	}
 	if filter.VehicleID != nil {
-		conditions = append(conditions, fmt.Sprintf("vehicle_id = $%d", argN))
+		conditions = append(conditions, fmt.Sprintf("t.vehicle_id = $%d", argN))
 		args = append(args, *filter.VehicleID)
 		argN++
 	}
+	if filter.OrganizationID != nil {
+		conditions = append(conditions, fmt.Sprintf("d.organization_id = $%d", argN))
+		args = append(args, *filter.OrganizationID)
+		argN++
+	}
 	if filter.Status != nil {
-		conditions = append(conditions, fmt.Sprintf("status = $%d", argN))
+		conditions = append(conditions, fmt.Sprintf("t.status = $%d", argN))
 		args = append(args, *filter.Status)
 		argN++
 	}
 	if filter.StartedFrom != nil {
-		conditions = append(conditions, fmt.Sprintf("started_at >= $%d", argN))
+		conditions = append(conditions, fmt.Sprintf("t.started_at >= $%d", argN))
 		args = append(args, *filter.StartedFrom)
 		argN++
 	}
 	if filter.StartedTo != nil {
-		conditions = append(conditions, fmt.Sprintf("started_at <= $%d", argN))
+		conditions = append(conditions, fmt.Sprintf("t.started_at <= $%d", argN))
 		args = append(args, *filter.StartedTo)
 		argN++
 	}
 	if filter.MinDistance != nil {
-		conditions = append(conditions, fmt.Sprintf("distance_km >= $%d", argN))
+		conditions = append(conditions, fmt.Sprintf("t.distance_km >= $%d", argN))
 		args = append(args, *filter.MinDistance)
 		argN++
 	}
 	if filter.MaxDistance != nil {
-		conditions = append(conditions, fmt.Sprintf("distance_km <= $%d", argN))
+		conditions = append(conditions, fmt.Sprintf("t.distance_km <= $%d", argN))
 		args = append(args, *filter.MaxDistance)
 		argN++
 	}
 	if filter.MinAvgSpeed != nil {
-		conditions = append(conditions, fmt.Sprintf("avg_speed_kmh >= $%d", argN))
+		conditions = append(conditions, fmt.Sprintf("t.avg_speed_kmh >= $%d", argN))
 		args = append(args, *filter.MinAvgSpeed)
 		argN++
 	}
 	if filter.MaxAvgSpeed != nil {
-		conditions = append(conditions, fmt.Sprintf("avg_speed_kmh <= $%d", argN))
+		conditions = append(conditions, fmt.Sprintf("t.avg_speed_kmh <= $%d", argN))
 		args = append(args, *filter.MaxAvgSpeed)
 		argN++
 	}
 	if filter.MinMaxSpeed != nil {
-		conditions = append(conditions, fmt.Sprintf("max_speed_kmh >= $%d", argN))
+		conditions = append(conditions, fmt.Sprintf("t.max_speed_kmh >= $%d", argN))
 		args = append(args, *filter.MinMaxSpeed)
 		argN++
 	}
 	if filter.MaxMaxSpeed != nil {
-		conditions = append(conditions, fmt.Sprintf("max_speed_kmh <= $%d", argN))
+		conditions = append(conditions, fmt.Sprintf("t.max_speed_kmh <= $%d", argN))
 		args = append(args, *filter.MaxMaxSpeed)
 		argN++ //nolint:ineffassign
 	}
@@ -179,7 +184,21 @@ func buildTripWhereClause(filter *model.TripFilter) (string, []any) {
 func (r *PostgresTripRepository) GetListTrips(ctx context.Context, filter *model.TripFilter) ([]model.Trip, error) {
 	whereTripClause, args := buildTripWhereClause(filter)
 	query := fmt.Sprintf(`
-	SELECT id, driver_id, vehicle_id, started_at, ended_at, status, distance_km, avg_speed_kmh, max_speed_kmh, telemetry_count FROM trips %s ORDER BY id DESC LIMIT $%d OFFSET $%d`,
+	SELECT
+	t.id,
+	t.driver_id,
+	t.vehicle_id,
+	t.started_at,
+	t.ended_at,
+	t.status,
+	t.distance_km,
+	t.avg_speed_kmh,
+	t.max_speed_kmh,
+	t.telemetry_count
+	FROM trips t JOIN drivers d ON d.id = t.driver_id
+	%s
+	ORDER BY t.id DESC
+	LIMIT $%d OFFSET $%d`,
 		whereTripClause, len(args)+1, len(args)+2)
 	args = append(args, filter.Limit, filter.Offset)
 	rows, err := r.db.Query(ctx, query, args...)

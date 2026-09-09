@@ -280,6 +280,12 @@ func mapError(err error) HTTPError {
 			Status:  http.StatusBadRequest,
 		}
 
+	case errors.Is(err, model.ErrDuplicateEmail):
+		return HTTPError{
+			Message: "user with this email already exists",
+			Status:  http.StatusConflict,
+		}
+
 	case errors.Is(err, model.ErrInvalidPassword):
 		return HTTPError{
 			Message: "invalid password",
@@ -296,6 +302,55 @@ func mapError(err error) HTTPError {
 			Message: "invalid user id",
 			Status:  http.StatusBadRequest,
 		}
+
+	case errors.Is(err, model.ErrInvalidUserRole):
+		return HTTPError{
+			Message: "invalid user role",
+			Status:  http.StatusBadRequest,
+		}
+
+	case errors.Is(err, model.ErrInvalidToken):
+		return HTTPError{
+			Message: "invalid token",
+			Status:  http.StatusUnauthorized,
+		}
+
+	case errors.Is(err, model.ErrInvalidSigningMethod):
+		return HTTPError{
+			Message: "invalid token",
+			Status:  http.StatusUnauthorized,
+		}
+
+	case errors.Is(err, model.ErrMissingToken):
+		return HTTPError{
+			Message: "missing bearer token",
+			Status:  http.StatusUnauthorized,
+		}
+
+	case errors.Is(err, model.ErrInvalidCredentials):
+		return HTTPError{
+			Message: "invalid credentials",
+			Status:  http.StatusUnauthorized,
+		}
+
+	case errors.Is(err, model.ErrDriverAlreadyLinked):
+		return HTTPError{
+			Message: "driver is already linked to another user",
+			Status:  http.StatusConflict,
+		}
+
+	case errors.Is(err, model.ErrForbidden):
+		return HTTPError{
+			Message: "forbidden",
+			Status:  http.StatusForbidden,
+		}
+
+	case errors.Is(err, model.ErrDriverNotLinked):
+		return HTTPError{
+			Message: "user account has no linked driver",
+			Status:  http.StatusForbidden,
+		}
+
 	default:
 		return HTTPError{
 			Message: "unknown error",

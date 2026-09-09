@@ -31,6 +31,10 @@ func mapUniqueViolation(err error) error {
 		return model.ErrDuplicateSerialNumber
 	case "organizations_name_key":
 		return model.ErrDuplicateOrgName
+	case "users_email_key":
+		return model.ErrDuplicateEmail
+	case "idx_users_driver_id":
+		return model.ErrDriverAlreadyLinked
 	default:
 		return err
 	}
@@ -175,14 +179,23 @@ func (r *PostgresVehicleRepository) GetList(ctx context.Context, filter model.Ve
 	return vehicles, rows.Err()
 }
 
-// Delete для PostgresVehicleRepository удаляет машину по её ID
-func (r *PostgresVehicleRepository) Delete(ctx context.Context, id int) (model.Vehicle, error) {
-	const query = `
+// Delete для PostgresVehicleRepository удаляет машину по её ID.
+// organizationID != nil ограничивает удаление машинами этой организации (для не-ADMIN);
+// nil означает отсутствие ограничения (ADMIN может удалить машину любой организации).
+func (r *PostgresVehicleRepository) Delete(ctx context.Context, id int, organizationID *int) (model.Vehicle, error) {
+	query := `
 	UPDATE vehicles SET status = 'DELETED'
-	WHERE id = $1
+	WHERE id = $1`
+	args := []any{id}
+	if organizationID != nil {
+		query += " AND organization_id = $2"
+		args = append(args, *organizationID)
+	}
+	query += `
 	RETURNING id, organization_id, vin, number_plate, model, status, created_at, updated_at`
+
 	var v model.Vehicle
-	err := r.db.QueryRow(ctx, query, id).Scan(
+	err := r.db.QueryRow(ctx, query, args...).Scan(
 		&v.ID, &v.OrganizationID, &v.VIN, &v.NumberPlate,
 		&v.Model, &v.Status, &v.CreatedAt, &v.UpdatedAt,
 	)
@@ -221,21 +234,29 @@ func buildVehicleSetClause(updater model.UpdateVehicle) (string, []any) {
 	return strings.Join(conditions, ", "), args
 }
 
-// Update для PostgresVehicleRepository обновляет некоторые данные авто по ID
-func (r *PostgresVehicleRepository) Update(ctx context.Context, id int, upd model.UpdateVehicle) (model.Vehicle, error) {
+// Update для PostgresVehicleRepository обновляет некоторые данные авто по ID.
+// organizationID != nil ограничивает обновление машинами этой организации (для не-ADMIN);
+// nil означает отсутствие ограничения (ADMIN может изменить машину любой организации).
+func (r *PostgresVehicleRepository) Update(ctx context.Context, id int, upd model.UpdateVehicle, organizationID *int) (model.Vehicle, error) {
 	setClause, args := buildVehicleSetClause(upd)
 	if setClause == "" {
 		return r.GetByID(ctx, id)
 	}
 
+	where := fmt.Sprintf("id = $%d", len(args)+1)
+	args = append(args, id)
+	if organizationID != nil {
+		where += fmt.Sprintf(" AND organization_id = $%d", len(args)+1)
+		args = append(args, *organizationID)
+	}
+
 	query := fmt.Sprintf(`
-		UPDATE vehicles SET %s, updated_at = NOW() WHERE id = $%d
+		UPDATE vehicles SET %s, updated_at = NOW() WHERE %s
 		RETURNING id, organization_id, vin, number_plate, model, status, created_at, updated_at
-		`, setClause, len(args)+1,
+		`, setClause, where,
 	)
 
 	var v model.Vehicle
-	args = append(args, id)
 	err := r.db.QueryRow(ctx, query, args...).Scan(
 		&v.ID, &v.OrganizationID, &v.VIN, &v.NumberPlate,
 		&v.Model, &v.Status, &v.CreatedAt, &v.UpdatedAt,

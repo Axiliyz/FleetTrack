@@ -66,8 +66,8 @@ func (s *DriverService) GetDriverList(ctx context.Context, filter model.DriverFi
 }
 
 // DeleteDriverByID удаляет водителя по его ID
-func (s *DriverService) DeleteDriverByID(ctx context.Context, id int) (model.Driver, error) {
-	d, err := s.repository.Delete(ctx, id)
+func (s *DriverService) DeleteDriverByID(ctx context.Context, id int, organizationID *int) (model.Driver, error) {
+	d, err := s.repository.Delete(ctx, id, organizationID)
 	if err != nil {
 		return model.Driver{}, err
 	}
@@ -77,7 +77,7 @@ func (s *DriverService) DeleteDriverByID(ctx context.Context, id int) (model.Dri
 
 // UpdateDriverByID обновляет некоторые данные водителя по ID
 // Можно поменять: organization_id, name
-func (s *DriverService) UpdateDriverByID(ctx context.Context, id int, upd model.UpdateDriver) (model.Driver, error) {
+func (s *DriverService) UpdateDriverByID(ctx context.Context, id int, upd model.UpdateDriver, organizationID *int) (model.Driver, error) {
 	if upd.OrganizationID != nil && *upd.OrganizationID < 1 {
 		return model.Driver{}, model.ErrInvalidOrganizationID
 	}
@@ -85,7 +85,7 @@ func (s *DriverService) UpdateDriverByID(ctx context.Context, id int, upd model.
 		return model.Driver{}, model.ErrInvalidDriverName
 	}
 
-	d, err := s.repository.Update(ctx, id, upd)
+	d, err := s.repository.Update(ctx, id, upd, organizationID)
 	if err != nil {
 		return model.Driver{}, err
 	}

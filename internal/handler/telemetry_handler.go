@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fleettrack/internal/handler/dto"
 	"fleettrack/internal/logger"
+	"fleettrack/internal/middleware"
 	"fleettrack/internal/model"
 	"net/http"
 	"strconv"
@@ -79,6 +80,19 @@ func (h *TelemetryHandler) HandleGetListTelemetry(w http.ResponseWriter, r *http
 		respondError(w, r, h.logger, err)
 		return
 	}
+
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+	filter.OrganizationID = scopeOrganizationID(authCtx)
+	filter.DriverID, err = scopeDriverID(authCtx, filter.DriverID)
+	if err != nil {
+		respondError(w, r, h.logger, err)
+		return
+	}
+
 	telemetries, err := h.telemetryService.GetTelemetryList(r.Context(), filter)
 	if err != nil {
 		respondError(w, r, h.logger, err)
@@ -110,8 +124,18 @@ func (h *TelemetryHandler) HandleGetTelemetryByID(w http.ResponseWriter, r *http
 		return
 	}
 
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+
 	telemetry, err := h.telemetryService.GetTelemetryByID(r.Context(), id)
 	if err != nil {
+		respondError(w, r, h.logger, err)
+		return
+	}
+	if err := requireOwnOrg(authCtx, telemetry.OrganizationID); err != nil {
 		respondError(w, r, h.logger, err)
 		return
 	}
@@ -138,11 +162,24 @@ func (h *TelemetryHandler) HandleGetTelemetryByVehicle(w http.ResponseWriter, r 
 		return
 	}
 
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+
 	telemetries, err := h.telemetryService.GetTelemetryByVehicle(r.Context(), id)
 	if err != nil {
 		respondError(w, r, h.logger, err)
 		return
 	}
+	owned := telemetries[:0]
+	for _, t := range telemetries {
+		if t.OrganizationID == authCtx.OrganizationID {
+			owned = append(owned, t)
+		}
+	}
+	telemetries = owned
 
 	responses := make([]dto.TelemetryResponse, 0, len(telemetries))
 	for _, t := range telemetries {

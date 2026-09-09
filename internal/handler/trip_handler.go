@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fleettrack/internal/handler/dto"
 	"fleettrack/internal/logger"
+	"fleettrack/internal/middleware"
 	"fleettrack/internal/model"
 	"net/http"
 	"strconv"
@@ -100,6 +101,19 @@ func (h *TripHandler) HandleDeleteTrip(w http.ResponseWriter, r *http.Request) {
 // HandleGetListTrips возвращает список рейсов с фильтрами
 func (h *TripHandler) HandleGetListTrips(w http.ResponseWriter, r *http.Request) {
 	filter, err := dto.ParseTripFilter(r.URL.Query())
+	if err != nil {
+		respondError(w, r, h.logger, err)
+		return
+	}
+
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+
+	filter.OrganizationID = scopeOrganizationID(authCtx)
+	filter.DriverID, err = scopeDriverID(authCtx, filter.DriverID)
 	if err != nil {
 		respondError(w, r, h.logger, err)
 		return

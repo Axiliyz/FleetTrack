@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fleettrack/internal/handler/dto"
 	"fleettrack/internal/logger"
+	"fleettrack/internal/middleware"
 	"fleettrack/internal/model"
 	"net/http"
 	"strconv"
@@ -25,7 +26,7 @@ type DeviceService interface {
 	// GetDeviceByID возвращает устройство по его ID
 	GetDeviceByID(ctx context.Context, id int) (model.Device, error)
 	// DeleteDevice удаляет устройство по его ID
-	DeleteDevice(ctx context.Context, id int) (model.Device, error)
+	DeleteDevice(ctx context.Context, id int, organizationID *int) (model.Device, error)
 }
 
 // NewDeviceHandler создаёт новый DeviceHandler с переданными сервисом и логгером
@@ -46,7 +47,15 @@ func (h *DeviceHandler) HandlePostDevice(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	device, err := h.deviceService.ProcessDevice(r.Context(), deviceData.ToDomainModel())
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+
+	newDevice := deviceData.ToDomainModel()
+	newDevice.OrganizationID = authCtx.OrganizationID
+	device, err := h.deviceService.ProcessDevice(r.Context(), newDevice)
 	if err != nil {
 		respondError(w, r, h.logger, err)
 		return
@@ -63,8 +72,18 @@ func (h *DeviceHandler) HandleGetDeviceByID(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+
 	device, err := h.deviceService.GetDeviceByID(r.Context(), id)
 	if err != nil {
+		respondError(w, r, h.logger, err)
+		return
+	}
+	if err := requireOwnOrg(authCtx, device.OrganizationID); err != nil {
 		respondError(w, r, h.logger, err)
 		return
 	}
@@ -80,7 +99,14 @@ func (h *DeviceHandler) HandleDeleteDeviceByID(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	device, err := h.deviceService.DeleteDevice(r.Context(), id)
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+	orgScope := scopeOrganizationID(authCtx)
+
+	device, err := h.deviceService.DeleteDevice(r.Context(), id, orgScope)
 	if err != nil {
 		respondError(w, r, h.logger, err)
 		return

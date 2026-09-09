@@ -37,9 +37,10 @@ func (s *OrgService) CreateOrg(ctx context.Context, o model.Org) (model.Org, err
 	return o, nil
 }
 
-// GetOrgList возвращает список всех организаций.
-func (s *OrgService) GetOrgList(ctx context.Context) ([]model.Org, error) {
-	orgs, err := s.repository.GetList(ctx)
+// GetOrgList возвращает организацию с данным ID в виде списка из одного элемента -
+// каждый юзер видит только свою организацию.
+func (s *OrgService) GetOrgList(ctx context.Context, organizationID int) ([]model.Org, error) {
+	orgs, err := s.repository.GetList(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}

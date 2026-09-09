@@ -108,7 +108,7 @@ func (s *TripService) GetListTrips(ctx context.Context, filter model.TripFilter)
 	if err != nil {
 		return nil, err
 	}
-	s.logger.Info("Got filtered trips list")
+	s.logger.Info("Got trips list:")
 	return trips, nil
 }
 

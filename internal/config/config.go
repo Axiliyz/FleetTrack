@@ -5,6 +5,7 @@ import (
 	"fleettrack/internal/model"
 	"net/url"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -15,6 +16,7 @@ const RequestTimeout = 5 * time.Second
 type Config struct {
 	DB  DBConfig
 	API APIConfig
+	JWT JWTConfig
 }
 
 // DBConfig хранит параметры подключения к PostgreSQL.
@@ -29,6 +31,13 @@ type DBConfig struct {
 // APIConfig хранит параметры HTTP API.
 type APIConfig struct {
 	Port string
+}
+
+// JWTConfig хранит параметры JWT
+type JWTConfig struct {
+	Secret     string
+	TTL        time.Duration
+	RefreshTTL time.Duration
 }
 
 // DSN формирует строку подключения к PostgreSQL из параметров DBConfig.
@@ -59,6 +68,26 @@ func Load() (*Config, error) {
 
 	if cfg.DB.User == "" {
 		return nil, model.ErrMissingDBVars
+	}
+
+	ttl, err := strconv.Atoi(os.Getenv("JWT_ACCESS_TTL"))
+	if err != nil {
+		return nil, model.ErrMissingJWTVars
+	}
+
+	refreshTTL, err := strconv.Atoi(os.Getenv("JWT_REFRESH_TTL"))
+	if err != nil {
+		return nil, model.ErrMissingJWTVars
+	}
+
+	cfg.JWT = JWTConfig{
+		Secret:     os.Getenv("JWT_SECRET"),
+		TTL:        time.Duration(ttl) * time.Minute,
+		RefreshTTL: time.Duration(refreshTTL) * 24 * time.Hour,
+	}
+
+	if cfg.JWT.Secret == "" {
+		return nil, model.ErrMissingJWTVars
 	}
 	return cfg, nil
 }

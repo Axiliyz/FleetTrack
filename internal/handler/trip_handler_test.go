@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fleettrack/internal/logger"
+	"fleettrack/internal/middleware"
 	"fleettrack/internal/model"
 	"net/http"
 	"net/http/httptest"
@@ -170,6 +171,8 @@ func TestHandleGetListTrips(t *testing.T) {
 			r.Get("/trips", h.HandleGetListTrips)
 
 			request := httptest.NewRequest("GET", "/trips"+tt.query, nil)
+			authCtx := model.AuthContext{Role: model.UserRoleAdmin, OrganizationID: 1}
+			request = request.WithContext(middleware.ContextWithAuth(request.Context(), authCtx))
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
 

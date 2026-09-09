@@ -14,6 +14,7 @@ type mockVehicleRepository struct {
 	listErr   error
 	deleteErr error
 	updateErr error
+	vehicle   *model.Vehicle
 }
 
 func (m *mockVehicleRepository) Create(ctx context.Context, v *model.Vehicle) error {
@@ -28,6 +29,9 @@ func (m *mockVehicleRepository) GetByID(ctx context.Context, id int) (model.Vehi
 	if m.getErr != nil {
 		return model.Vehicle{}, m.getErr
 	}
+	if m.vehicle != nil {
+		return *m.vehicle, nil
+	}
 	return model.Vehicle{ID: id}, nil
 }
 
@@ -38,14 +42,14 @@ func (m *mockVehicleRepository) GetList(ctx context.Context, filter model.Vehicl
 	return []model.Vehicle{}, nil
 }
 
-func (m *mockVehicleRepository) Delete(ctx context.Context, id int) (model.Vehicle, error) {
+func (m *mockVehicleRepository) Delete(ctx context.Context, id int, organizationID *int) (model.Vehicle, error) {
 	if m.deleteErr != nil {
 		return model.Vehicle{}, m.deleteErr
 	}
 	return model.Vehicle{ID: id, Status: model.VehicleStatusDeleted}, nil
 }
 
-func (m *mockVehicleRepository) Update(ctx context.Context, id int, upd model.UpdateVehicle) (model.Vehicle, error) {
+func (m *mockVehicleRepository) Update(ctx context.Context, id int, upd model.UpdateVehicle, organizationID *int) (model.Vehicle, error) {
 	if m.updateErr != nil {
 		return model.Vehicle{}, m.updateErr
 	}
@@ -167,7 +171,7 @@ func TestDeleteVehicleByID(t *testing.T) {
 	log := logger.NewStdLogger(logger.DebugLevel)
 	svc := NewVehicleService(repo, log)
 
-	v, err := svc.DeleteVehicleByID(context.Background(), 5)
+	v, err := svc.DeleteVehicleByID(context.Background(), 5, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -176,7 +180,7 @@ func TestDeleteVehicleByID(t *testing.T) {
 	}
 
 	repo.deleteErr = model.ErrNotFound
-	_, err = svc.DeleteVehicleByID(context.Background(), 999)
+	_, err = svc.DeleteVehicleByID(context.Background(), 999, nil)
 	if err != model.ErrNotFound {
 		t.Errorf("got %v, want %v", err, model.ErrNotFound)
 	}
@@ -188,7 +192,7 @@ func TestUpdateVehicleByID(t *testing.T) {
 	svc := NewVehicleService(repo, log)
 
 	upd := model.UpdateVehicle{NumberPlate: strPtr("B999XY77")}
-	v, err := svc.UpdateVehicleByID(context.Background(), 5, upd)
+	v, err := svc.UpdateVehicleByID(context.Background(), 5, upd, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -197,7 +201,7 @@ func TestUpdateVehicleByID(t *testing.T) {
 	}
 
 	repo.updateErr = model.ErrNotFound
-	_, err = svc.UpdateVehicleByID(context.Background(), 999, upd)
+	_, err = svc.UpdateVehicleByID(context.Background(), 999, upd, nil)
 	if err != model.ErrNotFound {
 		t.Errorf("got %v, want %v", err, model.ErrNotFound)
 	}

@@ -129,20 +129,28 @@ func buildDriverSetClause(upd model.UpdateDriver) (string, []any) {
 	return strings.Join(conditions, ", "), args
 }
 
-// Update для PostgresDriverRepository обновляет некоторые данные водителя по ID
-func (r *PostgresDriverRepository) Update(ctx context.Context, id int, upd model.UpdateDriver) (model.Driver, error) {
+// Update для PostgresDriverRepository обновляет некоторые данные водителя по ID.
+// organizationID != nil ограничивает обновление водителями этой организации (для не-ADMIN);
+// nil означает отсутствие ограничения (ADMIN может изменить водителя любой организации).
+func (r *PostgresDriverRepository) Update(ctx context.Context, id int, upd model.UpdateDriver, organizationID *int) (model.Driver, error) {
 	setClause, args := buildDriverSetClause(upd)
 	if setClause == "" {
 		return r.GetByID(ctx, id)
 	}
 
+	where := fmt.Sprintf("id = $%d", len(args)+1)
+	args = append(args, id)
+	if organizationID != nil {
+		where += fmt.Sprintf(" AND organization_id = $%d", len(args)+1)
+		args = append(args, *organizationID)
+	}
+
 	query := fmt.Sprintf(`
-	UPDATE drivers SET %s, updated_at = NOW() WHERE id = $%d
+	UPDATE drivers SET %s, updated_at = NOW() WHERE %s
 	RETURNING id, organization_id, name, created_at, updated_at`,
-		setClause, len(args)+1)
+		setClause, where)
 
 	var d model.Driver
-	args = append(args, id)
 	err := r.db.QueryRow(ctx, query, args...).Scan(
 		&d.ID, &d.OrganizationID, &d.Name, &d.CreatedAt, &d.UpdatedAt,
 	)
@@ -155,14 +163,22 @@ func (r *PostgresDriverRepository) Update(ctx context.Context, id int, upd model
 	return d, nil
 }
 
-// Delete для PostgresDriverRepository удаляет водителя по его ID
+// Delete для PostgresDriverRepository удаляет водителя по его ID.
+// organizationID != nil ограничивает удаление водителями этой организации (для не-ADMIN);
+// nil означает отсутствие ограничения (ADMIN может удалить водителя любой организации).
 // Если у водителя есть рейсы, ссылающиеся на него - возвращает model.ErrDriverHasActiveTrips
-func (r *PostgresDriverRepository) Delete(ctx context.Context, id int) (model.Driver, error) {
-	const query = `
-	DELETE FROM drivers WHERE id = $1
+func (r *PostgresDriverRepository) Delete(ctx context.Context, id int, organizationID *int) (model.Driver, error) {
+	query := `DELETE FROM drivers WHERE id = $1`
+	args := []any{id}
+	if organizationID != nil {
+		query += " AND organization_id = $2"
+		args = append(args, *organizationID)
+	}
+	query += `
 	RETURNING id, organization_id, name, created_at, updated_at`
+
 	var d model.Driver
-	err := r.db.QueryRow(ctx, query, id).Scan(
+	err := r.db.QueryRow(ctx, query, args...).Scan(
 		&d.ID, &d.OrganizationID, &d.Name, &d.CreatedAt, &d.UpdatedAt,
 	)
 	if err != nil {

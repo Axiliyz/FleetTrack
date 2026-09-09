@@ -38,14 +38,14 @@ func (m *mockDriverRepository) GetList(ctx context.Context, filter model.DriverF
 	return []model.Driver{}, nil
 }
 
-func (m *mockDriverRepository) Delete(ctx context.Context, id int) (model.Driver, error) {
+func (m *mockDriverRepository) Delete(ctx context.Context, id int, organizationID *int) (model.Driver, error) {
 	if m.deleteErr != nil {
 		return model.Driver{}, m.deleteErr
 	}
 	return model.Driver{ID: id}, nil
 }
 
-func (m *mockDriverRepository) Update(ctx context.Context, id int, upd model.UpdateDriver) (model.Driver, error) {
+func (m *mockDriverRepository) Update(ctx context.Context, id int, upd model.UpdateDriver, organizationID *int) (model.Driver, error) {
 	if m.updateErr != nil {
 		return model.Driver{}, m.updateErr
 	}
@@ -155,7 +155,7 @@ func TestDeleteDriverByID(t *testing.T) {
 	log := logger.NewStdLogger(logger.DebugLevel)
 	svc := NewDriverService(repo, log)
 
-	d, err := svc.DeleteDriverByID(context.Background(), 5)
+	d, err := svc.DeleteDriverByID(context.Background(), 5, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -164,7 +164,7 @@ func TestDeleteDriverByID(t *testing.T) {
 	}
 
 	repo.deleteErr = model.ErrDriverHasActiveTrips
-	_, err = svc.DeleteDriverByID(context.Background(), 5)
+	_, err = svc.DeleteDriverByID(context.Background(), 5, nil)
 	if err != model.ErrDriverHasActiveTrips {
 		t.Errorf("got %v, want %v", err, model.ErrDriverHasActiveTrips)
 	}
@@ -189,7 +189,7 @@ func TestUpdateDriverByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := svc.UpdateDriverByID(context.Background(), 5, tt.upd)
+			_, err := svc.UpdateDriverByID(context.Background(), 5, tt.upd, nil)
 			if err != tt.wantErr {
 				t.Errorf("got %v, want %v", err, tt.wantErr)
 			}
@@ -197,7 +197,7 @@ func TestUpdateDriverByID(t *testing.T) {
 	}
 
 	repo.updateErr = model.ErrNotFound
-	_, err := svc.UpdateDriverByID(context.Background(), 999, model.UpdateDriver{})
+	_, err := svc.UpdateDriverByID(context.Background(), 999, model.UpdateDriver{}, nil)
 	if err != model.ErrNotFound {
 		t.Errorf("got %v, want %v", err, model.ErrNotFound)
 	}

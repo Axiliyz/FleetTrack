@@ -24,6 +24,7 @@ var (
 	ErrInvalidFloat          = errors.New("invalid float(must be > 0)")
 	ErrMissingDBVars         = errors.New("missing required DB env vars")
 	ErrConnectingDB          = errors.New("error connecting to DB")
+	ErrMissingJWTVars        = errors.New("missing or invalid required JWT env vars")
 
 	// Vehicle errors
 
@@ -66,9 +67,20 @@ var (
 	ErrInvalidSpeed    = errors.New("invalid speed")
 
 	// Users errors
-	ErrInvalidName       = errors.New("invalid user name")
-	ErrInvalidUserID     = errors.New("invalid user id")
-	ErrInvalidEmail      = errors.New("invalid email")
-	ErrInvalidPassword   = errors.New("invalid password")
-	ErrForbiddenPassword = errors.New("forbidden password")
+	ErrInvalidName         = errors.New("invalid user name")
+	ErrInvalidUserID       = errors.New("invalid user id")
+	ErrInvalidEmail        = errors.New("invalid email")
+	ErrInvalidPassword     = errors.New("invalid password")
+	ErrForbiddenPassword   = errors.New("forbidden password")
+	ErrInvalidUserRole     = errors.New("invalid user role")
+	ErrDuplicateEmail      = errors.New("user with this email already exists")
+	ErrDriverAlreadyLinked = errors.New("driver is already linked to another user")
+
+	// JWT errors
+	ErrInvalidSigningMethod = errors.New("invalid signing method")
+	ErrInvalidToken         = errors.New("invalid token")
+	ErrMissingToken         = errors.New("missing bearer token")
+	ErrInvalidCredentials   = errors.New("invalid credentials")
+	ErrForbidden            = errors.New("access denied")
+	ErrDriverNotLinked      = errors.New("user account has no linked driver")
 )

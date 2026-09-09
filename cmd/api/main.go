@@ -6,7 +6,6 @@ import (
 	"fleettrack/internal/app"
 	"fleettrack/internal/config"
 	"fleettrack/internal/logger"
-	"fleettrack/internal/model"
 	"net/http"
 	"os"
 	"os/signal"
@@ -23,7 +22,7 @@ func main() {
 
 	cfg, err := config.Load()
 	if err != nil {
-		logger.Error(model.ErrConnectingDB.Error())
+		logger.Error(err.Error())
 		os.Exit(1)
 	}
 

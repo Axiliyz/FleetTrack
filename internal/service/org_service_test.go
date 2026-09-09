@@ -14,7 +14,7 @@ func (m *mockOrgRepository) CreateOrg(ctx context.Context, o *model.Org) error {
 	return nil
 }
 
-func (m *mockOrgRepository) GetList(ctx context.Context) ([]model.Org, error) {
+func (m *mockOrgRepository) GetList(ctx context.Context, organizationID int) ([]model.Org, error) {
 	return []model.Org{}, nil
 }
 

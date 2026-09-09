@@ -99,6 +99,44 @@ func TestValidateVehicle(t *testing.T) {
 	}
 }
 
+func TestAssignDevice(t *testing.T) {
+	t.Run("success when device and vehicle belong to caller's org", func(t *testing.T) {
+		deviceRepo := &mockDeviceRepo{device: &model.Device{ID: 1, OrganizationID: 1, Status: model.DeviceStatusActive}}
+		vehicleRepo := &mockVehicleRepository{vehicle: &model.Vehicle{ID: 2, OrganizationID: 1, Status: model.VehicleStatusIdle}}
+		assignmentRepo := &mockAssignmentRepository{getActiveErr: model.ErrNotFound}
+		svc := NewAssignmentService(assignmentRepo, deviceRepo, vehicleRepo, &mockTxManager{}, &mockRepoFactory{deviceRepo: deviceRepo, vehicleRepo: vehicleRepo, assignmentRepo: assignmentRepo})
+
+		err := svc.AssignDevice(context.Background(), 1, 2, 1)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("device from another organization -> ErrNotFound", func(t *testing.T) {
+		deviceRepo := &mockDeviceRepo{device: &model.Device{ID: 1, OrganizationID: 2, Status: model.DeviceStatusActive}}
+		vehicleRepo := &mockVehicleRepository{vehicle: &model.Vehicle{ID: 2, OrganizationID: 1, Status: model.VehicleStatusIdle}}
+		assignmentRepo := &mockAssignmentRepository{}
+		svc := NewAssignmentService(assignmentRepo, deviceRepo, vehicleRepo, &mockTxManager{}, &mockRepoFactory{deviceRepo: deviceRepo, vehicleRepo: vehicleRepo, assignmentRepo: assignmentRepo})
+
+		err := svc.AssignDevice(context.Background(), 1, 2, 1)
+		if err != model.ErrNotFound {
+			t.Errorf("got %v, want %v", err, model.ErrNotFound)
+		}
+	})
+
+	t.Run("vehicle from another organization -> ErrNotFound", func(t *testing.T) {
+		deviceRepo := &mockDeviceRepo{device: &model.Device{ID: 1, OrganizationID: 1, Status: model.DeviceStatusActive}}
+		vehicleRepo := &mockVehicleRepository{vehicle: &model.Vehicle{ID: 2, OrganizationID: 2, Status: model.VehicleStatusIdle}}
+		assignmentRepo := &mockAssignmentRepository{}
+		svc := NewAssignmentService(assignmentRepo, deviceRepo, vehicleRepo, &mockTxManager{}, &mockRepoFactory{deviceRepo: deviceRepo, vehicleRepo: vehicleRepo, assignmentRepo: assignmentRepo})
+
+		err := svc.AssignDevice(context.Background(), 1, 2, 1)
+		if err != model.ErrNotFound {
+			t.Errorf("got %v, want %v", err, model.ErrNotFound)
+		}
+	})
+}
+
 func TestEndPreviousAssignment(t *testing.T) {
 	svc := NewAssignmentService(nil, nil, nil, nil, nil)
 

@@ -70,8 +70,11 @@ func (s *AssignmentService) EndPreviousAssignment(ctx context.Context, deviceID 
 	return nil
 }
 
-// AssignDevice соединяет весь пайплайн проверки и создания связи
-func (s *AssignmentService) AssignDevice(ctx context.Context, deviceID int, vehicleID int) error {
+// AssignDevice соединяет весь пайплайн проверки и создания связи.
+// organizationID - организация вызывающего; устройство и машина должны принадлежать
+// именно ей, иначе (в том числе если они существуют, но в чужой организации) возвращается
+// model.ErrNotFound - не подтверждаем сам факт существования чужих устройства/машины.
+func (s *AssignmentService) AssignDevice(ctx context.Context, deviceID int, vehicleID int, organizationID int) error {
 	return s.txManager.WithTx(ctx, func(tx database.DBTX) error {
 		repos := s.repoFactory.New(tx)
 
@@ -79,9 +82,15 @@ func (s *AssignmentService) AssignDevice(ctx context.Context, deviceID int, vehi
 		if err != nil {
 			return err
 		}
+		if device.OrganizationID != organizationID {
+			return model.ErrNotFound
+		}
 		vehicle, err := repos.Vehicle.GetByID(ctx, vehicleID)
 		if err != nil {
 			return err
+		}
+		if vehicle.OrganizationID != organizationID {
+			return model.ErrNotFound
 		}
 		if err := s.ValidateDevice(ctx, device); err != nil {
 			return err

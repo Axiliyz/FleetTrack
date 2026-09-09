@@ -72,7 +72,16 @@ func New(cfg config.Config) (*App, error) {
 	driverService := service.NewDriverService(driverRepo, logger)
 	driverHandler := handler.NewDriverHandler(driverService, logger)
 
-	router := router.NewRouter(telemetryHandler, vehicleHandler, assignmentHandler, deviceHandler, orgHandler, tripHandler, driverHandler, logger)
+	userRepo := postgres.NewPostgresUserRepository(pool)
+	userService := service.NewUserService(userRepo, logger)
+	userHandler := handler.NewUserHandler(userService, logger)
+
+	refreshTokenRepo := postgres.NewPostgresRefreshTokenRepository(pool)
+	jwtService := service.NewJWTService(cfg.JWT.Secret, cfg.JWT.TTL)
+	authService := service.NewAuthService(userRepo, refreshTokenRepo, jwtService, cfg.JWT.RefreshTTL, logger, txManager, repoFactory)
+	authHandler := handler.NewAuthHandler(authService, logger)
+
+	router := router.NewRouter(telemetryHandler, vehicleHandler, assignmentHandler, deviceHandler, orgHandler, tripHandler, driverHandler, userHandler, authHandler, jwtService, logger)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.API.Port,

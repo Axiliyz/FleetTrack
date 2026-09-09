@@ -56,11 +56,13 @@ type VehicleRepository interface {
 	// GetList возвращает срез автомобилей
 	// Или ошибку
 	GetList(ctx context.Context, filter model.VehicleFilter) ([]model.Vehicle, error)
-	// Delete удаляет машину по ID
+	// Delete удаляет машину по ID. organizationID != nil ограничивает удаление машинами
+	// этой организации; nil - без ограничения (для ADMIN).
 	// Возвращает удалённую машину, и ошибку, если не удалось
-	Delete(ctx context.Context, id int) (model.Vehicle, error)
-	// Update обновляет некоторые поля по авто
-	Update(ctx context.Context, id int, upd model.UpdateVehicle) (model.Vehicle, error)
+	Delete(ctx context.Context, id int, organizationID *int) (model.Vehicle, error)
+	// Update обновляет некоторые поля по авто. organizationID != nil ограничивает обновление
+	// машинами этой организации; nil - без ограничения (для ADMIN).
+	Update(ctx context.Context, id int, upd model.UpdateVehicle, organizationID *int) (model.Vehicle, error)
 }
 
 // DeviceRepository описывает доступ к устройствам, необходимый сервису связей.
@@ -71,9 +73,10 @@ type DeviceRepository interface {
 	// Create создаёт новый девайс
 	// Возвращает ошибку если не удалось
 	Create(ctx context.Context, d *model.Device) error
-	// Delete удаляет девайс по ID
+	// Delete удаляет девайс по ID. organizationID != nil ограничивает удаление устройствами
+	// этой организации; nil - без ограничения (для ADMIN).
 	// Возвращает удалённую запись или ошибку
-	Delete(ctx context.Context, id int) (model.Device, error)
+	Delete(ctx context.Context, id int, organizationID *int) (model.Device, error)
 }
 
 // OrgRepository определяет контракт хранения организаций
@@ -81,9 +84,9 @@ type OrgRepository interface {
 	// CreateOrg создаёт новую организацию
 	// Возвращает ошибку если не удалось
 	CreateOrg(ctx context.Context, o *model.Org) error
-	// GetList возвращает список всех организаций
+	// GetList возвращает организацию с данным ID в виде списка из одного элемента
 	// Возвращает ошибку, если не удалось получить
-	GetList(ctx context.Context) ([]model.Org, error)
+	GetList(ctx context.Context, organizationID int) ([]model.Org, error)
 }
 
 // DriverRepository определяет контракт хранения водителей
@@ -97,11 +100,13 @@ type DriverRepository interface {
 	// GetList возвращает срез водителей
 	// Или ошибку
 	GetList(ctx context.Context, filter model.DriverFilter) ([]model.Driver, error)
-	// Delete удаляет водителя по ID
+	// Delete удаляет водителя по ID. organizationID != nil ограничивает удаление водителями
+	// этой организации; nil - без ограничения (для ADMIN).
 	// Возвращает удалённую запись, и ошибку, если не удалось
-	Delete(ctx context.Context, id int) (model.Driver, error)
-	// Update обновляет некоторые поля водителя
-	Update(ctx context.Context, id int, upd model.UpdateDriver) (model.Driver, error)
+	Delete(ctx context.Context, id int, organizationID *int) (model.Driver, error)
+	// Update обновляет некоторые поля водителя. organizationID != nil ограничивает обновление
+	// водителями этой организации; nil - без ограничения (для ADMIN).
+	Update(ctx context.Context, id int, upd model.UpdateDriver, organizationID *int) (model.Driver, error)
 }
 
 // TripRepository задаёт контракт хранения рейсов
@@ -131,4 +136,30 @@ type UserRepository interface {
 	// GetByEmail получает юзера по почте
 	// Возвращает model.ErrNotFound если не нашёл
 	GetByEmail(ctx context.Context, email string) (model.User, error)
+	// GetByID получает юзера по ID
+	// Возвращает найденного юзера или ошибку
+	GetByID(ctx context.Context, id int) (model.User, error)
+	// Create создаёт нового юзера
+	// Возвращает объект юзера или ошибку
+	Create(ctx context.Context, u *model.User) error
+	// DeleteByID удаляет юзера по ID. organizationID != nil ограничивает удаление юзерами
+	// этой организации; nil - без ограничения.
+	// Возвращает удалённого юзера или ошибку
+	DeleteByID(ctx context.Context, id int, organizationID *int) (model.User, error)
+	// GetList получает список юзеров с фильтрами
+	// Возвращает слайс юзеров или ошибку
+	GetList(ctx context.Context, filter model.UserFilter) ([]model.User, error)
+}
+
+// RefreshTokenRepository задаёт контракт хранения refresh-токенов
+type RefreshTokenRepository interface {
+	// Create сохраняет новый refresh-токен, заполняя ID и CreatedAt
+	// Возвращает ошибку если не удалось
+	Create(ctx context.Context, t *model.RefreshToken) error
+	// GetActiveByHash возвращает токен по его хешу, если он не отозван и не истёк
+	// Возвращает model.ErrNotFound, если такого валидного токена нет
+	GetActiveByHash(ctx context.Context, hash string) (model.RefreshToken, error)
+	// Revoke помечает токен отозванным по его ID
+	// Возвращает ошибку если не удалось
+	Revoke(ctx context.Context, id int) error
 }

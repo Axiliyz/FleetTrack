@@ -16,8 +16,9 @@ const (
 
 // User определяет сущность пользователя
 type User struct {
-	ID             int `json:"id"`
-	OrganizationID int `json:"organization_id"`
+	ID             int  `json:"id"`
+	OrganizationID int  `json:"organization_id"`
+	DriverID       *int `json:"driver_id"`
 
 	Name         string `json:"name"`
 	Email        string `json:"email"`

@@ -26,7 +26,7 @@ func (m *mockOrgService) CreateOrg(ctx context.Context, o model.Org) (model.Org,
 	}, nil
 }
 
-func (m *mockOrgService) GetOrgList(ctx context.Context) ([]model.Org, error) {
+func (m *mockOrgService) GetOrgList(ctx context.Context, organizationID int) ([]model.Org, error) {
 	if m.returnError != nil {
 		return nil, m.returnError
 	}

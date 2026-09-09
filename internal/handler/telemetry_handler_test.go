@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fleettrack/internal/logger"
+	"fleettrack/internal/middleware"
 	"fleettrack/internal/model"
 	"net/http"
 	"net/http/httptest"
@@ -44,7 +45,7 @@ func (m *mockTelemetryService) GetTelemetryByID(ctx context.Context, id int) (mo
 	if m.returnError != nil {
 		return model.Telemetry{}, m.returnError
 	}
-	return model.Telemetry{}, nil
+	return model.Telemetry{OrganizationID: 1}, nil
 }
 
 func (m *mockTelemetryService) GetTelemetryByVehicle(ctx context.Context, id int) ([]model.Telemetry, error) {
@@ -178,6 +179,8 @@ func TestHandleGetTelemetryByID(t *testing.T) {
 			r.Get("/telemetry/{id}", handler.HandleGetTelemetryByID)
 
 			request := httptest.NewRequest("GET", "/telemetry/"+tt.urlID, nil)
+			authCtx := model.AuthContext{Role: model.UserRoleAdmin, OrganizationID: 1}
+			request = request.WithContext(middleware.ContextWithAuth(request.Context(), authCtx))
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
 
@@ -319,6 +322,8 @@ func TestHandleGetTelemetryByVehicle(t *testing.T) {
 			r.Get("/telemetry/vehicle/{id}", handler.HandleGetTelemetryByVehicle)
 
 			request := httptest.NewRequest("GET", "/telemetry/vehicle/"+tt.vehicleID, nil)
+			authCtx := model.AuthContext{Role: model.UserRoleAdmin, OrganizationID: 1}
+			request = request.WithContext(middleware.ContextWithAuth(request.Context(), authCtx))
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
 

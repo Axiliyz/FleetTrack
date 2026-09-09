@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fleettrack/internal/logger"
+	"fleettrack/internal/middleware"
 	"fleettrack/internal/model"
 	"net/http"
 	"net/http/httptest"
@@ -35,17 +36,17 @@ func (m *mockVehicleService) GetVehicleByID(ctx context.Context, id int) (model.
 	if m.returnError != nil {
 		return model.Vehicle{}, m.returnError
 	}
-	return model.Vehicle{ID: id}, nil
+	return model.Vehicle{ID: id, OrganizationID: 1}, nil
 }
 
-func (m *mockVehicleService) DeleteVehicleByID(ctx context.Context, id int) (model.Vehicle, error) {
+func (m *mockVehicleService) DeleteVehicleByID(ctx context.Context, id int, organizationID *int) (model.Vehicle, error) {
 	if m.returnError != nil {
 		return model.Vehicle{}, m.returnError
 	}
 	return model.Vehicle{ID: id, Status: model.VehicleStatusDeleted}, nil
 }
 
-func (m *mockVehicleService) UpdateVehicleByID(ctx context.Context, id int, upd model.UpdateVehicle) (model.Vehicle, error) {
+func (m *mockVehicleService) UpdateVehicleByID(ctx context.Context, id int, upd model.UpdateVehicle, organizationID *int) (model.Vehicle, error) {
 	if m.returnError != nil {
 		return model.Vehicle{}, m.returnError
 	}
@@ -93,6 +94,8 @@ func TestHandlePostVehicle(t *testing.T) {
 			r.Post("/vehicles", h.HandlePostVehicle)
 
 			request := httptest.NewRequest("POST", "/vehicles", strings.NewReader(tt.requestBody))
+			authCtx := model.AuthContext{Role: model.UserRoleAdmin, OrganizationID: 1}
+			request = request.WithContext(middleware.ContextWithAuth(request.Context(), authCtx))
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
 
@@ -125,6 +128,8 @@ func TestHandleGetVehicleByID(t *testing.T) {
 			r.Get("/vehicles/{id}", h.HandleGetVehicleByID)
 
 			request := httptest.NewRequest("GET", "/vehicles/"+tt.urlID, nil)
+			authCtx := model.AuthContext{Role: model.UserRoleAdmin, OrganizationID: 1}
+			request = request.WithContext(middleware.ContextWithAuth(request.Context(), authCtx))
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
 
@@ -157,6 +162,8 @@ func TestHandleDeleteVehicle(t *testing.T) {
 			r.Delete("/vehicles/{id}", h.HandleDeleteVehicle)
 
 			request := httptest.NewRequest("DELETE", "/vehicles/"+tt.urlID, nil)
+			authCtx := model.AuthContext{Role: model.UserRoleAdmin, OrganizationID: 1}
+			request = request.WithContext(middleware.ContextWithAuth(request.Context(), authCtx))
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
 
@@ -189,6 +196,8 @@ func TestHandleGetListVehicle(t *testing.T) {
 			r.Get("/vehicles", h.HandleGetListVehicle)
 
 			request := httptest.NewRequest("GET", "/vehicles"+tt.query, nil)
+			authCtx := model.AuthContext{Role: model.UserRoleAdmin, OrganizationID: 1}
+			request = request.WithContext(middleware.ContextWithAuth(request.Context(), authCtx))
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
 
@@ -223,6 +232,8 @@ func TestHandlePatchVehicle(t *testing.T) {
 			r.Patch("/vehicles/{id}", h.HandlePatchVehicle)
 
 			request := httptest.NewRequest("PATCH", "/vehicles/"+tt.urlID, strings.NewReader(tt.requestBody))
+			authCtx := model.AuthContext{Role: model.UserRoleAdmin, OrganizationID: 1}
+			request = request.WithContext(middleware.ContextWithAuth(request.Context(), authCtx))
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
 
