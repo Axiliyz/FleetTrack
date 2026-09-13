@@ -222,42 +222,42 @@ func buildAlertRuleWhereClause(filter model.AlertRuleFilter) (string, []any) {
 	if filter.OrganizationID != nil {
 		conditions = append(conditions, fmt.Sprintf("organization_id = $%d", argN))
 		args = append(args, *filter.OrganizationID)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.Type != nil {
 		conditions = append(conditions, fmt.Sprintf("type = $%d", argN))
 		args = append(args, *filter.Type)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.Name != nil {
 		conditions = append(conditions, fmt.Sprintf("name ILIKE $%d", argN))
 		args = append(args, "%"+*filter.Name+"%")
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.MinThreshold != nil {
 		conditions = append(conditions, fmt.Sprintf("threshold >= $%d", argN))
 		args = append(args, *filter.MinThreshold)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.MaxThreshold != nil {
 		conditions = append(conditions, fmt.Sprintf("threshold <= $%d", argN))
 		args = append(args, *filter.MaxThreshold)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.Severity != nil {
 		conditions = append(conditions, fmt.Sprintf("severity = $%d", argN))
 		args = append(args, *filter.Severity)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.Enabled != nil {
 		conditions = append(conditions, fmt.Sprintf("enabled = $%d", argN))
 		args = append(args, *filter.Enabled)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.CreatedAt != nil {
 		conditions = append(conditions, fmt.Sprintf("created_at >= $%d", argN))
 		args = append(args, *filter.CreatedAt)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 
 	whereClause := ""

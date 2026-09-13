@@ -224,37 +224,37 @@ func buildAlertWhereClause(filter model.AlertFilter) (string, []any) {
 	if filter.OrganizationID != nil {
 		conditions = append(conditions, fmt.Sprintf("organization_id = $%d", argN))
 		args = append(args, *filter.OrganizationID)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.VehicleID != nil {
 		conditions = append(conditions, fmt.Sprintf("vehicle_id = $%d", argN))
 		args = append(args, *filter.VehicleID)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.Severity != nil {
 		conditions = append(conditions, fmt.Sprintf("severity = $%d", argN))
 		args = append(args, *filter.Severity)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.Status != nil {
 		conditions = append(conditions, fmt.Sprintf("status = $%d", argN))
 		args = append(args, *filter.Status)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.CreatedAt != nil {
 		conditions = append(conditions, fmt.Sprintf("created_at >= $%d", argN))
 		args = append(args, *filter.CreatedAt)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.AcknowledgedBy != nil {
 		conditions = append(conditions, fmt.Sprintf("acknowledged_by = $%d", argN))
 		args = append(args, *filter.AcknowledgedBy)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 	if filter.ResolvedBy != nil {
 		conditions = append(conditions, fmt.Sprintf("resolved_by = $%d", argN))
 		args = append(args, *filter.ResolvedBy)
-		argN++
+		argN++ //nolint:ineffassign
 	}
 
 	whereClause := ""

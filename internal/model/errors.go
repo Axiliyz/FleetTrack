@@ -78,7 +78,9 @@ var (
 	ErrForbidden            = errors.New("access denied")
 	ErrDriverNotLinked      = errors.New("user account has no linked driver")
 
-	// Alerts errors
-	ErrInvalidThreshold = errors.New("invalid threshold")
-	ErrInvalidRuleID    = errors.New("invalid rule id")
+	// Alerts and Notifications errors
+	ErrInvalidThreshold       = errors.New("invalid threshold")
+	ErrInvalidRuleID          = errors.New("invalid rule id")
+	ErrInvalidChannelConfig   = errors.New("invalid notification channel config")
+	ErrUnsupportedChannelType = errors.New("unsupported notification channel type")
 )
