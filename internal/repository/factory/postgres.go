@@ -8,13 +8,17 @@ import (
 
 // Repositories собирает репозитории, работающие поверх одного соединения/транзакции
 type Repositories struct {
-	Device     repository.DeviceRepository
-	Vehicle    repository.VehicleRepository
-	Assignment repository.AssignmentRepository
-	Telemetry  repository.TelemetryRepository
-	Trip       repository.TripRepository
-	Org        repository.OrgRepository
-	User       repository.UserRepository
+	Device              repository.DeviceRepository
+	Vehicle             repository.VehicleRepository
+	Assignment          repository.AssignmentRepository
+	Telemetry           repository.TelemetryRepository
+	Trip                repository.TripRepository
+	Org                 repository.OrgRepository
+	User                repository.UserRepository
+	AlertRule           repository.AlertRuleRepository
+	Alert               repository.AlertRepository
+	NotificationChannel repository.NotificationChannelRepository
+	AlertNotification   repository.AlertNotificationRepository
 }
 
 // PostgresRepositoryFactory - реализация RepositoryFactory поверх PostgreSQL
@@ -28,12 +32,16 @@ func NewPostgresRepositoryFactory() *PostgresRepositoryFactory {
 // New создаёт набор PostgreSQL-репозиториев поверх переданного соединения/транзакции
 func (f *PostgresRepositoryFactory) New(tx database.DBTX) Repositories {
 	return Repositories{
-		Device:     postgres.NewPostgresDeviceRepository(tx),
-		Vehicle:    postgres.NewPostgresVehicleRepository(tx),
-		Assignment: postgres.NewPostgresAssignmentRepository(tx),
-		Telemetry:  postgres.NewPostgresTelemetryRepository(tx),
-		Trip:       postgres.NewPostgresTripRepository(tx),
-		Org:        postgres.NewPostgresOrgRepository(tx),
-		User:       postgres.NewPostgresUserRepository(tx),
+		Device:              postgres.NewPostgresDeviceRepository(tx),
+		Vehicle:             postgres.NewPostgresVehicleRepository(tx),
+		Assignment:          postgres.NewPostgresAssignmentRepository(tx),
+		Telemetry:           postgres.NewPostgresTelemetryRepository(tx),
+		Trip:                postgres.NewPostgresTripRepository(tx),
+		Org:                 postgres.NewPostgresOrgRepository(tx),
+		User:                postgres.NewPostgresUserRepository(tx),
+		AlertRule:           postgres.NewPostgresAlertRuleRepository(tx),
+		Alert:               postgres.NewPostgresAlertRepository(tx),
+		NotificationChannel: postgres.NewUserNotificationChannelRepository(tx),
+		AlertNotification:   postgres.NewPostgresAlertNotificationRepository(tx),
 	}
 }

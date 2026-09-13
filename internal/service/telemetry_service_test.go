@@ -45,7 +45,7 @@ func (r *mockRepository) GetLastByVehicle(ctx context.Context, id int) (model.Te
 	return r.lastTelemetry, r.lastErr
 }
 
-// fakeTxManager - подмена transaction.TransactionManager: выполняет fn без реальной БД.
+// fakeTxManager - подмена transaction.TransactionManager: выполняет fn без реальной БД
 type fakeTxManager struct {
 	err error
 }
@@ -57,7 +57,7 @@ func (m *fakeTxManager) WithTx(ctx context.Context, fn func(tx database.DBTX) er
 	return fn(nil)
 }
 
-// fakeRepoFactory - подмена factory.RepositoryFactory: отдаёт заранее заданные моки репозиториев.
+// fakeRepoFactory - подмена factory.RepositoryFactory: отдаёт заранее заданные моки репозиториев
 type fakeRepoFactory struct {
 	telemetry repository.TelemetryRepository
 	trip      repository.TripRepository
@@ -72,7 +72,7 @@ func (f *fakeRepoFactory) New(tx database.DBTX) factory.Repositories {
 	}
 }
 
-// fakeMotionService - подмена MotionService с заранее заданным результатом.
+// fakeMotionService - подмена MotionService с заранее заданным результатом
 type fakeMotionService struct {
 	data *model.MotionData
 	err  error
@@ -239,7 +239,7 @@ func TestProcessTelemetry(t *testing.T) {
 	repoFactory := &fakeRepoFactory{telemetry: repo, trip: tripRepo, vehicle: &mockVehicleRepository{}}
 	motion := &fakeMotionService{data: &model.MotionData{DistanceKm: 1.2, SpeedKmh: 40}}
 	log := logger.NewStdLogger(logger.DebugLevel)
-	service := NewTelemetryService(repo, log, txManager, repoFactory, motion)
+	service := NewTelemetryService(repo, log, txManager, repoFactory, motion, nil)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -252,14 +252,14 @@ func TestProcessTelemetry(t *testing.T) {
 }
 
 // TestProcessTelemetry_NoActiveTrip проверяет, что при отсутствии рейса RUNNING
-// у машины пайплайн отказывает с model.ErrNoActiveTrip, а не сохраняет телеметрию.
+// у машины пайплайн отказывает с model.ErrNoActiveTrip, а не сохраняет телеметрию
 func TestProcessTelemetry_NoActiveTrip(t *testing.T) {
 	repo := &mockRepository{}
 	tripRepo := &mockTripRepository{} // trips не задан - активного рейса нет
 	txManager := &fakeTxManager{}
 	repoFactory := &fakeRepoFactory{telemetry: repo, trip: tripRepo, vehicle: &mockVehicleRepository{}}
 	log := logger.NewStdLogger(logger.DebugLevel)
-	service := NewTelemetryService(repo, log, txManager, repoFactory, &fakeMotionService{})
+	service := NewTelemetryService(repo, log, txManager, repoFactory, &fakeMotionService{}, nil)
 
 	valid := model.Telemetry{DeviceID: 1, VehicleID: 1, Lat: 55.75, Lon: 37.61, Fuel: float32Ptr(0.8)}
 	_, err := service.ProcessTelemetry(context.Background(), valid)
@@ -270,14 +270,14 @@ func TestProcessTelemetry_NoActiveTrip(t *testing.T) {
 
 // TestProcessTelemetry_FirstPointForVehicle проверяет, что отсутствие предыдущей точки
 // (первая телеметрия машины) - не ошибка: запись сохраняется с нулевыми DistanceKm/SpeedKmh,
-// а MotionService.Calculate не вызывается.
+// а MotionService.Calculate не вызывается
 func TestProcessTelemetry_FirstPointForVehicle(t *testing.T) {
 	repo := &mockRepository{lastErr: model.ErrNotFound}
 	tripRepo := &mockTripRepository{trips: []model.Trip{{ID: 1, Status: model.TripStatusRunning}}}
 	txManager := &fakeTxManager{}
 	repoFactory := &fakeRepoFactory{telemetry: repo, trip: tripRepo, vehicle: &mockVehicleRepository{}}
 	log := logger.NewStdLogger(logger.DebugLevel)
-	service := NewTelemetryService(repo, log, txManager, repoFactory, &fakeMotionService{})
+	service := NewTelemetryService(repo, log, txManager, repoFactory, &fakeMotionService{}, nil)
 
 	valid := model.Telemetry{DeviceID: 1, VehicleID: 1, Lat: 55.75, Lon: 37.61, Fuel: float32Ptr(0.8)}
 	got, err := service.ProcessTelemetry(context.Background(), valid)
@@ -347,7 +347,7 @@ func TestGetTelemetryList(t *testing.T) {
 
 	repo := &mockRepository{}
 	logger := logger.NewStdLogger(logger.DebugLevel)
-	service := NewTelemetryService(repo, logger, nil, nil, nil)
+	service := NewTelemetryService(repo, logger, nil, nil, nil, nil)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
