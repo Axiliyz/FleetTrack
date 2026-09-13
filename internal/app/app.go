@@ -1,5 +1,5 @@
 // Package app собирает приложение: конфигурацию, подключение к БД,
-// репозитории, сервисы, хендлеры и HTTP-сервер.
+// репозитории, сервисы, хендлеры и HTTP-сервер
 package app
 
 import (
@@ -19,14 +19,16 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// App хранит собранные зависимости запущенного приложения.
+// App хранит собранные зависимости запущенного приложения
 type App struct {
-	Server *http.Server
-	DB     *pgxpool.Pool
+	Server       *http.Server
+	DB           *pgxpool.Pool
+	AlertService *service.AlertService
+	cancel       context.CancelFunc
 }
 
 // New собирает приложение: подключается к БД, создаёт репозитории,
-// сервисы, хендлеры и HTTP-роутер.
+// сервисы, хендлеры и HTTP-роутер
 func New(cfg config.Config) (*App, error) {
 	ctx := context.Background()
 	logger := logger.NewStdLogger(logger.DebugLevel)
@@ -51,9 +53,27 @@ func New(cfg config.Config) (*App, error) {
 	deviceService := service.NewDeviceService(deviceRepo, logger, txManager, repoFactory)
 	deviceHandler := handler.NewDeviceHandler(deviceService, logger)
 
+	alertRepo := postgres.NewPostgresAlertRepository(pool)
+	alertRuleRepo := postgres.NewPostgresAlertRuleRepository(pool)
+	channelRepo := postgres.NewUserNotificationChannelRepository(pool)
+	notificationRepo := postgres.NewPostgresAlertNotificationRepository(pool)
+	alertService := service.NewAlertService(
+		alertRepo,
+		alertRuleRepo,
+		channelRepo,
+		notificationRepo,
+		txManager,
+		repoFactory,
+		logger,
+	)
+	alertRuleHandler := handler.NewAlertRuleHandler(alertService, logger)
+
+	workerCtx, cancel := context.WithCancel(context.Background())
+	alertService.Start(workerCtx, 4)
+
 	motionService := service.NewMotionServiceImpl()
 	telemetryRepo := postgres.NewPostgresTelemetryRepository(pool)
-	telemetryService := service.NewTelemetryService(telemetryRepo, logger, txManager, repoFactory, motionService)
+	telemetryService := service.NewTelemetryService(telemetryRepo, logger, txManager, repoFactory, motionService, alertService)
 	telemetryHandler := handler.NewTelemetryHandler(telemetryService, logger)
 
 	vehicleRepo := postgres.NewPostgresVehicleRepository(pool)
@@ -81,7 +101,7 @@ func New(cfg config.Config) (*App, error) {
 	authService := service.NewAuthService(userRepo, refreshTokenRepo, jwtService, cfg.JWT.RefreshTTL, logger, txManager, repoFactory)
 	authHandler := handler.NewAuthHandler(authService, logger)
 
-	router := router.NewRouter(telemetryHandler, vehicleHandler, assignmentHandler, deviceHandler, orgHandler, tripHandler, driverHandler, userHandler, authHandler, jwtService, logger)
+	router := router.NewRouter(telemetryHandler, vehicleHandler, assignmentHandler, deviceHandler, orgHandler, tripHandler, driverHandler, userHandler, authHandler, jwtService, alertRuleHandler, logger)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.API.Port,
@@ -93,12 +113,20 @@ func New(cfg config.Config) (*App, error) {
 	}
 
 	return &App{
-		Server: srv,
-		DB:     pool,
+		Server:       srv,
+		DB:           pool,
+		AlertService: alertService,
+		cancel:       cancel,
 	}, nil
 }
 
-// Close закрывает пул соединений с БД.
+// Close закрывает пул соединений с БД и останавливает фоновые воркеры
 func (a *App) Close() {
+	if a.AlertService != nil {
+		a.AlertService.Stop()
+	}
+	if a.cancel != nil {
+		a.cancel()
+	}
 	a.DB.Close()
 }

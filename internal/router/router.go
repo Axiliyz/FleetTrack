@@ -19,7 +19,7 @@ func NewRouter(
 	assignmentHandler *handler.AssignmentHandler, deviceHandler *handler.DeviceHandler,
 	orgHandler *handler.OrgHandler, tripHandler *handler.TripHandler,
 	driverHandler *handler.DriverHandler, userHandler *handler.UserHandler,
-	authHandler *handler.AuthHandler, jwtParser middleware.JWTParser, logger logger.Logger) http.Handler {
+	authHandler *handler.AuthHandler, jwtParser middleware.JWTParser, alertRuleHandler *handler.AlertRuleHandler, logger logger.Logger) http.Handler {
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(middleware.Recovery(logger))
@@ -87,6 +87,12 @@ func NewRouter(
 
 		r.With(middleware.RequireRole(logger, model.UserRoleAdmin)).Post("/users", userHandler.HandleCreateUser)
 		r.With(middleware.RequireRole(logger, model.UserRoleAdmin)).Delete("/users/{id}", userHandler.HandleDeleteUserByID)
+
+		// Правила алертов
+		r.Get("/alert-rules", alertRuleHandler.HandleGetRulesList)
+		r.Get("/alert-rules/{id}", alertRuleHandler.HandleGetRuleByID)
+		r.With(manageFleet).Post("/alert-rules", alertRuleHandler.HandlePostRule)
+		r.With(manageFleet).Delete("/alert-rules/{id}", alertRuleHandler.HandleDeleteRuleByID)
 	})
 
 	return router

@@ -9,17 +9,19 @@ import (
 	"time"
 )
 
-// RequestTimeout — таймаут, применяемый к каждому HTTP-запросу.
+// RequestTimeout — таймаут, применяемый к каждому HTTP-запросу
 const RequestTimeout = 5 * time.Second
 
-// Config хранит все параметры конфигурации приложения.
+// Config хранит все параметры конфигурации приложения
 type Config struct {
-	DB  DBConfig
-	API APIConfig
-	JWT JWTConfig
+	DB       DBConfig
+	API      APIConfig
+	JWT      JWTConfig
+	Telegram TelegramConfig
+	SMTP     SMTPConfig
 }
 
-// DBConfig хранит параметры подключения к PostgreSQL.
+// DBConfig хранит параметры подключения к PostgreSQL
 type DBConfig struct {
 	User     string
 	Password string
@@ -28,7 +30,7 @@ type DBConfig struct {
 	Name     string
 }
 
-// APIConfig хранит параметры HTTP API.
+// APIConfig хранит параметры HTTP API
 type APIConfig struct {
 	Port string
 }
@@ -40,7 +42,21 @@ type JWTConfig struct {
 	RefreshTTL time.Duration
 }
 
-// DSN формирует строку подключения к PostgreSQL из параметров DBConfig.
+// TelegramConfig хранит настройки интеграции с TG Bot API
+type TelegramConfig struct {
+	BotToken string
+}
+
+// SMTPConfig хранит параметры почтового соединения
+type SMTPConfig struct {
+	Host     string
+	Port     int
+	Username string
+	Password string
+	From     string
+}
+
+// DSN формирует строку подключения к PostgreSQL из параметров DBConfig
 func (c DBConfig) DSN() string {
 	u := url.URL{
 		Scheme: "postgres",
@@ -51,7 +67,7 @@ func (c DBConfig) DSN() string {
 	return u.String()
 }
 
-// Load читает конфигурацию из переменных окружения.
+// Load читает конфигурацию из переменных окружения
 func Load() (*Config, error) {
 	cfg := &Config{
 		DB: DBConfig{
@@ -89,5 +105,22 @@ func Load() (*Config, error) {
 	if cfg.JWT.Secret == "" {
 		return nil, model.ErrMissingJWTVars
 	}
+
+	smtpPort, _ := strconv.Atoi(os.Getenv("SMTP_PORT"))
+	if smtpPort == 0 {
+		smtpPort = 587
+	}
+	cfg.Telegram = TelegramConfig{
+		BotToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
+	}
+
+	cfg.SMTP = SMTPConfig{
+		Host:     os.Getenv("SMTP_HOST"),
+		Port:     smtpPort,
+		Username: os.Getenv("SMTP_USERNAME"),
+		Password: os.Getenv("SMTP_PASSWORD"),
+		From:     os.Getenv("SMTP_FROM"),
+	}
+
 	return cfg, nil
 }

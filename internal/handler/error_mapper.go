@@ -351,6 +351,18 @@ func mapError(err error) HTTPError {
 			Status:  http.StatusForbidden,
 		}
 
+	case errors.Is(err, model.ErrInvalidThreshold):
+		return HTTPError{
+			Message: "invalid threshold",
+			Status:  http.StatusBadRequest,
+		}
+
+	case errors.Is(err, model.ErrInvalidRuleID):
+		return HTTPError{
+			Message: "invalid rule id",
+			Status:  http.StatusBadRequest,
+		}
+
 	default:
 		return HTTPError{
 			Message: "unknown error",

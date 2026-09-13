@@ -21,16 +21,18 @@ type TelemetryService struct {
 	txManager     transaction.TransactionManager
 	repoFactory   factory.RepositoryFactory
 	motionService MotionService
+	alertService  *AlertService
 }
 
 // NewTelemetryService создаёт новый сервис с заданным репозиторием и логгером
-func NewTelemetryService(r repository.TelemetryRepository, logger logger.Logger, tx transaction.TransactionManager, rf factory.RepositoryFactory, ms MotionService) *TelemetryService {
+func NewTelemetryService(r repository.TelemetryRepository, logger logger.Logger, tx transaction.TransactionManager, rf factory.RepositoryFactory, ms MotionService, as *AlertService) *TelemetryService {
 	return &TelemetryService{
 		repository:    r,
 		logger:        logger,
 		txManager:     tx,
 		repoFactory:   rf,
 		motionService: ms,
+		alertService:  as,
 	}
 }
 
@@ -179,6 +181,9 @@ func (s *TelemetryService) ProcessTelemetry(ctx context.Context, t model.Telemet
 			t.Lon,
 			"No data",
 		)
+	}
+	if s.alertService != nil {
+		s.alertService.Enqueue(t)
 	}
 	s.logger.Info(message)
 	return t, nil

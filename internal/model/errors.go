@@ -27,7 +27,6 @@ var (
 	ErrMissingJWTVars        = errors.New("missing or invalid required JWT env vars")
 
 	// Vehicle errors
-
 	ErrInvalidVIN         = errors.New("invalid vin")
 	ErrInvalidStatus      = errors.New("invalid status")
 	ErrInvalidModel       = errors.New("invalid car model")
@@ -37,28 +36,23 @@ var (
 	ErrVehicleIsBusy      = errors.New("vehicle is busy")
 
 	// Devices errors
-
 	ErrDeviceAlreadyAssigned = errors.New("device is already assigned")
 	ErrDeviceIsBusy          = errors.New("device is active or on maintenance")
 	ErrInvalidSerialNumber   = errors.New("invalid serial number")
 	ErrDuplicateSerialNumber = errors.New("device with this serial number already exists")
 
 	// Organization errors
-
 	ErrInvalidOrgName   = errors.New("invalid organization name")
 	ErrDuplicateOrgName = errors.New("organization with this name is already exists")
 
 	// Trip errors
-
 	ErrTripAlreadyFinished = errors.New("trip is already finished")
 
 	// Driver errors
-
 	ErrInvalidDriverName    = errors.New("invalid driver name")
 	ErrDriverHasActiveTrips = errors.New("driver has trips and can't be deleted")
 
 	// Calculation errors
-
 	ErrCalculating     = errors.New("can't calculate motion")
 	ErrInvalidTime     = errors.New("invalid time")
 	ErrNoValue         = errors.New("no value to calculate")
@@ -83,4 +77,8 @@ var (
 	ErrInvalidCredentials   = errors.New("invalid credentials")
 	ErrForbidden            = errors.New("access denied")
 	ErrDriverNotLinked      = errors.New("user account has no linked driver")
+
+	// Alerts errors
+	ErrInvalidThreshold = errors.New("invalid threshold")
+	ErrInvalidRuleID    = errors.New("invalid rule id")
 )
