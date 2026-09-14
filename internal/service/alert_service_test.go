@@ -192,7 +192,7 @@ func (m *mockNotificationRepo) CreateBatch(ctx context.Context, nots []model.Ale
 	return nil
 }
 
-func (m *mockNotificationRepo) FetchPending(ctx context.Context, batchSize int) ([]model.AlertNotification, error) {
+func (m *mockNotificationRepo) FetchPending(ctx context.Context, batchSize int) ([]model.NotificationTask, error) {
 	return nil, nil
 }
 

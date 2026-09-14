@@ -36,10 +36,12 @@ func (r *PostgresTelemetryRepository) Save(ctx context.Context, t *model.Telemet
 		fuel,
 		trip_id,
 		distance_km,
-		speed_kmh)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		speed_kmh,
+		received_at,
+		device_timestamp)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING id`,
-		t.OrganizationID, t.VehicleID, t.DeviceID, t.Lat, t.Lon, t.Fuel, t.TripID, t.DistanceKm, t.SpeedKmh,
+		t.OrganizationID, t.VehicleID, t.DeviceID, t.Lat, t.Lon, t.Fuel, t.TripID, t.DistanceKm, t.SpeedKmh, t.ReceivedAt, t.DeviceTimestamp,
 	).Scan(&t.TelemetryID)
 	return err
 }

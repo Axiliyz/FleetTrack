@@ -263,7 +263,7 @@ type AlertNotificationRepository interface {
 
 	// FetchPending забирает пачку задач со статусом PENDING для отправки воркером
 	// В хайлоад реализации использует FOR UPDATE SKIP LOCKED для безопасного параллелизма
-	FetchPending(ctx context.Context, batchSize int) ([]model.AlertNotification, error)
+	FetchPending(ctx context.Context, batchSize int) ([]model.NotificationTask, error)
 
 	// MarkSent фиксирует успешную отправку уведомления в канал (status = SENT)
 	MarkSent(ctx context.Context, id int) error

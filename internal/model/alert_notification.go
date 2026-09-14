@@ -1,6 +1,8 @@
 package model
 
-import "time"
+import (
+	"time"
+)
 
 // NotificationStatus отражает состояние задачи в очереди Transactional Outbox
 type NotificationStatus string
@@ -28,4 +30,12 @@ type AlertNotification struct {
 	SentAt      *time.Time         // Время фактической успешной отправки
 	Error       *string            // Текст последней ошибки при неудачной попытке
 	CreatedAt   time.Time          // Время постановки задачи в очередь
+}
+
+// NotificationTask содержит задачу на отправку со связанным каналом и алертом
+type NotificationTask struct {
+	ID       int                     // Уникальный идентификатор задачи
+	Attempts int                     // Количество совершённых попыток отправки
+	Channel  UserNotificationChannel // Канал доставки уведомления
+	Alert    Alert                   // Данные сработавшего алерта
 }

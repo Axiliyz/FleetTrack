@@ -8,11 +8,13 @@ import (
 	"fleettrack/internal/database"
 	"fleettrack/internal/handler"
 	"fleettrack/internal/logger"
+	"fleettrack/internal/notifier"
 	"fleettrack/internal/repository/factory"
 	"fleettrack/internal/repository/postgres"
 	"fleettrack/internal/router"
 	"fleettrack/internal/service"
 	"fleettrack/internal/transaction"
+	"fleettrack/internal/worker"
 	"net/http"
 	"time"
 
@@ -21,10 +23,11 @@ import (
 
 // App хранит собранные зависимости запущенного приложения
 type App struct {
-	Server       *http.Server
-	DB           *pgxpool.Pool
-	AlertService *service.AlertService
-	cancel       context.CancelFunc
+	Server             *http.Server
+	DB                 *pgxpool.Pool
+	AlertService       *service.AlertService
+	NotificationWorker *worker.NotificationWorker
+	cancel             context.CancelFunc
 }
 
 // New собирает приложение: подключается к БД, создаёт репозитории,
@@ -101,6 +104,19 @@ func New(cfg config.Config) (*App, error) {
 	authService := service.NewAuthService(userRepo, refreshTokenRepo, jwtService, cfg.JWT.RefreshTTL, logger, txManager, repoFactory)
 	authHandler := handler.NewAuthHandler(authService, logger)
 
+	telegramSender := notifier.NewTelegramSender(cfg.Telegram.BotToken, nil)
+	emailSender := notifier.NewEmailSender(cfg.SMTP)
+	dispatcher := notifier.NewDispatcher(telegramSender, emailSender, logger)
+
+	notificationWorker := worker.NewNotificationWorker(
+		notificationRepo,
+		dispatcher,
+		logger,
+		2*time.Second,
+		50,
+	)
+	notificationWorker.Start(workerCtx)
+
 	router := router.NewRouter(telemetryHandler, vehicleHandler, assignmentHandler, deviceHandler, orgHandler, tripHandler, driverHandler, userHandler, authHandler, jwtService, alertRuleHandler, logger)
 
 	srv := &http.Server{
@@ -113,15 +129,19 @@ func New(cfg config.Config) (*App, error) {
 	}
 
 	return &App{
-		Server:       srv,
-		DB:           pool,
-		AlertService: alertService,
-		cancel:       cancel,
+		Server:             srv,
+		DB:                 pool,
+		AlertService:       alertService,
+		NotificationWorker: notificationWorker,
+		cancel:             cancel,
 	}, nil
 }
 
 // Close закрывает пул соединений с БД и останавливает фоновые воркеры
 func (a *App) Close() {
+	if a.NotificationWorker != nil {
+		a.NotificationWorker.Stop()
+	}
 	if a.AlertService != nil {
 		a.AlertService.Stop()
 	}
