@@ -150,6 +150,10 @@ func (m *mockAlertRepo) GetByID(ctx context.Context, id int) (model.Alert, error
 	return model.Alert{ID: id}, nil
 }
 
+func (m *mockAlertRepo) FindOfflineVehicles(ctx context.Context, thresholdMinutes float64) ([]model.OfflineVehicleInfo, error) {
+	return nil, nil
+}
+
 // mockChannelRepo имитирует NotificationChannelRepository для тестов
 type mockChannelRepo struct {
 	channelsErr error

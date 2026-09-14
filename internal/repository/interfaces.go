@@ -237,6 +237,9 @@ type AlertRepository interface {
 
 	// GetList возвращает список алертов по фильтрам (организация, статус, даты, пагинация)
 	GetList(ctx context.Context, filter model.AlertFilter) ([]model.Alert, error)
+
+	// FindOfflineVehicles ищет автомобили с активными трекерами, не присылавшие телеметрию дольше thresholdMinutes
+	FindOfflineVehicles(ctx context.Context, thresholdMinutes float64) ([]model.OfflineVehicleInfo, error)
 }
 
 // NotificationChannelRepository определяет контракт управления каналами доставки уведомлений пользователей

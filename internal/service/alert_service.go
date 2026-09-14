@@ -67,6 +67,7 @@ func (s *AlertService) EvaluateTelemetry(ctx context.Context, t model.Telemetry)
 			if err != nil {
 				return err
 			}
+			s.logger.Info(fmt.Sprintf("alert %d resolved automatically for vehicle %d", activeAlert.ID, t.VehicleID))
 		}
 	}
 	return nil
@@ -109,7 +110,7 @@ func (s *AlertService) fireAlert(ctx context.Context, t model.Telemetry, r model
 	if err != nil {
 		return err
 	}
-	return s.txManager.WithTx(ctx, func(tx database.DBTX) error {
+	err = s.txManager.WithTx(ctx, func(tx database.DBTX) error {
 		repos := s.repoFactory.New(tx)
 		if err := repos.Alert.Create(ctx, &alert); err != nil {
 			return err
@@ -130,6 +131,11 @@ func (s *AlertService) fireAlert(ctx context.Context, t model.Telemetry, r model
 
 		return repos.AlertNotification.CreateBatch(ctx, notifications)
 	})
+	if err != nil {
+		return err
+	}
+	s.logger.Info(fmt.Sprintf("alert fired: ID=%d, vehicle=%d, rule=%d, type=%s, severity=%s", alert.ID, alert.VehicleID, alert.RuleID, alert.Type, alert.Severity))
+	return nil
 }
 
 // Enqueue добавляет точку телеметрии в неблокирующую очередь обработки алертов
@@ -234,4 +240,34 @@ func (s *AlertService) UpdateRule(ctx context.Context, r model.AlertRule) (model
 // DeleteRuleByID удаляет правило алертов по его идентификатору
 func (s *AlertService) DeleteRuleByID(ctx context.Context, id int) (model.AlertRule, error) {
 	return s.ruleRepo.DeleteByID(ctx, id)
+}
+
+// AcknowledgeAlert переводит статус алерта в ACKNOWLEDGED
+func (s *AlertService) AcknowledgeAlert(ctx context.Context, alertID, userID int) (model.Alert, error) {
+	alert, err := s.alertRepo.AcknowledgeAlert(ctx, alertID, userID)
+	if err != nil {
+		return model.Alert{}, err
+	}
+	s.logger.Info(fmt.Sprintf("alert %d acknowledged by user %d", alertID, userID))
+	return alert, nil
+}
+
+// FireOfflineAlert создаёт алерт о потере связи с устройством, если такого открытого алерта ещё нет
+func (s *AlertService) FireOfflineAlert(ctx context.Context, info model.OfflineVehicleInfo, r model.AlertRule) error {
+	activeAlert, err := s.alertRepo.GetActiveAlert(ctx, info.VehicleID, r.ID)
+	if err != nil && !errors.Is(err, model.ErrNotFound) {
+		return err
+	}
+	if err == nil && activeAlert.ID > 0 {
+		return nil
+	}
+
+	message := fmt.Sprintf("Устройство ID %d не выходит на связь %.0f мин (порог %.0f мин)",
+		info.DeviceID, info.MinutesOffline, r.Threshold)
+	val := info.MinutesOffline
+
+	return s.fireAlert(ctx, model.Telemetry{
+		OrganizationID: info.OrganizationID,
+		VehicleID:      info.VehicleID,
+	}, r, val, message)
 }
