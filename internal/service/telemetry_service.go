@@ -43,7 +43,7 @@ func NewTelemetryService(r repository.TelemetryRepository, logger logger.Logger,
 // - VehicleID >= 1
 // - Lat в диапазоне [-90, 90]
 // - Lon в диапазоне [-180, 180]
-// - Fuel в диапазоне [0, 1]
+// - Fuel в диапазоне [0, 100]
 func validateTelemetry(t model.Telemetry) error {
 	if t.DeviceID < 1 {
 		return model.ErrInvalidDeviceID
@@ -54,7 +54,7 @@ func validateTelemetry(t model.Telemetry) error {
 	if t.Lat < -90 || t.Lat > 90 || t.Lon < -180 || t.Lon > 180 {
 		return model.ErrInvalidCoords
 	}
-	if t.Fuel != nil && (*t.Fuel < 0.0 || *t.Fuel > 1.0) {
+	if t.Fuel != nil && (*t.Fuel < 0.0 || *t.Fuel > 100.0) {
 		return model.ErrInvalidFuel
 	}
 	return nil

@@ -51,27 +51,37 @@ func (r *PostgresAlertNotificationRepository) CreateBatch(ctx context.Context, n
 	return err
 }
 
-// FetchPending блокирует и возвращает пачку готовых к отправке уведомлений
-// В хайлоаде использует "FOR UPDATE SKIP LOCKED", чтобы несколько воркеров
-// могли одновременно вычитывать задачи из очереди без взаимных блокировок
-func (r *PostgresAlertNotificationRepository) FetchPending(ctx context.Context, batchSize int) ([]model.AlertNotification, error) {
+// FetchPending блокирует и возвращает пачку готовых к отправке задач с предзагруженными данными
+func (r *PostgresAlertNotificationRepository) FetchPending(ctx context.Context, batchSize int) ([]model.NotificationTask, error) {
 	const query = `
 	SELECT 
-		id, 
-		alert_id, 
-		channel_id, 
-		status, 
-		attempts, 
-		next_retry_at, 
-		sent_at, 
-		error, 
-		created_at
-	FROM alert_notifications
-	WHERE status = 'PENDING' 
-	  AND (next_retry_at IS NULL OR next_retry_at <= NOW())
-	ORDER BY id ASC
+		n.id, 
+		n.attempts, 
+		c.id, 
+		c.user_id, 
+		c.type, 
+		c.config, 
+		c.enabled, 
+		c.min_severity, 
+		c.created_at,
+		a.id, 
+		a.organization_id, 
+		a.vehicle_id, 
+		a.rule_id, 
+		a.type, 
+		a.severity, 
+		a.status, 
+		a.message, 
+		a.value, 
+		a.created_at
+	FROM alert_notifications n
+	JOIN user_notification_channels c ON c.id = n.channel_id
+	JOIN alerts a ON a.id = n.alert_id
+	WHERE n.status = 'PENDING' 
+	  AND (n.next_retry_at IS NULL OR n.next_retry_at <= NOW())
+	ORDER BY n.id ASC
 	LIMIT $1
-	FOR UPDATE SKIP LOCKED`
+	FOR UPDATE OF n SKIP LOCKED`
 
 	rows, err := r.db.Query(ctx, query, batchSize)
 	if err != nil {
@@ -79,31 +89,41 @@ func (r *PostgresAlertNotificationRepository) FetchPending(ctx context.Context, 
 	}
 	defer rows.Close()
 
-	var nots []model.AlertNotification
+	var tasks []model.NotificationTask
 	for rows.Next() {
-		var n model.AlertNotification
+		var t model.NotificationTask
 		err := rows.Scan(
-			&n.ID,
-			&n.AlertID,
-			&n.ChannelID,
-			&n.Status,
-			&n.Attempts,
-			&n.NextRetryAt,
-			&n.SentAt,
-			&n.Error,
-			&n.CreatedAt,
+			&t.ID,
+			&t.Attempts,
+			&t.Channel.ID,
+			&t.Channel.UserID,
+			&t.Channel.Type,
+			&t.Channel.Config,
+			&t.Channel.Enabled,
+			&t.Channel.MinSeverity,
+			&t.Channel.CreatedAt,
+			&t.Alert.ID,
+			&t.Alert.OrganizationID,
+			&t.Alert.VehicleID,
+			&t.Alert.RuleID,
+			&t.Alert.Type,
+			&t.Alert.Severity,
+			&t.Alert.Status,
+			&t.Alert.Message,
+			&t.Alert.Value,
+			&t.Alert.CreatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
-		nots = append(nots, n)
+		tasks = append(tasks, t)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return nots, nil
+	return tasks, nil
 }
 
 // MarkSent переводит задачу в статус SENT и фиксирует время успешной отправки
