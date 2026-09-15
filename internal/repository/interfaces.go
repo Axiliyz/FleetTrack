@@ -40,13 +40,13 @@ type TelemetryRepository interface {
 	// Возвращает ошибку, если не может найти
 	GetListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error)
 
-	// DeleteItemByID удаляет запись по её ID
+	// DeleteItemByID удаляет запись по её ID с ограничением по организации
 	// Возвращает ошибку, если не удалось удалить
-	DeleteItemByID(ctx context.Context, id int) (model.Telemetry, error)
+	DeleteItemByID(ctx context.Context, id int, organizationID *int) (model.Telemetry, error)
 
-	// DeleteListByVehicle удаляет список записей по ID машины
+	// DeleteListByVehicle удаляет список записей по ID машины с ограничением по организации
 	// Возвращает ошибку, если не удалось удалить
-	DeleteListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error)
+	DeleteListByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error)
 
 	// GetLastByVehicle получает последнюю телеметрию по ID машины
 	// Возвращает model.ErrNotFound, если у машины ещё не было телеметрии - это
@@ -132,28 +132,29 @@ type DriverRepository interface {
 // TripRepository задаёт контракт хранения рейсов
 type TripRepository interface {
 	// CreateTrip создаёт новую поездку, заполняя ID, StartedAt и Status в t
+	// CreateTrip создаёт рейс с проверкой принадлежности водителя и авто организации
 	// Возвращает ошибку, если не удалось
-	CreateTrip(ctx context.Context, t *model.Trip) error
+	CreateTrip(ctx context.Context, t *model.Trip, organizationID *int) error
 
-	// GetListTrips возвращает список рейсов(с фильтрами в Query параметрах)
+	// GetListTrips возвращает список рейсов (с фильтрами в Query параметрах)
 	// Или ошибку, если не нашлось
 	GetListTrips(ctx context.Context, f *model.TripFilter) ([]model.Trip, error)
 
-	// UpdateTrip обновляет статус рейса
+	// UpdateTrip обновляет статус рейса с проверкой принадлежности к организации
 	// Возвращает новый объект рейса, либо ошибку
-	UpdateTrip(ctx context.Context, upd model.Trip) (model.Trip, error)
+	UpdateTrip(ctx context.Context, upd model.Trip, organizationID *int) (model.Trip, error)
 
-	// DeleteTrip выставляет статус Cancelled по ID и выставляет время
+	// DeleteTrip выставляет статус Cancelled по ID с проверкой принадлежности к организации
 	// Возвращает удалённую запись или ошибку
-	DeleteTrip(ctx context.Context, id int) (model.Trip, error)
+	DeleteTrip(ctx context.Context, id int, organizationID *int) (model.Trip, error)
 
 	// UpdateTripStats позволяет обновить расстояние и статистику скорости по рейсу
 	// Возвращает итоговый рейс или ошибку
 	UpdateTripStats(ctx context.Context, id int, distance, speed float64) (model.Trip, error)
 
-	// GetByID возвращает рейс по его ID
+	// GetByID возвращает рейс по его ID с проверкой принадлежности к организации
 	// Возвращает model.ErrNotFound если не нашёл
-	GetByID(ctx context.Context, id int) (model.Trip, error)
+	GetByID(ctx context.Context, id int, organizationID *int) (model.Trip, error)
 }
 
 // UserRepository задаёт контракт хранения пользователей
@@ -240,6 +241,9 @@ type AlertRepository interface {
 
 	// FindOfflineVehicles ищет автомобили с активными трекерами, не присылавшие телеметрию дольше thresholdMinutes
 	FindOfflineVehicles(ctx context.Context, thresholdMinutes float64) ([]model.OfflineVehicleInfo, error)
+
+	// AcquireLock блокирует критическую секцию, пока транзакция не закрыта
+	AcquireLock(ctx context.Context, vehicleID, ruleID int) error
 }
 
 // NotificationChannelRepository определяет контракт управления каналами доставки уведомлений пользователей
@@ -274,4 +278,10 @@ type AlertNotificationRepository interface {
 	// MarkFailed фиксирует неудачную попытку отправки (увеличивает attempts, сохраняет ошибку и выставляет next_retry_at)
 	// Если исчерпан лимит попыток, переводит статус в FAILED
 	MarkFailed(ctx context.Context, id int, errMsg string, nextRetry *time.Time) error
+}
+
+// PartitionRepository отвечает за создание партиций таблиц в БД
+type PartitionRepository interface {
+	// CreatePartition создаёт партицию таблицы на указанный диапазон дат, если она ещё не существует
+	CreatePartition(ctx context.Context, parentTable, partitionName string, from, to time.Time) error
 }

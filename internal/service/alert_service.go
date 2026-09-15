@@ -112,6 +112,17 @@ func (s *AlertService) fireAlert(ctx context.Context, t model.Telemetry, r model
 	}
 	err = s.txManager.WithTx(ctx, func(tx database.DBTX) error {
 		repos := s.repoFactory.New(tx)
+		err := repos.Alert.AcquireLock(ctx, t.VehicleID, r.ID)
+		if err != nil {
+			return err
+		}
+		_, err = repos.Alert.GetActiveAlert(ctx, t.VehicleID, r.ID)
+		if err != nil && !errors.Is(err, model.ErrNotFound) {
+			return err
+		}
+		if err == nil {
+			return nil
+		}
 		if err := repos.Alert.Create(ctx, &alert); err != nil {
 			return err
 		}
@@ -138,12 +149,12 @@ func (s *AlertService) fireAlert(ctx context.Context, t model.Telemetry, r model
 	return nil
 }
 
-// Enqueue добавляет точку телеметрии в неблокирующую очередь обработки алертов
-func (s *AlertService) Enqueue(t model.Telemetry) {
+// Enqueue добавляет точку телеметрии в блокирующую очередь обработки алертов
+func (s *AlertService) Enqueue(ctx context.Context, t model.Telemetry) {
 	select {
 	case s.queue <- t:
-	default:
-		s.logger.Warn(fmt.Sprintf("alert queue is full, dropping telemetry point for vehicle %d", t.VehicleID))
+	case <-ctx.Done():
+		s.logger.Warn(fmt.Sprintf("alert queue enqueue cancelled for vehicle %d", t.VehicleID))
 	}
 }
 
@@ -254,14 +265,6 @@ func (s *AlertService) AcknowledgeAlert(ctx context.Context, alertID, userID int
 
 // FireOfflineAlert создаёт алерт о потере связи с устройством, если такого открытого алерта ещё нет
 func (s *AlertService) FireOfflineAlert(ctx context.Context, info model.OfflineVehicleInfo, r model.AlertRule) error {
-	activeAlert, err := s.alertRepo.GetActiveAlert(ctx, info.VehicleID, r.ID)
-	if err != nil && !errors.Is(err, model.ErrNotFound) {
-		return err
-	}
-	if err == nil && activeAlert.ID > 0 {
-		return nil
-	}
-
 	message := fmt.Sprintf("Устройство ID %d не выходит на связь %.0f мин (порог %.0f мин)",
 		info.DeviceID, info.MinutesOffline, r.Threshold)
 	val := info.MinutesOffline

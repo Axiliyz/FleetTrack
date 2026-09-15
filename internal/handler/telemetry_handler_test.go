@@ -55,14 +55,14 @@ func (m *mockTelemetryService) GetTelemetryByVehicle(ctx context.Context, id int
 	return []model.Telemetry{}, nil
 }
 
-func (m *mockTelemetryService) DeleteTelemetryByID(ctx context.Context, id int) (model.Telemetry, error) {
+func (m *mockTelemetryService) DeleteTelemetryByID(ctx context.Context, id int, organizationID *int) (model.Telemetry, error) {
 	if m.returnError != nil {
 		return model.Telemetry{}, m.returnError
 	}
 	return model.Telemetry{}, nil
 }
 
-func (m *mockTelemetryService) DeleteTelemetryByVehicle(ctx context.Context, id int) ([]model.Telemetry, error) {
+func (m *mockTelemetryService) DeleteTelemetryByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error) {
 	if m.returnError != nil {
 		return []model.Telemetry{}, m.returnError
 	}
@@ -132,6 +132,8 @@ func TestHandleTelemetry(t *testing.T) {
 
 			body := strings.NewReader(tt.requestBody)
 			request := httptest.NewRequest(tt.method, "/telemetry", body)
+			authCtx := model.AuthContext{Role: model.UserRoleDriver, OrganizationID: 1}
+			request = request.WithContext(middleware.ContextWithAuth(request.Context(), authCtx))
 
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
@@ -228,6 +230,8 @@ func TestHandleDeleteTelemetryByID(t *testing.T) {
 			r.Delete("/telemetry/{id}", handler.HandleDeleteTelemetryByID)
 
 			request := httptest.NewRequest("DELETE", "/telemetry/"+tt.urlID, nil)
+			authCtx := model.AuthContext{Role: model.UserRoleAdmin, OrganizationID: 1}
+			request = request.WithContext(middleware.ContextWithAuth(request.Context(), authCtx))
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
 
@@ -275,6 +279,8 @@ func TestHandleDeleteTelemetryByVehicleID(t *testing.T) {
 			r.Delete("/telemetry/vehicle/{id}", handler.HandleDeleteTelemetryByVehicleID)
 
 			request := httptest.NewRequest("DELETE", "/telemetry/vehicle/"+tt.vehicleID, nil)
+			authCtx := model.AuthContext{Role: model.UserRoleAdmin, OrganizationID: 1}
+			request = request.WithContext(middleware.ContextWithAuth(request.Context(), authCtx))
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
 

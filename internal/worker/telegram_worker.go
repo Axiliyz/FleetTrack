@@ -88,6 +88,7 @@ func (w *TelegramWorker) Stop() {
 	w.wg.Wait()
 }
 
+// run циклически вызывает poll до отмены контекста
 func (w *TelegramWorker) run(ctx context.Context) {
 	defer w.wg.Done()
 	for {
@@ -95,7 +96,13 @@ func (w *TelegramWorker) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			w.poll(ctx)
+			if err := w.poll(ctx); err != nil {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(2 * time.Second):
+				}
+			}
 		}
 	}
 }

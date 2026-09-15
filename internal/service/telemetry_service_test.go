@@ -33,11 +33,11 @@ func (r *mockRepository) GetListByVehicle(ctx context.Context, id int) ([]model.
 	return []model.Telemetry{}, nil
 }
 
-func (m *mockRepository) DeleteItemByID(ctx context.Context, id int) (model.Telemetry, error) {
+func (m *mockRepository) DeleteItemByID(ctx context.Context, id int, organizationID *int) (model.Telemetry, error) {
 	return model.Telemetry{}, nil
 }
 
-func (r *mockRepository) DeleteListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error) {
+func (r *mockRepository) DeleteListByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error) {
 	return []model.Telemetry{}, nil
 }
 
@@ -250,7 +250,7 @@ func TestProcessTelemetry(t *testing.T) {
 	repoFactory := &fakeRepoFactory{telemetry: repo, trip: tripRepo, vehicle: &mockVehicleRepository{}}
 	motion := &fakeMotionService{data: &model.MotionData{DistanceKm: 1.2, SpeedKmh: 40}}
 	log := logger.NewStdLogger(logger.DebugLevel)
-	service := NewTelemetryService(repo, log, txManager, repoFactory, motion, nil)
+	service := NewTelemetryService(repo, log, txManager, repoFactory, motion, nil, context.Background())
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -270,7 +270,7 @@ func TestProcessTelemetry_NoActiveTrip(t *testing.T) {
 	txManager := &fakeTxManager{}
 	repoFactory := &fakeRepoFactory{telemetry: repo, trip: tripRepo, vehicle: &mockVehicleRepository{}}
 	log := logger.NewStdLogger(logger.DebugLevel)
-	service := NewTelemetryService(repo, log, txManager, repoFactory, &fakeMotionService{}, nil)
+	service := NewTelemetryService(repo, log, txManager, repoFactory, &fakeMotionService{}, nil, context.Background())
 
 	valid := model.Telemetry{DeviceID: 1, VehicleID: 1, Lat: 55.75, Lon: 37.61, Fuel: float32Ptr(0.8)}
 	_, err := service.ProcessTelemetry(context.Background(), valid)
@@ -288,7 +288,7 @@ func TestProcessTelemetry_FirstPointForVehicle(t *testing.T) {
 	txManager := &fakeTxManager{}
 	repoFactory := &fakeRepoFactory{telemetry: repo, trip: tripRepo, vehicle: &mockVehicleRepository{}}
 	log := logger.NewStdLogger(logger.DebugLevel)
-	service := NewTelemetryService(repo, log, txManager, repoFactory, &fakeMotionService{}, nil)
+	service := NewTelemetryService(repo, log, txManager, repoFactory, &fakeMotionService{}, nil, context.Background())
 
 	valid := model.Telemetry{DeviceID: 1, VehicleID: 1, Lat: 55.75, Lon: 37.61, Fuel: float32Ptr(0.8)}
 	got, err := service.ProcessTelemetry(context.Background(), valid)
@@ -358,7 +358,7 @@ func TestGetTelemetryList(t *testing.T) {
 
 	repo := &mockRepository{}
 	logger := logger.NewStdLogger(logger.DebugLevel)
-	service := NewTelemetryService(repo, logger, nil, nil, nil, nil)
+	service := NewTelemetryService(repo, logger, nil, nil, nil, nil, context.Background())
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -21,10 +21,10 @@ type TripHandler struct {
 
 // TripService определяет контракт бизнес-логики, необходимой TripHandler
 type TripService interface {
-	AssignTrip(ctx context.Context, driverID int, vehicleID int) (model.Trip, error)
-	GetTripByID(ctx context.Context, id int) (model.Trip, error)
-	UpdateTrip(ctx context.Context, id int, upd model.Trip) (model.Trip, error)
-	DeleteTrip(ctx context.Context, id int) (model.Trip, error)
+	AssignTrip(ctx context.Context, driverID int, vehicleID int, organizationID *int) (model.Trip, error)
+	GetTripByID(ctx context.Context, id int, organizationID *int) (model.Trip, error)
+	UpdateTrip(ctx context.Context, id int, upd model.Trip, organizationID *int) (model.Trip, error)
+	DeleteTrip(ctx context.Context, id int, organizationID *int) (model.Trip, error)
 	GetListTrips(ctx context.Context, filter model.TripFilter) ([]model.Trip, error)
 }
 
@@ -40,6 +40,12 @@ func NewTripHandler(s TripService, l logger.Logger) *TripHandler {
 func (h *TripHandler) HandleAssignTrip(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+
 	var TripData dto.TripRequest
 	err := json.NewDecoder(r.Body).Decode(&TripData)
 	if err != nil {
@@ -47,7 +53,8 @@ func (h *TripHandler) HandleAssignTrip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	trip := TripData.ToDomain()
-	savedTrip, err := h.tripService.AssignTrip(r.Context(), trip.DriverID, trip.VehicleID)
+	orgScope := scopeOrganizationID(authCtx)
+	savedTrip, err := h.tripService.AssignTrip(r.Context(), trip.DriverID, trip.VehicleID, orgScope)
 	if err != nil {
 		respondError(w, r, h.logger, err)
 		return
@@ -59,6 +66,12 @@ func (h *TripHandler) HandleAssignTrip(w http.ResponseWriter, r *http.Request) {
 // HandleUpdateTrip обрабатывает PATCH запрос на изменение статуса рейса
 func (h *TripHandler) HandleUpdateTrip(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
+
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
 
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -72,7 +85,8 @@ func (h *TripHandler) HandleUpdateTrip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedTrip, err := h.tripService.UpdateTrip(r.Context(), id, updateData.ToDomain())
+	orgScope := scopeOrganizationID(authCtx)
+	updatedTrip, err := h.tripService.UpdateTrip(r.Context(), id, updateData.ToDomain(), orgScope)
 	if err != nil {
 		respondError(w, r, h.logger, err)
 		return
@@ -83,13 +97,20 @@ func (h *TripHandler) HandleUpdateTrip(w http.ResponseWriter, r *http.Request) {
 
 // HandleDeleteTrip обрабатывает DELETE запрос на отмену рейса
 func (h *TripHandler) HandleDeleteTrip(w http.ResponseWriter, r *http.Request) {
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
 		respondError(w, r, h.logger, model.ErrInvalidTripID)
 		return
 	}
 
-	deletedTrip, err := h.tripService.DeleteTrip(r.Context(), id)
+	orgScope := scopeOrganizationID(authCtx)
+	deletedTrip, err := h.tripService.DeleteTrip(r.Context(), id, orgScope)
 	if err != nil {
 		respondError(w, r, h.logger, err)
 		return
@@ -130,6 +151,12 @@ func (h *TripHandler) HandleGetListTrips(w http.ResponseWriter, r *http.Request)
 
 // HandleGetTripByID возвращает рейс по ID
 func (h *TripHandler) HandleGetTripByID(w http.ResponseWriter, r *http.Request) {
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -137,7 +164,8 @@ func (h *TripHandler) HandleGetTripByID(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	trip, err := h.tripService.GetTripByID(r.Context(), id)
+	orgScope := scopeOrganizationID(authCtx)
+	trip, err := h.tripService.GetTripByID(r.Context(), id, orgScope)
 	if err != nil {
 		respondError(w, r, h.logger, err)
 		return

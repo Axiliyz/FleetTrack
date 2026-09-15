@@ -154,6 +154,10 @@ func (m *mockAlertRepo) FindOfflineVehicles(ctx context.Context, thresholdMinute
 	return nil, nil
 }
 
+func (m *mockAlertRepo) AcquireLock(ctx context.Context, vehicleID, ruleID int) error {
+	return nil
+}
+
 // mockChannelRepo имитирует NotificationChannelRepository для тестов
 type mockChannelRepo struct {
 	channelsErr error
@@ -647,7 +651,7 @@ func TestAlertService_WorkerQueue(t *testing.T) {
 	svc.Start(ctx, 2)
 
 	// Отправляем точку с превышением скорости в очередь
-	svc.Enqueue(model.Telemetry{
+	svc.Enqueue(context.Background(), model.Telemetry{
 		OrganizationID: 1,
 		VehicleID:      10,
 		SpeedKmh:       120,

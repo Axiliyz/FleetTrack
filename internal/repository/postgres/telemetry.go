@@ -183,10 +183,23 @@ func (r *PostgresTelemetryRepository) GetListByVehicle(ctx context.Context, id i
 }
 
 // DeleteListByVehicle для PostgresTelemetryRepository удаляет всю телеметрию для конкретной машины
-func (r *PostgresTelemetryRepository) DeleteListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error) {
-	query := `DELETE FROM telemetry WHERE vehicle_id = $1
-		RETURNING id, organization_id, vehicle_id, device_id, latitude, longitude, fuel, received_at, device_timestamp, trip_id, distance_km, speed_kmh`
-	rows, err := r.db.Query(ctx, query, id)
+func (r *PostgresTelemetryRepository) DeleteListByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error) {
+	query := `DELETE FROM telemetry 
+		WHERE vehicle_id = $1
+		AND ($2::int IS NULL OR organization_id = $2)
+		RETURNING id, 
+		organization_id, 
+		vehicle_id, 
+		device_id, 
+		latitude, 
+		longitude, 
+		fuel, 
+		received_at, 
+		device_timestamp, 
+		trip_id, 
+		distance_km, 
+		speed_kmh`
+	rows, err := r.db.Query(ctx, query, id, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -212,11 +225,13 @@ func (r *PostgresTelemetryRepository) DeleteListByVehicle(ctx context.Context, i
 }
 
 // DeleteItemByID для PostgresTelemetryRepository удаляет телеметрию по её ID
-func (r *PostgresTelemetryRepository) DeleteItemByID(ctx context.Context, id int) (model.Telemetry, error) {
-	query := `DELETE FROM telemetry WHERE id = $1
+func (r *PostgresTelemetryRepository) DeleteItemByID(ctx context.Context, id int, organizationID *int) (model.Telemetry, error) {
+	query := `DELETE FROM telemetry 
+		WHERE id = $1
+		AND ($2::int IS NULL OR organization_id = $2)
 		RETURNING id, organization_id, vehicle_id, device_id, latitude, longitude, fuel, received_at, device_timestamp, trip_id, distance_km, speed_kmh`
 	var t model.Telemetry
-	err := r.db.QueryRow(ctx, query, id).Scan(
+	err := r.db.QueryRow(ctx, query, id, organizationID).Scan(
 		&t.TelemetryID, &t.OrganizationID, &t.VehicleID, &t.DeviceID,
 		&t.Lat, &t.Lon, &t.Fuel,
 		&t.ReceivedAt, &t.DeviceTimestamp,

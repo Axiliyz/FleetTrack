@@ -55,6 +55,10 @@ func (m *mockOfflineAlertRepo) Create(ctx context.Context, a *model.Alert) error
 	return nil
 }
 
+func (m *mockOfflineAlertRepo) AcquireLock(ctx context.Context, vehicleID, ruleID int) error {
+	return nil
+}
+
 func (m *mockOfflineAlertRepo) Resolve(ctx context.Context, id int, resolvedBy *int) (model.Alert, error) {
 	return model.Alert{}, nil
 }

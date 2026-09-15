@@ -29,6 +29,7 @@ type App struct {
 	NotificationWorker *worker.NotificationWorker
 	TelegramWorker     *worker.TelegramWorker
 	OfflineWorker      *worker.OfflineWorker
+	PartitionWorker    *worker.PartitionWorker
 	cancel             context.CancelFunc
 }
 
@@ -78,7 +79,7 @@ func New(cfg config.Config) (*App, error) {
 
 	motionService := service.NewMotionServiceImpl()
 	telemetryRepo := postgres.NewPostgresTelemetryRepository(pool)
-	telemetryService := service.NewTelemetryService(telemetryRepo, logger, txManager, repoFactory, motionService, alertService)
+	telemetryService := service.NewTelemetryService(telemetryRepo, logger, txManager, repoFactory, motionService, alertService, workerCtx)
 	telemetryHandler := handler.NewTelemetryHandler(telemetryService, logger)
 
 	vehicleRepo := postgres.NewPostgresVehicleRepository(pool)
@@ -129,9 +130,14 @@ func New(cfg config.Config) (*App, error) {
 	)
 	offlineWorker.Start(workerCtx)
 
+	partitionRepo := postgres.NewPostgresPartitionRepository(pool)
+	partitionWorker := worker.NewPartitionWorker(partitionRepo, logger, 24*time.Hour, 3)
+
+	partitionWorker.Start(workerCtx)
+
 	router := router.NewRouter(telemetryHandler, vehicleHandler, assignmentHandler, deviceHandler, orgHandler, tripHandler, driverHandler, userHandler, authHandler, jwtService, alertRuleHandler, logger)
 
-	logger.Info("All background workers started: AlertService, NotificationWorker, TelegramWorker, OfflineWorker")
+	logger.Info("All background workers started: AlertService, NotificationWorker, TelegramWorker, OfflineWorker, PartitionWorker")
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.API.Port,
@@ -149,6 +155,7 @@ func New(cfg config.Config) (*App, error) {
 		NotificationWorker: notificationWorker,
 		TelegramWorker:     telegramWorker,
 		OfflineWorker:      offlineWorker,
+		PartitionWorker:    partitionWorker,
 		cancel:             cancel,
 	}, nil
 }
@@ -166,6 +173,9 @@ func (a *App) Close() {
 	}
 	if a.OfflineWorker != nil {
 		a.OfflineWorker.Stop()
+	}
+	if a.PartitionWorker != nil {
+		a.PartitionWorker.Stop()
 	}
 	if a.AlertService != nil {
 		a.AlertService.Stop()

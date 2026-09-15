@@ -365,3 +365,10 @@ func (r *PostgresAlertRepository) FindOfflineVehicles(ctx context.Context, thres
 	}
 	return result, nil
 }
+
+// AcquireLock захватывает транзакционную advisory-блокировку по ID машины и правила
+func (r *PostgresAlertRepository) AcquireLock(ctx context.Context, vehicleID, ruleID int) error {
+	const query = `SELECT pg_advisory_xact_lock($1, $2)`
+	_, err := r.db.Exec(ctx, query, vehicleID, ruleID)
+	return err
+}
