@@ -25,13 +25,19 @@ func NewPostgresTripRepository(db database.DBTX) *PostgresTripRepository {
 }
 
 // CreateTrip создаёт рейс
-func (r *PostgresTripRepository) CreateTrip(ctx context.Context, t *model.Trip) error {
+func (r *PostgresTripRepository) CreateTrip(ctx context.Context, t *model.Trip, organizationID *int) error {
 	const query = `
-	INSERT INTO trips(driver_id, vehicle_id, status) VALUES ($1, $2, $3)
+	INSERT INTO trips(driver_id, vehicle_id, status)
+	SELECT $1, $2, $3
+	WHERE EXISTS (SELECT 1 FROM drivers WHERE id = $1 AND ($4::int IS NULL OR organization_id = $4))
+	  AND EXISTS (SELECT 1 FROM vehicles WHERE id = $2 AND ($4::int IS NULL OR organization_id = $4))
 	RETURNING id, started_at, status
 	`
-	err := r.db.QueryRow(ctx, query, t.DriverID, t.VehicleID, t.Status).Scan(&t.ID, &t.StartedAt, &t.Status)
+	err := r.db.QueryRow(ctx, query, t.DriverID, t.VehicleID, t.Status, organizationID).Scan(&t.ID, &t.StartedAt, &t.Status)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return model.ErrNotFound
+		}
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == pgForeignKeyViolationCode {
 			switch pgErr.ConstraintName {
@@ -47,10 +53,15 @@ func (r *PostgresTripRepository) CreateTrip(ctx context.Context, t *model.Trip) 
 }
 
 // GetByID возвращает рейс по ID, или ошибку
-func (r *PostgresTripRepository) GetByID(ctx context.Context, id int) (model.Trip, error) {
-	const query = `SELECT id, driver_id, vehicle_id, started_at, ended_at, status, distance_km, avg_speed_kmh, max_speed_kmh, telemetry_count FROM trips WHERE id=$1`
+func (r *PostgresTripRepository) GetByID(ctx context.Context, id int, organizationID *int) (model.Trip, error) {
+	const query = `
+	SELECT t.id, t.driver_id, t.vehicle_id, t.started_at, t.ended_at, t.status, t.distance_km, t.avg_speed_kmh, t.max_speed_kmh, t.telemetry_count
+	FROM trips t
+	JOIN drivers d ON d.id = t.driver_id
+	WHERE t.id = $1 AND ($2::int IS NULL OR d.organization_id = $2)
+	`
 	var t model.Trip
-	err := r.db.QueryRow(ctx, query, id).Scan(&t.ID, &t.DriverID, &t.VehicleID, &t.StartedAt, &t.EndedAt, &t.Status, &t.DistanceKm, &t.AvgSpeedKmh, &t.MaxSpeedKmh, &t.TelemetryCount)
+	err := r.db.QueryRow(ctx, query, id, organizationID).Scan(&t.ID, &t.DriverID, &t.VehicleID, &t.StartedAt, &t.EndedAt, &t.Status, &t.DistanceKm, &t.AvgSpeedKmh, &t.MaxSpeedKmh, &t.TelemetryCount)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.Trip{}, model.ErrNotFound
@@ -73,13 +84,15 @@ func isFinalTripStatus(s model.TripStatus) bool {
 // UpdateTrip для PostgresTripRepository обновляет статус рейса по ID
 // Если статус завершающий - SUCCEEDED/CANCELLED, ended_at ставится в NOW()
 // Если рейс уже находится в завершающем статусе - возвращает model.ErrTripAlreadyFinished
-func (r *PostgresTripRepository) UpdateTrip(ctx context.Context, upd model.Trip) (model.Trip, error) {
+func (r *PostgresTripRepository) UpdateTrip(ctx context.Context, upd model.Trip, organizationID *int) (model.Trip, error) {
 	const query = `
-	UPDATE trips SET
+	UPDATE trips t SET
 		status = $2,
 		ended_at = CASE WHEN $3 THEN NOW() ELSE ended_at END
-	WHERE id = $1 AND status NOT IN ($4, $5)
-	RETURNING id, driver_id, vehicle_id, started_at, ended_at, status, distance_km
+	FROM drivers d
+	WHERE t.id = $1 AND t.driver_id = d.id AND ($6::int IS NULL OR d.organization_id = $6)
+	  AND t.status NOT IN ($4, $5)
+	RETURNING t.id, t.driver_id, t.vehicle_id, t.started_at, t.ended_at, t.status, t.distance_km
 	`
 
 	var t model.Trip
@@ -87,13 +100,14 @@ func (r *PostgresTripRepository) UpdateTrip(ctx context.Context, upd model.Trip)
 		ctx, query,
 		upd.ID, upd.Status, isFinalTripStatus(upd.Status),
 		model.TripStatusCancelled, model.TripStatusSucceeded,
+		organizationID,
 	).Scan(
 		&t.ID, &t.DriverID, &t.VehicleID, &t.StartedAt, &t.EndedAt, &t.Status, &t.DistanceKm,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			// Нет строки: либо рейса не существует, либо он уже завершён - разберёмся отдельным запросом
-			if _, getErr := r.GetByID(ctx, upd.ID); getErr != nil {
+			if _, getErr := r.GetByID(ctx, upd.ID, organizationID); getErr != nil {
 				return model.Trip{}, getErr
 			}
 			return model.Trip{}, model.ErrTripAlreadyFinished
@@ -105,8 +119,8 @@ func (r *PostgresTripRepository) UpdateTrip(ctx context.Context, upd model.Trip)
 
 // DeleteTrip отменяет рейс - эквивалент UpdateTrip со статусом CANCELLED
 // Если рейс уже завершён (SUCCEEDED/CANCELLED) - возвращает model.ErrTripAlreadyFinished
-func (r *PostgresTripRepository) DeleteTrip(ctx context.Context, id int) (model.Trip, error) {
-	return r.UpdateTrip(ctx, model.Trip{ID: id, Status: model.TripStatusCancelled})
+func (r *PostgresTripRepository) DeleteTrip(ctx context.Context, id int, organizationID *int) (model.Trip, error) {
+	return r.UpdateTrip(ctx, model.Trip{ID: id, Status: model.TripStatusCancelled}, organizationID)
 }
 
 // buildTripWhereClause берёт фильтр и возвращает готовый кусок WHERE... и срез аргументов

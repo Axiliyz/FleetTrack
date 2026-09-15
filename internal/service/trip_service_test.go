@@ -17,14 +17,14 @@ type mockTripRepository struct {
 	trips     []model.Trip
 }
 
-func (m *mockTripRepository) GetByID(ctx context.Context, id int) (model.Trip, error) {
+func (m *mockTripRepository) GetByID(ctx context.Context, id int, organizationID *int) (model.Trip, error) {
 	if m.getErr != nil {
 		return model.Trip{}, m.getErr
 	}
 	return model.Trip{ID: id}, nil
 }
 
-func (m *mockTripRepository) CreateTrip(ctx context.Context, t *model.Trip) error {
+func (m *mockTripRepository) CreateTrip(ctx context.Context, t *model.Trip, organizationID *int) error {
 	if m.createErr != nil {
 		return m.createErr
 	}
@@ -39,14 +39,14 @@ func (m *mockTripRepository) GetListTrips(ctx context.Context, f *model.TripFilt
 	return m.trips, nil
 }
 
-func (m *mockTripRepository) UpdateTrip(ctx context.Context, upd model.Trip) (model.Trip, error) {
+func (m *mockTripRepository) UpdateTrip(ctx context.Context, upd model.Trip, organizationID *int) (model.Trip, error) {
 	if m.updateErr != nil {
 		return model.Trip{}, m.updateErr
 	}
 	return model.Trip{ID: upd.ID, Status: upd.Status}, nil
 }
 
-func (m *mockTripRepository) DeleteTrip(ctx context.Context, id int) (model.Trip, error) {
+func (m *mockTripRepository) DeleteTrip(ctx context.Context, id int, organizationID *int) (model.Trip, error) {
 	if m.deleteErr != nil {
 		return model.Trip{}, m.deleteErr
 	}
@@ -76,7 +76,7 @@ func TestAssignTrip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			trip, err := svc.AssignTrip(context.Background(), tt.driverID, tt.vehicleID)
+			trip, err := svc.AssignTrip(context.Background(), tt.driverID, tt.vehicleID, nil)
 			if err != tt.wantErr {
 				t.Errorf("got %v, want %v", err, tt.wantErr)
 			}
@@ -92,7 +92,7 @@ func TestAssignTrip_RepositoryError(t *testing.T) {
 	log := logger.NewStdLogger(logger.DebugLevel)
 	svc := NewTripService(repo, log)
 
-	_, err := svc.AssignTrip(context.Background(), 1, 1)
+	_, err := svc.AssignTrip(context.Background(), 1, 1, nil)
 	if err != model.ErrInvalidVehicleID {
 		t.Errorf("got %v, want %v", err, model.ErrInvalidVehicleID)
 	}
@@ -116,7 +116,7 @@ func TestTripServiceUpdateTrip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := svc.UpdateTrip(context.Background(), tt.id, model.Trip{Status: tt.status})
+			_, err := svc.UpdateTrip(context.Background(), tt.id, model.Trip{Status: tt.status}, nil)
 			if err != tt.wantErr {
 				t.Errorf("got %v, want %v", err, tt.wantErr)
 			}
@@ -129,7 +129,7 @@ func TestTripServiceUpdateTrip_RepositoryError(t *testing.T) {
 	log := logger.NewStdLogger(logger.DebugLevel)
 	svc := NewTripService(repo, log)
 
-	_, err := svc.UpdateTrip(context.Background(), 1, model.Trip{Status: model.TripStatusRunning})
+	_, err := svc.UpdateTrip(context.Background(), 1, model.Trip{Status: model.TripStatusRunning}, nil)
 	if err != model.ErrTripAlreadyFinished {
 		t.Errorf("got %v, want %v", err, model.ErrTripAlreadyFinished)
 	}
@@ -140,7 +140,7 @@ func TestTripServiceDeleteTrip(t *testing.T) {
 	log := logger.NewStdLogger(logger.DebugLevel)
 	svc := NewTripService(repo, log)
 
-	trip, err := svc.DeleteTrip(context.Background(), 5)
+	trip, err := svc.DeleteTrip(context.Background(), 5, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -148,13 +148,13 @@ func TestTripServiceDeleteTrip(t *testing.T) {
 		t.Errorf("got status %v, want CANCELLED", trip.Status)
 	}
 
-	_, err = svc.DeleteTrip(context.Background(), 0)
+	_, err = svc.DeleteTrip(context.Background(), 0, nil)
 	if err != model.ErrInvalidTripID {
 		t.Errorf("got %v, want %v", err, model.ErrInvalidTripID)
 	}
 
 	repo.deleteErr = model.ErrTripAlreadyFinished
-	_, err = svc.DeleteTrip(context.Background(), 5)
+	_, err = svc.DeleteTrip(context.Background(), 5, nil)
 	if err != model.ErrTripAlreadyFinished {
 		t.Errorf("got %v, want %v", err, model.ErrTripAlreadyFinished)
 	}
@@ -214,6 +214,31 @@ func TestGetListTrips_RepositoryError(t *testing.T) {
 	svc := NewTripService(repo, log)
 
 	_, err := svc.GetListTrips(context.Background(), model.TripFilter{Limit: 100})
+	if err != model.ErrNotFound {
+		t.Errorf("got %v, want %v", err, model.ErrNotFound)
+	}
+}
+
+func TestGetTripByID(t *testing.T) {
+	repo := &mockTripRepository{}
+	log := logger.NewStdLogger(logger.DebugLevel)
+	svc := NewTripService(repo, log)
+
+	trip, err := svc.GetTripByID(context.Background(), 1, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if trip.ID != 1 {
+		t.Errorf("got trip id %d, want 1", trip.ID)
+	}
+
+	_, err = svc.GetTripByID(context.Background(), 0, nil)
+	if err != model.ErrInvalidTripID {
+		t.Errorf("got %v, want %v", err, model.ErrInvalidTripID)
+	}
+
+	repo.getErr = model.ErrNotFound
+	_, err = svc.GetTripByID(context.Background(), 1, nil)
 	if err != model.ErrNotFound {
 		t.Errorf("got %v, want %v", err, model.ErrNotFound)
 	}

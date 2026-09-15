@@ -23,6 +23,13 @@ type NotificationWorker struct {
 
 // NewNotificationWorker создаёт новый экземпляр фонового воркера отправки уведомлений
 func NewNotificationWorker(r repository.AlertNotificationRepository, dispatcher *notifier.Dispatcher, l logger.Logger, pi time.Duration, bs int) *NotificationWorker {
+	if dispatcher == nil {
+		panic("notification worker: dispatcher is required")
+	}
+	if r == nil {
+		panic("notification worker: repository is required")
+	}
+
 	if pi < 1 {
 		pi = 2 * time.Second
 	}

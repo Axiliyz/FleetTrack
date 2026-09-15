@@ -3,9 +3,7 @@ package handler
 import "fleettrack/internal/model"
 
 // scopeOrganizationID возвращает organization_id, который реально должен применяться к фильтру:
-// всегда собственная организация вызывающего, что бы клиент ни прислал в query/теле -
-// включая ADMIN. ADMIN администрирует свою компанию, а не всю платформу целиком
-// (иначе любой самозарегистрированный через /register ADMIN видел бы чужие организации).
+// всегда собственная организация вызывающего, что бы клиент ни прислал в теле - включая ADMIN
 func scopeOrganizationID(authCtx model.AuthContext) *int {
 	orgID := authCtx.OrganizationID
 	return &orgID

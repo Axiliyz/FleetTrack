@@ -27,6 +27,9 @@ type App struct {
 	DB                 *pgxpool.Pool
 	AlertService       *service.AlertService
 	NotificationWorker *worker.NotificationWorker
+	TelegramWorker     *worker.TelegramWorker
+	OfflineWorker      *worker.OfflineWorker
+	PartitionWorker    *worker.PartitionWorker
 	cancel             context.CancelFunc
 }
 
@@ -76,7 +79,7 @@ func New(cfg config.Config) (*App, error) {
 
 	motionService := service.NewMotionServiceImpl()
 	telemetryRepo := postgres.NewPostgresTelemetryRepository(pool)
-	telemetryService := service.NewTelemetryService(telemetryRepo, logger, txManager, repoFactory, motionService, alertService)
+	telemetryService := service.NewTelemetryService(telemetryRepo, logger, txManager, repoFactory, motionService, alertService, workerCtx)
 	telemetryHandler := handler.NewTelemetryHandler(telemetryService, logger)
 
 	vehicleRepo := postgres.NewPostgresVehicleRepository(pool)
@@ -117,7 +120,24 @@ func New(cfg config.Config) (*App, error) {
 	)
 	notificationWorker.Start(workerCtx)
 
+	telegramWorker := worker.NewTelegramWorker(
+		cfg.Telegram.BotToken, alertService, channelRepo, nil, logger,
+	)
+	telegramWorker.Start(workerCtx)
+
+	offlineWorker := worker.NewOfflineWorker(
+		alertRepo, alertRuleRepo, alertService, logger, 30*time.Second,
+	)
+	offlineWorker.Start(workerCtx)
+
+	partitionRepo := postgres.NewPostgresPartitionRepository(pool)
+	partitionWorker := worker.NewPartitionWorker(partitionRepo, logger, 24*time.Hour, 3)
+
+	partitionWorker.Start(workerCtx)
+
 	router := router.NewRouter(telemetryHandler, vehicleHandler, assignmentHandler, deviceHandler, orgHandler, tripHandler, driverHandler, userHandler, authHandler, jwtService, alertRuleHandler, logger)
+
+	logger.Info("All background workers started: AlertService, NotificationWorker, TelegramWorker, OfflineWorker, PartitionWorker")
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.API.Port,
@@ -133,20 +153,32 @@ func New(cfg config.Config) (*App, error) {
 		DB:                 pool,
 		AlertService:       alertService,
 		NotificationWorker: notificationWorker,
+		TelegramWorker:     telegramWorker,
+		OfflineWorker:      offlineWorker,
+		PartitionWorker:    partitionWorker,
 		cancel:             cancel,
 	}, nil
 }
 
 // Close закрывает пул соединений с БД и останавливает фоновые воркеры
 func (a *App) Close() {
+	if a.cancel != nil {
+		a.cancel()
+	}
 	if a.NotificationWorker != nil {
 		a.NotificationWorker.Stop()
 	}
+	if a.TelegramWorker != nil {
+		a.TelegramWorker.Stop()
+	}
+	if a.OfflineWorker != nil {
+		a.OfflineWorker.Stop()
+	}
+	if a.PartitionWorker != nil {
+		a.PartitionWorker.Stop()
+	}
 	if a.AlertService != nil {
 		a.AlertService.Stop()
-	}
-	if a.cancel != nil {
-		a.cancel()
 	}
 	a.DB.Close()
 }

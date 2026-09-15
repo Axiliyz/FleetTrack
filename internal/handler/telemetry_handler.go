@@ -26,8 +26,8 @@ type TelemetryService interface {
 	GetTelemetryList(ctx context.Context, filter model.TelemetryFilter) ([]model.Telemetry, error)
 	GetTelemetryByID(ctx context.Context, id int) (model.Telemetry, error)
 	GetTelemetryByVehicle(ctx context.Context, id int) ([]model.Telemetry, error)
-	DeleteTelemetryByID(ctx context.Context, id int) (model.Telemetry, error)
-	DeleteTelemetryByVehicle(ctx context.Context, id int) ([]model.Telemetry, error)
+	DeleteTelemetryByID(ctx context.Context, id int, organizationID *int) (model.Telemetry, error)
+	DeleteTelemetryByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error)
 }
 
 // NewTelemetryHandler создаёт новый хэндлер с заданным сервисом и логгером
@@ -49,7 +49,15 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 		respondError(w, r, h.logger, model.ErrInvalidJSON)
 		return
 	}
+
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+
 	telemetry := telemetryData.ToDomainModel()
+	telemetry.OrganizationID = authCtx.OrganizationID
 	savedTelemetry, err := h.telemetryService.ProcessTelemetry(
 		r.Context(),
 		telemetry,
@@ -205,20 +213,27 @@ func (h *TelemetryHandler) HandleDeleteTelemetryByID(w http.ResponseWriter, r *h
 		respondError(w, r, h.logger, model.ErrInvalidTelemetryID)
 		return
 	}
-	t, err := h.telemetryService.DeleteTelemetryByID(r.Context(), id)
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+	orgScope := scopeOrganizationID(authCtx)
+
+	deleted, err := h.telemetryService.DeleteTelemetryByID(r.Context(), id, orgScope)
 	if err != nil {
 		respondError(w, r, h.logger, err)
 		return
 	}
 
 	telemetryResponse := dto.TelemetryResponse{
-		TelemetryID: t.TelemetryID,
-		VehicleID:   t.VehicleID,
-		DeviceID:    t.DeviceID,
-		ReceivedAt:  t.ReceivedAt,
-		TripID:      t.TripID,
-		DistanceKm:  t.DistanceKm,
-		SpeedKmh:    t.SpeedKmh,
+		TelemetryID: deleted.TelemetryID,
+		VehicleID:   deleted.VehicleID,
+		DeviceID:    deleted.DeviceID,
+		ReceivedAt:  deleted.ReceivedAt,
+		TripID:      deleted.TripID,
+		DistanceKm:  deleted.DistanceKm,
+		SpeedKmh:    deleted.SpeedKmh,
 	}
 
 	respondSuccess(w, r, "Telemetry deleted", h.logger, telemetryResponse)
@@ -232,7 +247,15 @@ func (h *TelemetryHandler) HandleDeleteTelemetryByVehicleID(w http.ResponseWrite
 		respondError(w, r, h.logger, model.ErrInvalidVehicleID)
 		return
 	}
-	telemetries, err := h.telemetryService.DeleteTelemetryByVehicle(r.Context(), id)
+
+	authCtx, ok := middleware.AuthFromContext(r.Context())
+	if !ok {
+		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+	orgScope := scopeOrganizationID(authCtx)
+
+	telemetries, err := h.telemetryService.DeleteTelemetryByVehicle(r.Context(), id, orgScope)
 	if err != nil {
 		respondError(w, r, h.logger, err)
 		return

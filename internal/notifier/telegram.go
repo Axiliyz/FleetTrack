@@ -30,6 +30,15 @@ func NewTelegramSender(botToken string, client *http.Client) *TelegramSender {
 	}
 }
 
+type inlineKeyboardButton struct {
+	Text         string `json:"text"`
+	CallbackData string `json:"callback_data"`
+}
+
+type inlineKeyboardMarkup struct {
+	InlineKeyboard [][]inlineKeyboardButton `json:"inline_keyboard"`
+}
+
 // Send отправляет форматированное сообщение об алерте в чат Telegram
 func (s *TelegramSender) Send(ctx context.Context, ch model.UserNotificationChannel, alert model.Alert) error {
 	var cfg TelegramConfig
@@ -42,15 +51,28 @@ func (s *TelegramSender) Send(ctx context.Context, ch model.UserNotificationChan
 		return model.ErrInvalidChannelConfig
 	}
 
+	keyboard := inlineKeyboardMarkup{
+		InlineKeyboard: [][]inlineKeyboardButton{
+			{
+				{
+					Text:         "Принять в работу",
+					CallbackData: fmt.Sprintf("ack:%d", alert.ID),
+				},
+			},
+		},
+	}
+
 	text := FormatTelegramMessage(alert)
 	payload := struct {
-		ChatID    string `json:"chat_id"`
-		Text      string `json:"text"`
-		ParseMode string `json:"parse_mode"`
+		ChatID      string               `json:"chat_id"`
+		Text        string               `json:"text"`
+		ParseMode   string               `json:"parse_mode"`
+		ReplyMarkup inlineKeyboardMarkup `json:"reply_markup"`
 	}{
-		ChatID:    chatID,
-		Text:      text,
-		ParseMode: "HTML",
+		ChatID:      chatID,
+		Text:        text,
+		ParseMode:   "HTML",
+		ReplyMarkup: keyboard,
 	}
 
 	bodyBytes, err := json.Marshal(payload)

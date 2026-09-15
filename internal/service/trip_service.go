@@ -24,7 +24,7 @@ func NewTripService(r repository.TripRepository, l logger.Logger) *TripService {
 }
 
 // AssignTrip создаёт связку водитель-авто
-func (s *TripService) AssignTrip(ctx context.Context, driverID, vehicleID int) (model.Trip, error) {
+func (s *TripService) AssignTrip(ctx context.Context, driverID, vehicleID int, organizationID *int) (model.Trip, error) {
 	if driverID <= 0 {
 		return model.Trip{}, model.ErrInvalidDriverID
 	}
@@ -40,7 +40,7 @@ func (s *TripService) AssignTrip(ctx context.Context, driverID, vehicleID int) (
 	if err := validator.ValidateTrip(t.Status); err != nil {
 		return model.Trip{}, err
 	}
-	err := s.repository.CreateTrip(ctx, &t)
+	err := s.repository.CreateTrip(ctx, &t, organizationID)
 	if err != nil {
 		return model.Trip{}, err
 	}
@@ -49,7 +49,7 @@ func (s *TripService) AssignTrip(ctx context.Context, driverID, vehicleID int) (
 }
 
 // UpdateTrip обновляет статус рейса по ID
-func (s *TripService) UpdateTrip(ctx context.Context, id int, upd model.Trip) (model.Trip, error) {
+func (s *TripService) UpdateTrip(ctx context.Context, id int, upd model.Trip, organizationID *int) (model.Trip, error) {
 	if id <= 0 {
 		return model.Trip{}, model.ErrInvalidTripID
 	}
@@ -57,7 +57,7 @@ func (s *TripService) UpdateTrip(ctx context.Context, id int, upd model.Trip) (m
 		return model.Trip{}, err
 	}
 
-	t, err := s.repository.UpdateTrip(ctx, model.Trip{ID: id, Status: upd.Status})
+	t, err := s.repository.UpdateTrip(ctx, model.Trip{ID: id, Status: upd.Status}, organizationID)
 	if err != nil {
 		return model.Trip{}, err
 	}
@@ -113,12 +113,12 @@ func (s *TripService) GetListTrips(ctx context.Context, filter model.TripFilter)
 }
 
 // DeleteTrip отменяет рейс по ID (ставит статус CANCELLED)
-func (s *TripService) DeleteTrip(ctx context.Context, id int) (model.Trip, error) {
+func (s *TripService) DeleteTrip(ctx context.Context, id int, organizationID *int) (model.Trip, error) {
 	if id <= 0 {
 		return model.Trip{}, model.ErrInvalidTripID
 	}
 
-	t, err := s.repository.DeleteTrip(ctx, id)
+	t, err := s.repository.DeleteTrip(ctx, id, organizationID)
 	if err != nil {
 		return model.Trip{}, err
 	}
@@ -127,11 +127,11 @@ func (s *TripService) DeleteTrip(ctx context.Context, id int) (model.Trip, error
 }
 
 // GetTripByID возвращает рейс по его ID
-func (s *TripService) GetTripByID(ctx context.Context, id int) (model.Trip, error) {
+func (s *TripService) GetTripByID(ctx context.Context, id int, organizationID *int) (model.Trip, error) {
 	if id <= 0 {
 		return model.Trip{}, model.ErrInvalidTripID
 	}
-	res, err := s.repository.GetByID(ctx, id)
+	res, err := s.repository.GetByID(ctx, id, organizationID)
 	if err != nil {
 		return model.Trip{}, err
 	}

@@ -22,10 +22,11 @@ type TelemetryService struct {
 	repoFactory   factory.RepositoryFactory
 	motionService MotionService
 	alertService  *AlertService
+	enqueueCtx    context.Context
 }
 
 // NewTelemetryService создаёт новый сервис с заданным репозиторием и логгером
-func NewTelemetryService(r repository.TelemetryRepository, logger logger.Logger, tx transaction.TransactionManager, rf factory.RepositoryFactory, ms MotionService, as *AlertService) *TelemetryService {
+func NewTelemetryService(r repository.TelemetryRepository, logger logger.Logger, tx transaction.TransactionManager, rf factory.RepositoryFactory, ms MotionService, as *AlertService, ctx context.Context) *TelemetryService {
 	return &TelemetryService{
 		repository:    r,
 		logger:        logger,
@@ -33,6 +34,7 @@ func NewTelemetryService(r repository.TelemetryRepository, logger logger.Logger,
 		repoFactory:   rf,
 		motionService: ms,
 		alertService:  as,
+		enqueueCtx:    ctx,
 	}
 }
 
@@ -152,6 +154,9 @@ func (s *TelemetryService) ProcessTelemetry(ctx context.Context, t model.Telemet
 		if err != nil {
 			return err
 		}
+		if t.OrganizationID != 0 && t.OrganizationID != orgID {
+			return model.ErrNotFound
+		}
 		t.OrganizationID = orgID
 
 		return repos.Telemetry.Save(ctx, &t)
@@ -183,7 +188,10 @@ func (s *TelemetryService) ProcessTelemetry(ctx context.Context, t model.Telemet
 		)
 	}
 	if s.alertService != nil {
-		s.alertService.Enqueue(t)
+		// ВРЕМЕННОЕ РЕШЕНИЕ
+		// Потенциально бутылочное горлышко, алерты дико тормозят систему
+		// После тестов скорее всего + брокер/outbox
+		s.alertService.Enqueue(s.enqueueCtx, t)
 	}
 	s.logger.Info(message)
 	return t, nil
@@ -263,8 +271,8 @@ func (s *TelemetryService) GetTelemetryByVehicle(ctx context.Context, id int) ([
 
 // DeleteTelemetryByID используется в DELETE /telemetry/{id}
 // Удаляет запись по её ID, либо возвращает ошибку
-func (s *TelemetryService) DeleteTelemetryByID(ctx context.Context, id int) (model.Telemetry, error) {
-	res, err := s.repository.DeleteItemByID(ctx, id)
+func (s *TelemetryService) DeleteTelemetryByID(ctx context.Context, id int, organizationID *int) (model.Telemetry, error) {
+	res, err := s.repository.DeleteItemByID(ctx, id, organizationID)
 	if err != nil {
 		return model.Telemetry{}, err
 	}
@@ -275,8 +283,8 @@ func (s *TelemetryService) DeleteTelemetryByID(ctx context.Context, id int) (mod
 
 // DeleteTelemetryByVehicle используется в DELETE /telemetry/vehicle/{id}
 // Удаляет срез записей по машине по её ID, либо возвращает ошибку
-func (s *TelemetryService) DeleteTelemetryByVehicle(ctx context.Context, id int) ([]model.Telemetry, error) {
-	res, err := s.repository.DeleteListByVehicle(ctx, id)
+func (s *TelemetryService) DeleteTelemetryByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error) {
+	res, err := s.repository.DeleteListByVehicle(ctx, id, organizationID)
 	if err != nil {
 		return nil, err
 	}

@@ -34,6 +34,7 @@ func main() {
 
 	defer fleetApp.Close()
 
+	logger.Info("Starting HTTP server on port " + cfg.API.Port)
 	go func() {
 		if err := fleetApp.Server.ListenAndServe(); err != nil &&
 			err != http.ErrServerClosed {
@@ -53,5 +54,5 @@ func main() {
 	if err := fleetApp.Server.Shutdown(shutdownCtx); err != nil {
 		logger.Error(err.Error())
 	}
-	logger.Info("Served successfully stopped")
+	logger.Info("Server successfully stopped")
 }

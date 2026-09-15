@@ -326,3 +326,49 @@ func (r *PostgresAlertRepository) GetList(ctx context.Context, filter model.Aler
 
 	return alerts, nil
 }
+
+// FindOfflineVehicles ищет автомобили с активными трекерами, не присылавшие телеметрию дольше thresholdMinutes
+func (r *PostgresAlertRepository) FindOfflineVehicles(ctx context.Context, thresholdMinutes float64) ([]model.OfflineVehicleInfo, error) {
+	const query = `
+	SELECT 
+		v.id, 
+		v.organization_id, 
+		da.device_id,
+		COALESCE(MAX(t.received_at), da.started_at) AS last_seen,
+		EXTRACT(EPOCH FROM (NOW() - COALESCE(MAX(t.received_at), da.started_at))) / 60 AS minutes_offline
+	FROM device_assignments da
+	JOIN vehicles v ON v.id = da.vehicle_id
+	LEFT JOIN telemetry t ON t.vehicle_id = v.id
+	WHERE da.ended_at IS NULL
+	GROUP BY v.id, v.organization_id, da.device_id, da.started_at
+	HAVING EXTRACT(EPOCH FROM (NOW() - COALESCE(MAX(t.received_at), da.started_at))) / 60 >= $1`
+
+	rows, err := r.db.Query(ctx, query, thresholdMinutes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []model.OfflineVehicleInfo
+	for rows.Next() {
+		var info model.OfflineVehicleInfo
+		if err := rows.Scan(
+			&info.VehicleID,
+			&info.OrganizationID,
+			&info.DeviceID,
+			&info.LastSeen,
+			&info.MinutesOffline,
+		); err != nil {
+			return nil, err
+		}
+		result = append(result, info)
+	}
+	return result, nil
+}
+
+// AcquireLock захватывает транзакционную advisory-блокировку по ID машины и правила
+func (r *PostgresAlertRepository) AcquireLock(ctx context.Context, vehicleID, ruleID int) error {
+	const query = `SELECT pg_advisory_xact_lock($1, $2)`
+	_, err := r.db.Exec(ctx, query, vehicleID, ruleID)
+	return err
+}
