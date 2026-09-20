@@ -28,12 +28,13 @@ func IsStatusValid(s VehicleStatus) bool {
 
 // Vehicle определяет структуру машины
 type Vehicle struct {
-	ID             int           `json:"id"`
-	OrganizationID int           `json:"organization_id"`
-	VIN            string        `json:"vin"`
-	NumberPlate    string        `json:"number_plate"`
-	Model          string        `json:"model"`
-	Status         VehicleStatus `json:"status"`
-	CreatedAt      time.Time     `json:"created_at"`
-	UpdatedAt      *time.Time    `json:"updated_at"`
+	ID              int           `json:"id"`
+	OrganizationID  int           `json:"organization_id"`
+	VIN             string        `json:"vin"`
+	NumberPlate     string        `json:"number_plate"`
+	Model           string        `json:"model"`
+	Status          VehicleStatus `json:"status"`
+	CreatedAt       time.Time     `json:"created_at"`
+	UpdatedAt       *time.Time    `json:"updated_at"`
+	LastTelemetryAt *time.Time    `json:"last_telemetry_at"`
 }

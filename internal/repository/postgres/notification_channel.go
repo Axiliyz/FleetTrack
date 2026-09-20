@@ -3,8 +3,11 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fleettrack/internal/database"
 	"fleettrack/internal/model"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // PostgresUserNotificationChannelRepository реализует repository.NotificationChannelRepository для PostgreSQL
@@ -191,4 +194,23 @@ func (r *PostgresUserNotificationChannelRepository) Delete(ctx context.Context, 
 	}
 
 	return nil
+}
+
+func (r *PostgresUserNotificationChannelRepository) GetUserIDByTelegramChatID(ctx context.Context, chatID int) (int, error) {
+	const query = `
+	SELECT user_id
+	FROM user_notification_channels
+	WHERE type='TELEGRAM'
+	AND (config->>'chat_id')::bigint = $1
+	LIMIT 1`
+
+	var userID int
+	err := r.db.QueryRow(ctx, query, chatID).Scan(&userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, model.ErrNotFound
+		}
+		return 0, err
+	}
+	return userID, nil
 }

@@ -56,6 +56,10 @@ func (m *mockVehicleRepository) Update(ctx context.Context, id int, upd model.Up
 	return model.Vehicle{ID: id}, nil
 }
 
+func (m *mockVehicleRepository) UpdateLastTelemetryAt(ctx context.Context, id int, at time.Time) error {
+	return nil
+}
+
 func vehicleFixture() model.Vehicle {
 	return model.Vehicle{
 		OrganizationID: 1,

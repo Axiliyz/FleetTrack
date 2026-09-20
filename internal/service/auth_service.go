@@ -135,7 +135,7 @@ func (s *AuthService) RegisterCompany(ctx context.Context, orgName, adminName, a
 // Refresh проверяет refresh-токен, отзывает его (ротация) и выдаёт новую пару токенов.
 // Если токен не найден, уже отозван или истёк - возвращает model.ErrInvalidToken.
 func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (model.AuthResult, error) {
-	stored, err := s.refreshTokenRepository.GetActiveByHash(ctx, hashRefreshToken(refreshToken))
+	stored, err := s.refreshTokenRepository.RevokeActiveByHash(ctx, hashRefreshToken(refreshToken))
 	if err != nil {
 		if errors.Is(err, model.ErrNotFound) {
 			return model.AuthResult{}, model.ErrInvalidToken
@@ -145,10 +145,6 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (model.A
 
 	user, err := s.userRepository.GetByID(ctx, stored.UserID)
 	if err != nil {
-		return model.AuthResult{}, err
-	}
-
-	if err := s.refreshTokenRepository.Revoke(ctx, stored.ID); err != nil {
 		return model.AuthResult{}, err
 	}
 

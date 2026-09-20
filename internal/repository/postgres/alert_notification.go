@@ -54,9 +54,25 @@ func (r *PostgresAlertNotificationRepository) CreateBatch(ctx context.Context, n
 // FetchPending блокирует и возвращает пачку готовых к отправке задач с предзагруженными данными
 func (r *PostgresAlertNotificationRepository) FetchPending(ctx context.Context, batchSize int) ([]model.NotificationTask, error) {
 	const query = `
+	WITH locked_tasks AS (
+		SELECT id
+		FROM alert_notifications
+		WHERE status = 'PENDING' 
+		  AND (next_retry_at IS NULL OR next_retry_at <= NOW())
+		ORDER BY id ASC
+		LIMIT $1
+		FOR UPDATE SKIP LOCKED
+	),
+	updated_tasks AS (
+		UPDATE alert_notifications n
+		SET next_retry_at = NOW() + INTERVAL '2 minutes'
+		FROM locked_tasks lt
+		WHERE n.id = lt.id
+		RETURNING n.id, n.attempts, n.channel_id, n.alert_id
+	)
 	SELECT 
-		n.id, 
-		n.attempts, 
+		u.id, 
+		u.attempts, 
 		c.id, 
 		c.user_id, 
 		c.type, 
@@ -74,14 +90,10 @@ func (r *PostgresAlertNotificationRepository) FetchPending(ctx context.Context, 
 		a.message, 
 		a.value, 
 		a.created_at
-	FROM alert_notifications n
-	JOIN user_notification_channels c ON c.id = n.channel_id
-	JOIN alerts a ON a.id = n.alert_id
-	WHERE n.status = 'PENDING' 
-	  AND (n.next_retry_at IS NULL OR n.next_retry_at <= NOW())
-	ORDER BY n.id ASC
-	LIMIT $1
-	FOR UPDATE OF n SKIP LOCKED`
+	FROM updated_tasks u
+	JOIN user_notification_channels c ON c.id = u.channel_id
+	JOIN alerts a ON a.id = u.alert_id
+	ORDER BY u.id ASC`
 
 	rows, err := r.db.Query(ctx, query, batchSize)
 	if err != nil {

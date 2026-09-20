@@ -334,14 +334,12 @@ func (r *PostgresAlertRepository) FindOfflineVehicles(ctx context.Context, thres
 		v.id, 
 		v.organization_id, 
 		da.device_id,
-		COALESCE(MAX(t.received_at), da.started_at) AS last_seen,
-		EXTRACT(EPOCH FROM (NOW() - COALESCE(MAX(t.received_at), da.started_at))) / 60 AS minutes_offline
+		COALESCE(v.last_telemetry_at, da.started_at) AS last_seen,
+		EXTRACT(EPOCH FROM (NOW() - COALESCE(v.last_telemetry_at, da.started_at))) / 60 AS minutes_offline
 	FROM device_assignments da
 	JOIN vehicles v ON v.id = da.vehicle_id
-	LEFT JOIN telemetry t ON t.vehicle_id = v.id
 	WHERE da.ended_at IS NULL
-	GROUP BY v.id, v.organization_id, da.device_id, da.started_at
-	HAVING EXTRACT(EPOCH FROM (NOW() - COALESCE(MAX(t.received_at), da.started_at))) / 60 >= $1`
+	AND EXTRACT(EPOCH FROM (NOW() - COALESCE(v.last_telemetry_at, da.started_at))) / 60 >= $1`
 
 	rows, err := r.db.Query(ctx, query, thresholdMinutes)
 	if err != nil {
@@ -368,7 +366,7 @@ func (r *PostgresAlertRepository) FindOfflineVehicles(ctx context.Context, thres
 
 // AcquireLock захватывает транзакционную advisory-блокировку по ID машины и правила
 func (r *PostgresAlertRepository) AcquireLock(ctx context.Context, vehicleID, ruleID int) error {
-	const query = `SELECT pg_advisory_xact_lock($1, $2)`
+	const query = `SELECT pg_advisory_xact_lock($1::int, $2::int)`
 	_, err := r.db.Exec(ctx, query, vehicleID, ruleID)
 	return err
 }

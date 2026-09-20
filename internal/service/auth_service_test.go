@@ -44,6 +44,17 @@ func (m *mockRefreshTokenRepository) Revoke(ctx context.Context, id int) error {
 	return m.revokeErr
 }
 
+func (m *mockRefreshTokenRepository) RevokeActiveByHash(ctx context.Context, hash string) (model.RefreshToken, error) {
+	if m.getActiveErr != nil {
+		return model.RefreshToken{}, m.getActiveErr
+	}
+	if m.getActiveToken != nil {
+		m.revokedIDs = append(m.revokedIDs, m.getActiveToken.ID)
+		return *m.getActiveToken, nil
+	}
+	return model.RefreshToken{}, model.ErrNotFound
+}
+
 func hashPassword(t *testing.T, password string) string {
 	t.Helper()
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.MinCost)

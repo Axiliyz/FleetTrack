@@ -1,0 +1,1 @@
+ALTER TABLE vehicles DROP COLUMN IF EXISTS last_telemetry_at;

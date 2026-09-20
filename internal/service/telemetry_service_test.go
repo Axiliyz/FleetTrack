@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fleettrack/internal/database"
 	"fleettrack/internal/logger"
 	"fleettrack/internal/model"
@@ -15,9 +14,11 @@ import (
 type mockRepository struct {
 	lastTelemetry model.Telemetry
 	lastErr       error
+	saved         *model.Telemetry
 }
 
 func (m *mockRepository) Save(ctx context.Context, t *model.Telemetry) error {
+	m.saved = t
 	return nil
 }
 
@@ -29,7 +30,7 @@ func (m *mockRepository) GetItemByID(ctx context.Context, id int) (model.Telemet
 	return model.Telemetry{}, nil
 }
 
-func (r *mockRepository) GetListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error) {
+func (r *mockRepository) GetListByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error) {
 	return []model.Telemetry{}, nil
 }
 
@@ -262,8 +263,8 @@ func TestProcessTelemetry(t *testing.T) {
 	}
 }
 
-// TestProcessTelemetry_NoActiveTrip проверяет, что при отсутствии рейса RUNNING
-// у машины пайплайн отказывает с model.ErrNoActiveTrip, а не сохраняет телеметрию
+// TestProcessTelemetry_NoActiveTrip проверяет, что при отсутствии активного рейса RUNNING
+// телеметрия всё равно успешно сохраняется (TripID = 0)
 func TestProcessTelemetry_NoActiveTrip(t *testing.T) {
 	repo := &mockRepository{}
 	tripRepo := &mockTripRepository{} // trips не задан - активного рейса нет
@@ -273,9 +274,15 @@ func TestProcessTelemetry_NoActiveTrip(t *testing.T) {
 	service := NewTelemetryService(repo, log, txManager, repoFactory, &fakeMotionService{}, nil, context.Background())
 
 	valid := model.Telemetry{DeviceID: 1, VehicleID: 1, Lat: 55.75, Lon: 37.61, Fuel: float32Ptr(0.8)}
-	_, err := service.ProcessTelemetry(context.Background(), valid)
-	if !errors.Is(err, model.ErrNoActiveTrip) {
-		t.Errorf("got %v, want %v", err, model.ErrNoActiveTrip)
+	res, err := service.ProcessTelemetry(context.Background(), valid)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.TripID != 0 {
+		t.Errorf("got TripID %d, want 0", res.TripID)
+	}
+	if repo.saved == nil {
+		t.Errorf("expected telemetry to be saved in repository")
 	}
 }
 

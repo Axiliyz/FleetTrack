@@ -163,10 +163,20 @@ func (w *TelegramWorker) handleCallbackQuery(ctx context.Context, cq *telegramCa
 		return
 	}
 
-	userID := 3
-	if chs, err := w.channelRepo.GetByUserID(ctx, 3); err == nil {
-		_ = chs
+	var chatID int64
+	if cq.Message != nil {
+		chatID = cq.Message.Chat.ID
+	} else {
+		chatID = cq.From.ID
 	}
+
+	userID, err := w.channelRepo.GetUserIDByTelegramChatID(ctx, int(chatID))
+	if err != nil {
+		w.logger.Warn(fmt.Sprintf("unknown telegram user/chat %d: %s", chatID, err.Error()))
+		w.answerCallbackQuery(ctx, cq.ID, "Telegram-чат не привязан к пользователю FleetTrack")
+		return
+	}
+
 	_, err = w.alertService.AcknowledgeAlert(ctx, alertID, userID)
 	if err != nil {
 		w.logger.Warn(fmt.Sprintf("failed to ack alert %d: %s", alertID, err.Error()))

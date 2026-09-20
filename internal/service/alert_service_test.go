@@ -157,6 +157,9 @@ func (m *mockAlertRepo) FindOfflineVehicles(ctx context.Context, thresholdMinute
 func (m *mockAlertRepo) AcquireLock(ctx context.Context, vehicleID, ruleID int) error {
 	return nil
 }
+func (m *mockChannelRepo) GetUserIDByTelegramChatID(ctx context.Context, chatID int) (int, error) {
+	return 1, nil
+}
 
 // mockChannelRepo имитирует NotificationChannelRepository для тестов
 type mockChannelRepo struct {

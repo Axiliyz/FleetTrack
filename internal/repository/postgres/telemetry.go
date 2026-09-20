@@ -26,6 +26,11 @@ func NewPostgresTelemetryRepository(db database.DBTX) *PostgresTelemetryReposito
 // Save для PostgresTelemetryRepository сохраняет телеметрию в БД PostgreSQL
 // Возвращает ошибку
 func (r *PostgresTelemetryRepository) Save(ctx context.Context, t *model.Telemetry) error {
+	var tripID *int
+	if t.TripID > 0 {
+		tripID = &t.TripID
+	}
+
 	err := r.db.QueryRow(ctx,
 		`INSERT INTO telemetry
 		(organization_id,
@@ -41,7 +46,7 @@ func (r *PostgresTelemetryRepository) Save(ctx context.Context, t *model.Telemet
 		device_timestamp)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING id`,
-		t.OrganizationID, t.VehicleID, t.DeviceID, t.Lat, t.Lon, t.Fuel, t.TripID, t.DistanceKm, t.SpeedKmh, t.ReceivedAt, t.DeviceTimestamp,
+		t.OrganizationID, t.VehicleID, t.DeviceID, t.Lat, t.Lon, t.Fuel, tripID, t.DistanceKm, t.SpeedKmh, t.ReceivedAt, t.DeviceTimestamp,
 	).Scan(&t.TelemetryID)
 	return err
 }
@@ -126,9 +131,13 @@ func (r *PostgresTelemetryRepository) GetList(ctx context.Context, filter model.
 	var telemetries []model.Telemetry
 	for rows.Next() {
 		var t model.Telemetry
-		err = rows.Scan(&t.TelemetryID, &t.DeviceID, &t.VehicleID, &t.Lat, &t.Lon, &t.Fuel, &t.ReceivedAt, &t.DeviceTimestamp, &t.TripID, &t.DistanceKm, &t.SpeedKmh)
+		var tripID *int
+		err = rows.Scan(&t.TelemetryID, &t.DeviceID, &t.VehicleID, &t.Lat, &t.Lon, &t.Fuel, &t.ReceivedAt, &t.DeviceTimestamp, &tripID, &t.DistanceKm, &t.SpeedKmh)
 		if err != nil {
 			return nil, err
+		}
+		if tripID != nil {
+			t.TripID = *tripID
 		}
 		telemetries = append(telemetries, t)
 	}
@@ -139,11 +148,12 @@ func (r *PostgresTelemetryRepository) GetList(ctx context.Context, filter model.
 func (r *PostgresTelemetryRepository) GetItemByID(ctx context.Context, id int) (model.Telemetry, error) {
 	query := `SELECT id, organization_id, device_id, vehicle_id, latitude, longitude, fuel, received_at, device_timestamp, trip_id, distance_km, speed_kmh FROM telemetry WHERE id = $1`
 	var t model.Telemetry
+	var tripID *int
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&t.TelemetryID, &t.OrganizationID, &t.DeviceID,
 		&t.VehicleID, &t.Lat, &t.Lon, &t.Fuel,
 		&t.ReceivedAt, &t.DeviceTimestamp,
-		&t.TripID, &t.DistanceKm, &t.SpeedKmh,
+		&tripID, &t.DistanceKm, &t.SpeedKmh,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -151,13 +161,21 @@ func (r *PostgresTelemetryRepository) GetItemByID(ctx context.Context, id int) (
 		}
 		return model.Telemetry{}, err
 	}
+	if tripID != nil {
+		t.TripID = *tripID
+	}
 	return t, nil
 }
 
 // GetListByVehicle для PostgresTelemetryRepository возвращает всю телеметрию для конкретной машины
-func (r *PostgresTelemetryRepository) GetListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error) {
-	query := `SELECT id, organization_id, vehicle_id, device_id, latitude, longitude, fuel, received_at, device_timestamp, trip_id, distance_km, speed_kmh FROM telemetry WHERE vehicle_id = $1`
-	rows, err := r.db.Query(ctx, query, id)
+func (r *PostgresTelemetryRepository) GetListByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error) {
+	query := `SELECT id, organization_id, vehicle_id, device_id, latitude, longitude, fuel, received_at, device_timestamp, trip_id, distance_km, speed_kmh 
+        FROM telemetry 
+        WHERE vehicle_id = $1
+          AND ($2::int IS NULL OR organization_id = $2)
+        ORDER BY received_at DESC
+        LIMIT 100`
+	rows, err := r.db.Query(ctx, query, id, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -165,14 +183,18 @@ func (r *PostgresTelemetryRepository) GetListByVehicle(ctx context.Context, id i
 	var telemetries []model.Telemetry
 	for rows.Next() {
 		var t model.Telemetry
+		var tripID *int
 		err = rows.Scan(
 			&t.TelemetryID, &t.OrganizationID, &t.VehicleID, &t.DeviceID,
 			&t.Lat, &t.Lon, &t.Fuel,
 			&t.ReceivedAt, &t.DeviceTimestamp,
-			&t.TripID, &t.DistanceKm, &t.SpeedKmh,
+			&tripID, &t.DistanceKm, &t.SpeedKmh,
 		)
 		if err != nil {
 			return nil, err
+		}
+		if tripID != nil {
+			t.TripID = *tripID
 		}
 		telemetries = append(telemetries, t)
 	}
@@ -207,14 +229,18 @@ func (r *PostgresTelemetryRepository) DeleteListByVehicle(ctx context.Context, i
 	var telemetries []model.Telemetry
 	for rows.Next() {
 		var t model.Telemetry
+		var tripID *int
 		err = rows.Scan(
 			&t.TelemetryID, &t.OrganizationID, &t.VehicleID, &t.DeviceID,
 			&t.Lat, &t.Lon, &t.Fuel,
 			&t.ReceivedAt, &t.DeviceTimestamp,
-			&t.TripID, &t.DistanceKm, &t.SpeedKmh,
+			&tripID, &t.DistanceKm, &t.SpeedKmh,
 		)
 		if err != nil {
 			return nil, err
+		}
+		if tripID != nil {
+			t.TripID = *tripID
 		}
 		telemetries = append(telemetries, t)
 	}
@@ -231,17 +257,21 @@ func (r *PostgresTelemetryRepository) DeleteItemByID(ctx context.Context, id int
 		AND ($2::int IS NULL OR organization_id = $2)
 		RETURNING id, organization_id, vehicle_id, device_id, latitude, longitude, fuel, received_at, device_timestamp, trip_id, distance_km, speed_kmh`
 	var t model.Telemetry
+	var tripID *int
 	err := r.db.QueryRow(ctx, query, id, organizationID).Scan(
 		&t.TelemetryID, &t.OrganizationID, &t.VehicleID, &t.DeviceID,
 		&t.Lat, &t.Lon, &t.Fuel,
 		&t.ReceivedAt, &t.DeviceTimestamp,
-		&t.TripID, &t.DistanceKm, &t.SpeedKmh,
+		&tripID, &t.DistanceKm, &t.SpeedKmh,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.Telemetry{}, model.ErrNotFound
 		}
 		return model.Telemetry{}, err
+	}
+	if tripID != nil {
+		t.TripID = *tripID
 	}
 	return t, nil
 }
@@ -265,17 +295,21 @@ func (r *PostgresTelemetryRepository) GetLastByVehicle(ctx context.Context, id i
 	WHERE vehicle_id = $1
 	ORDER BY device_timestamp DESC LIMIT 1`
 	var t model.Telemetry
+	var tripID *int
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&t.TelemetryID, &t.OrganizationID, &t.DeviceID,
 		&t.VehicleID, &t.Lat, &t.Lon, &t.Fuel,
 		&t.ReceivedAt, &t.DeviceTimestamp,
-		&t.TripID, &t.DistanceKm, &t.SpeedKmh,
+		&tripID, &t.DistanceKm, &t.SpeedKmh,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.Telemetry{}, model.ErrNotFound
 		}
 		return model.Telemetry{}, err
+	}
+	if tripID != nil {
+		t.TripID = *tripID
 	}
 	return t, nil
 }

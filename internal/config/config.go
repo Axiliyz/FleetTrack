@@ -86,20 +86,20 @@ func Load() (*Config, error) {
 		return nil, model.ErrMissingDBVars
 	}
 
-	ttl, err := strconv.Atoi(os.Getenv("JWT_ACCESS_TTL"))
+	accessTTL, err := parseDurationEnv(os.Getenv("JWT_ACCESS_TTL"), time.Minute)
 	if err != nil {
 		return nil, model.ErrMissingJWTVars
 	}
 
-	refreshTTL, err := strconv.Atoi(os.Getenv("JWT_REFRESH_TTL"))
+	refreshTTL, err := parseDurationEnv(os.Getenv("JWT_REFRESH_TTL"), 24*time.Hour)
 	if err != nil {
 		return nil, model.ErrMissingJWTVars
 	}
 
 	cfg.JWT = JWTConfig{
 		Secret:     os.Getenv("JWT_SECRET"),
-		TTL:        time.Duration(ttl) * time.Minute,
-		RefreshTTL: time.Duration(refreshTTL) * 24 * time.Hour,
+		TTL:        time.Duration(accessTTL),
+		RefreshTTL: time.Duration(refreshTTL),
 	}
 
 	if cfg.JWT.Secret == "" {
@@ -123,4 +123,19 @@ func Load() (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func parseDurationEnv(val string, defaultUnit time.Duration) (time.Duration, error) {
+	if val == "" {
+		return 0, model.ErrMissingJWTVars
+	}
+	if d, err := time.ParseDuration(val); err == nil {
+		return d, nil
+	}
+
+	n, err := strconv.Atoi(val)
+	if err != nil {
+		return 0, model.ErrMissingJWTVars
+	}
+	return time.Duration(n) * defaultUnit, nil
 }

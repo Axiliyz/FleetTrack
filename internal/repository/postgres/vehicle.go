@@ -8,6 +8,7 @@ import (
 	"fleettrack/internal/model"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -80,12 +81,12 @@ func (r *PostgresVehicleRepository) Create(ctx context.Context, v *model.Vehicle
 // GetByID для PostgresVehicleRepository возвращает машину по её ID
 func (r *PostgresVehicleRepository) GetByID(ctx context.Context, id int) (model.Vehicle, error) {
 	const query = `
-	SELECT id, organization_id, vin, number_plate, model, status, created_at, updated_at
+	SELECT id, organization_id, vin, number_plate, model, status, created_at, updated_at, last_telemetry_at
 	FROM vehicles WHERE id = $1`
 	var v model.Vehicle
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&v.ID, &v.OrganizationID, &v.VIN, &v.NumberPlate,
-		&v.Model, &v.Status, &v.CreatedAt, &v.UpdatedAt,
+		&v.Model, &v.Status, &v.CreatedAt, &v.UpdatedAt, &v.LastTelemetryAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -154,7 +155,8 @@ func (r *PostgresVehicleRepository) GetList(ctx context.Context, filter model.Ve
 		model, 
 		status, 
 		created_at, 
-		updated_at
+		updated_at,
+		last_telemetry_at
 		FROM vehicles %s ORDER BY id DESC LIMIT $%d OFFSET $%d`,
 		whereVehicleClause, len(args)+1, len(args)+2,
 	)
@@ -169,7 +171,7 @@ func (r *PostgresVehicleRepository) GetList(ctx context.Context, filter model.Ve
 		var v model.Vehicle
 		err = rows.Scan(
 			&v.ID, &v.OrganizationID, &v.VIN, &v.NumberPlate,
-			&v.Model, &v.Status, &v.CreatedAt, &v.UpdatedAt,
+			&v.Model, &v.Status, &v.CreatedAt, &v.UpdatedAt, &v.LastTelemetryAt,
 		)
 		if err != nil {
 			return nil, err
@@ -192,12 +194,12 @@ func (r *PostgresVehicleRepository) Delete(ctx context.Context, id int, organiza
 		args = append(args, *organizationID)
 	}
 	query += `
-	RETURNING id, organization_id, vin, number_plate, model, status, created_at, updated_at`
+	RETURNING id, organization_id, vin, number_plate, model, status, created_at, updated_at, last_telemetry_at`
 
 	var v model.Vehicle
 	err := r.db.QueryRow(ctx, query, args...).Scan(
 		&v.ID, &v.OrganizationID, &v.VIN, &v.NumberPlate,
-		&v.Model, &v.Status, &v.CreatedAt, &v.UpdatedAt,
+		&v.Model, &v.Status, &v.CreatedAt, &v.UpdatedAt, &v.LastTelemetryAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -252,14 +254,14 @@ func (r *PostgresVehicleRepository) Update(ctx context.Context, id int, upd mode
 
 	query := fmt.Sprintf(`
 		UPDATE vehicles SET %s, updated_at = NOW() WHERE %s
-		RETURNING id, organization_id, vin, number_plate, model, status, created_at, updated_at
+		RETURNING id, organization_id, vin, number_plate, model, status, created_at, updated_at, last_telemetry_at
 		`, setClause, where,
 	)
 
 	var v model.Vehicle
 	err := r.db.QueryRow(ctx, query, args...).Scan(
 		&v.ID, &v.OrganizationID, &v.VIN, &v.NumberPlate,
-		&v.Model, &v.Status, &v.CreatedAt, &v.UpdatedAt,
+		&v.Model, &v.Status, &v.CreatedAt, &v.UpdatedAt, &v.LastTelemetryAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -268,4 +270,10 @@ func (r *PostgresVehicleRepository) Update(ctx context.Context, id int, upd mode
 		return model.Vehicle{}, err
 	}
 	return v, nil
+}
+
+func (r *PostgresVehicleRepository) UpdateLastTelemetryAt(ctx context.Context, vehicleID int, at time.Time) error {
+	const query = `UPDATE vehicles SET last_telemetry_at = $1 WHERE id = $2`
+	_, err := r.db.Exec(ctx, query, at, vehicleID)
+	return err
 }

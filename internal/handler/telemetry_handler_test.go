@@ -48,7 +48,7 @@ func (m *mockTelemetryService) GetTelemetryByID(ctx context.Context, id int) (mo
 	return model.Telemetry{OrganizationID: 1}, nil
 }
 
-func (m *mockTelemetryService) GetTelemetryByVehicle(ctx context.Context, id int) ([]model.Telemetry, error) {
+func (m *mockTelemetryService) GetTelemetryByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error) {
 	if m.returnError != nil {
 		return []model.Telemetry{}, m.returnError
 	}
