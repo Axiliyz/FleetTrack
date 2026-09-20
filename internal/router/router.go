@@ -38,10 +38,6 @@ func NewRouter(
 	router.Post("/refresh", authHandler.HandleRefresh)
 	router.Post("/logout", authHandler.HandleLogout)
 
-	router.Get("/panic", func(w http.ResponseWriter, r *http.Request) {
-		panic("panica")
-	})
-
 	router.Group(func(r chi.Router) {
 		r.Use(middleware.AuthMiddleware(jwtParser, logger))
 

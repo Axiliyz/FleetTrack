@@ -55,3 +55,27 @@ func (r *PostgresRefreshTokenRepository) Revoke(ctx context.Context, id int) err
 	_, err := r.db.Exec(ctx, query, id)
 	return err
 }
+
+// RevokeActiveByHash помечает токен отозванным по хэшу
+// Предотвращает гонки при обновлении
+func (r *PostgresRefreshTokenRepository) RevokeActiveByHash(ctx context.Context, hash string) (model.RefreshToken, error) {
+	const query = `
+	UPDATE refresh_tokens
+	SET revoked_at = NOW()
+	WHERE token_hash = $1
+	AND revoked_at IS NULL
+	AND expires_at > NOW()
+	RETURNING id, user_id, token_hash, expires_at, revoked_at, created_at`
+
+	var t model.RefreshToken
+	err := r.db.QueryRow(ctx, query, hash).Scan(
+		&t.ID, &t.UserID, &t.TokenHash, &t.ExpiresAt, &t.RevokedAt, &t.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return model.RefreshToken{}, model.ErrNotFound
+		}
+		return model.RefreshToken{}, err
+	}
+	return t, nil
+}

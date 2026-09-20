@@ -38,7 +38,7 @@ type TelemetryRepository interface {
 
 	// GetListByVehicle возвращает срез телеметрий по ID машины
 	// Возвращает ошибку, если не может найти
-	GetListByVehicle(ctx context.Context, id int) ([]model.Telemetry, error)
+	GetListByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error)
 
 	// DeleteItemByID удаляет запись по её ID с ограничением по организации
 	// Возвращает ошибку, если не удалось удалить
@@ -76,6 +76,9 @@ type VehicleRepository interface {
 	// Update обновляет некоторые поля по авто. organizationID != nil ограничивает обновление
 	// машинами этой организации; nil - без ограничения (для ADMIN).
 	Update(ctx context.Context, id int, upd model.UpdateVehicle, organizationID *int) (model.Vehicle, error)
+
+	// UpdateLastTelemetryAt устанавливает поле last_telemetry_at, нужно для партиций
+	UpdateLastTelemetryAt(ctx context.Context, vehicleID int, at time.Time) error
 }
 
 // DeviceRepository описывает доступ к устройствам, необходимый сервису связей.
@@ -194,6 +197,10 @@ type RefreshTokenRepository interface {
 	// Revoke помечает токен отозванным по его ID
 	// Возвращает ошибку если не удалось
 	Revoke(ctx context.Context, id int) error
+
+	// RevokeActiveByHash помечает токен отозванным по хэшу
+	// Предотвращает гонки при обновлении
+	RevokeActiveByHash(ctx context.Context, hash string) (model.RefreshToken, error)
 }
 
 // AlertRuleRepository определяет контракт хранения правил для алертов
@@ -260,6 +267,9 @@ type NotificationChannelRepository interface {
 
 	// Delete удаляет канал уведомлений по ID
 	Delete(ctx context.Context, id int) error
+
+	// GetUserIDByTelegramChatID находит ID пользователя по ID чата
+	GetUserIDByTelegramChatID(ctx context.Context, chatID int) (int, error)
 }
 
 // AlertNotificationRepository реализует transactional outbox паттерн для надёжной отправки уведомлений

@@ -8,6 +8,7 @@ import (
 	"fleettrack/internal/repository"
 	"fleettrack/internal/repository/factory"
 	"fleettrack/internal/transaction"
+	"time"
 )
 
 // AssignmentService реализует бизнес-логику привязки устройств к автомобилям.
@@ -104,6 +105,7 @@ func (s *AssignmentService) AssignDevice(ctx context.Context, deviceID int, vehi
 		return repos.Assignment.CreateAssignment(ctx, &model.DeviceAssignment{
 			DeviceID:  deviceID,
 			VehicleID: vehicleID,
+			StartedAt: time.Now(),
 		})
 	})
 }

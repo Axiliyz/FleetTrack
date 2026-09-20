@@ -25,7 +25,7 @@ type TelemetryService interface {
 	ProcessTelemetry(ctx context.Context, t model.Telemetry) (model.Telemetry, error)
 	GetTelemetryList(ctx context.Context, filter model.TelemetryFilter) ([]model.Telemetry, error)
 	GetTelemetryByID(ctx context.Context, id int) (model.Telemetry, error)
-	GetTelemetryByVehicle(ctx context.Context, id int) ([]model.Telemetry, error)
+	GetTelemetryByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error)
 	DeleteTelemetryByID(ctx context.Context, id int, organizationID *int) (model.Telemetry, error)
 	DeleteTelemetryByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error)
 }
@@ -176,18 +176,12 @@ func (h *TelemetryHandler) HandleGetTelemetryByVehicle(w http.ResponseWriter, r 
 		return
 	}
 
-	telemetries, err := h.telemetryService.GetTelemetryByVehicle(r.Context(), id)
+	orgScope := scopeOrganizationID(authCtx)
+	telemetries, err := h.telemetryService.GetTelemetryByVehicle(r.Context(), id, orgScope)
 	if err != nil {
 		respondError(w, r, h.logger, err)
 		return
 	}
-	owned := telemetries[:0]
-	for _, t := range telemetries {
-		if t.OrganizationID == authCtx.OrganizationID {
-			owned = append(owned, t)
-		}
-	}
-	telemetries = owned
 
 	responses := make([]dto.TelemetryResponse, 0, len(telemetries))
 	for _, t := range telemetries {

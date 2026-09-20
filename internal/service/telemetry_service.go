@@ -136,18 +136,25 @@ func (s *TelemetryService) ProcessTelemetry(ctx context.Context, t model.Telemet
 		repos := s.repoFactory.New(tx)
 
 		trip, err := resolveActiveTrip(ctx, repos, t.VehicleID)
-		if err != nil {
+		if err != nil && !errors.Is(err, model.ErrNoActiveTrip) {
 			return err
 		}
-		t.TripID = trip.ID
 
 		last, err := resolveLastTelemetry(ctx, repos, t.VehicleID)
 		if err != nil {
 			return err
 		}
 
-		if err := s.applyMotion(ctx, repos, last, trip, &t); err != nil {
-			return err
+		if trip.ID != 0 {
+			t.TripID = trip.ID
+			if err := s.applyMotion(ctx, repos, last, trip, &t); err != nil {
+				s.logger.Warn(fmt.Sprintf("failed to apply motion: %s", err.Error()))
+			}
+		} else if last != nil && s.motionService != nil {
+			if motion, err := s.motionService.Calculate(last, t); err == nil && motion != nil {
+				t.DistanceKm = motion.DistanceKm
+				t.SpeedKmh = motion.SpeedKmh
+			}
 		}
 
 		orgID, err := resolveVehicleOrg(ctx, repos, t.VehicleID)
@@ -159,7 +166,11 @@ func (s *TelemetryService) ProcessTelemetry(ctx context.Context, t model.Telemet
 		}
 		t.OrganizationID = orgID
 
-		return repos.Telemetry.Save(ctx, &t)
+		if err := repos.Telemetry.Save(ctx, &t); err != nil {
+			return err
+		}
+
+		return repos.Vehicle.UpdateLastTelemetryAt(ctx, t.VehicleID, t.ReceivedAt)
 	})
 	if err != nil {
 		return model.Telemetry{}, err
@@ -259,8 +270,8 @@ func (s *TelemetryService) GetTelemetryByID(ctx context.Context, id int) (model.
 
 // GetTelemetryByVehicle используется в GET /telemetry/vehicle/{id}
 // Возвращает срез записей по машине по её ID, либо ошибку
-func (s *TelemetryService) GetTelemetryByVehicle(ctx context.Context, id int) ([]model.Telemetry, error) {
-	res, err := s.repository.GetListByVehicle(ctx, id)
+func (s *TelemetryService) GetTelemetryByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error) {
+	res, err := s.repository.GetListByVehicle(ctx, id, organizationID)
 	if err != nil {
 		return nil, err
 	}
