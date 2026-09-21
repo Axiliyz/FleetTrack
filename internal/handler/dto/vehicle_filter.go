@@ -48,15 +48,6 @@ func ParseVehicleFilter(vals url.Values) (model.VehicleFilter, error) {
 	return f, nil
 }
 
-// parseStringParam возвращает nil, если параметр key не передан в query.
-func parseStringParam(q url.Values, key string) (*string, error) {
-	raw := q.Get(key)
-	if raw == "" {
-		return nil, nil
-	}
-	return &raw, nil
-}
-
 // parseVehicleStatusParam возвращает nil, если параметр key не передан в query,
 // и ошибку, если переданное значение не входит в enum VehicleStatus.
 func parseVehicleStatusParam(q url.Values, key string) (*model.VehicleStatus, error) {
