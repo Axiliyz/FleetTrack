@@ -2,6 +2,7 @@ package model
 
 import "time"
 
+// RefreshToken — хранимая в БД запись о выданном refresh-токене
 type RefreshToken struct {
 	ID        int
 	UserID    int

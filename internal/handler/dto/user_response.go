@@ -2,6 +2,7 @@ package dto
 
 import "fleettrack/internal/model"
 
+// UserResponse — представление пользователя в API-ответах
 type UserResponse struct {
 	ID             int            `json:"id"`
 	OrganizationID int            `json:"organization_id"`
@@ -10,6 +11,7 @@ type UserResponse struct {
 	Role           model.UserRole `json:"role"`
 }
 
+// NewUserResponse собирает UserResponse из доменной модели model.User
 func NewUserResponse(u model.User) UserResponse {
 	return UserResponse{
 		ID:             u.ID,

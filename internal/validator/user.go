@@ -12,7 +12,7 @@ const (
 	maxPasswordLen = 72
 )
 
-// isRoleValid определяет, входит ли роль пользователя в допустимый enum
+// IsRoleValid определяет, входит ли роль пользователя в допустимый enum
 func IsRoleValid(r model.UserRole) error {
 	switch r {
 	case model.UserRoleAdmin, model.UserRoleAnalytic, model.UserRoleDispatcher, model.UserRoleDriver:

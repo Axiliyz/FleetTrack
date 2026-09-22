@@ -134,14 +134,14 @@ func TestAuthService_Login_RepositoryError(t *testing.T) {
 	}
 }
 
-func TestAuthService_RegisterCompany_Success(t *testing.T) {
+func TestAuthService_RegisterOrganization_Success(t *testing.T) {
 	orgRepo := &mockOrgRepository{}
 	userRepo := &mockUserRepository{}
 	jwtService := NewJWTService("test-secret", time.Minute)
 	log := logger.NewStdLogger(logger.DebugLevel)
 	svc := NewAuthService(nil, &mockRefreshTokenRepository{}, jwtService, testRefreshTTL, log, &mockTxManager{}, &mockRepoFactory{orgRepo: orgRepo, userRepo: userRepo})
 
-	result, err := svc.RegisterCompany(context.Background(), "Alpha Fleet", "Root Admin", "admin@example.com", "AdminPass1")
+	result, err := svc.RegisterOrganization(context.Background(), "Alpha Fleet", "Root Admin", "admin@example.com", "AdminPass1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -164,30 +164,30 @@ func TestAuthService_RegisterCompany_Success(t *testing.T) {
 	}
 }
 
-func TestAuthService_RegisterCompany_EmptyOrgName(t *testing.T) {
+func TestAuthService_RegisterOrganization_EmptyOrgName(t *testing.T) {
 	svc := NewAuthService(nil, &mockRefreshTokenRepository{}, NewJWTService("test-secret", time.Minute), testRefreshTTL, logger.NewStdLogger(logger.DebugLevel), &mockTxManager{}, &mockRepoFactory{})
 
-	_, err := svc.RegisterCompany(context.Background(), "   ", "Root Admin", "admin@example.com", "AdminPass1")
+	_, err := svc.RegisterOrganization(context.Background(), "   ", "Root Admin", "admin@example.com", "AdminPass1")
 	if err != model.ErrInvalidOrgName {
 		t.Errorf("got %v, want %v", err, model.ErrInvalidOrgName)
 	}
 }
 
-func TestAuthService_RegisterCompany_InvalidPassword(t *testing.T) {
+func TestAuthService_RegisterOrganization_InvalidPassword(t *testing.T) {
 	svc := NewAuthService(nil, &mockRefreshTokenRepository{}, NewJWTService("test-secret", time.Minute), testRefreshTTL, logger.NewStdLogger(logger.DebugLevel), &mockTxManager{}, &mockRepoFactory{})
 
-	_, err := svc.RegisterCompany(context.Background(), "Alpha Fleet", "Root Admin", "admin@example.com", "short")
+	_, err := svc.RegisterOrganization(context.Background(), "Alpha Fleet", "Root Admin", "admin@example.com", "short")
 	if err != model.ErrForbiddenPassword {
 		t.Errorf("got %v, want %v", err, model.ErrForbiddenPassword)
 	}
 }
 
-func TestAuthService_RegisterCompany_DuplicateEmail(t *testing.T) {
+func TestAuthService_RegisterOrganization_DuplicateEmail(t *testing.T) {
 	orgRepo := &mockOrgRepository{}
 	userRepo := &mockUserRepository{createErr: model.ErrDuplicateEmail}
 	svc := NewAuthService(nil, &mockRefreshTokenRepository{}, NewJWTService("test-secret", time.Minute), testRefreshTTL, logger.NewStdLogger(logger.DebugLevel), &mockTxManager{}, &mockRepoFactory{orgRepo: orgRepo, userRepo: userRepo})
 
-	_, err := svc.RegisterCompany(context.Background(), "Alpha Fleet", "Root Admin", "admin@example.com", "AdminPass1")
+	_, err := svc.RegisterOrganization(context.Background(), "Alpha Fleet", "Root Admin", "admin@example.com", "AdminPass1")
 	if err != model.ErrDuplicateEmail {
 		t.Errorf("got %v, want %v", err, model.ErrDuplicateEmail)
 	}

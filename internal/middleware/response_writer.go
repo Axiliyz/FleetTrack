@@ -14,6 +14,7 @@ func (rw *ResponseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
+// Write записывает тело ответа, по умолчанию фиксируя статус 200, если WriteHeader ещё не вызывался
 func (rw *ResponseWriter) Write(data []byte) (int, error) {
 	if rw.statusCode == 0 {
 		rw.statusCode = http.StatusOK

@@ -128,8 +128,6 @@ func (r *PostgresUserRepository) GetList(ctx context.Context, filter model.UserF
 	return users, rows.Err()
 }
 
-// DeleteByID удаляет юзера по ID
-// Возвращает удалённого юзера или ошибку
 // DeleteByID удаляет юзера по ID. organizationID != nil ограничивает удаление юзерами
 // этой организации; nil - без ограничения.
 func (r *PostgresUserRepository) DeleteByID(ctx context.Context, id int, organizationID *int) (model.User, error) {

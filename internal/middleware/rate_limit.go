@@ -56,6 +56,7 @@ func clientIP(r *http.Request) string {
 	return host
 }
 
+// RateLimit возвращает middleware, ограничивающий число запросов с одного IP до limit за window
 func RateLimit(limit int, window time.Duration, log logger.Logger) func(http.Handler) http.Handler {
 	limiter := newRateLimiter(limit, window)
 	return func(next http.Handler) http.Handler {

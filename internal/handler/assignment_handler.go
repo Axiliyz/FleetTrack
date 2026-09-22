@@ -31,6 +31,19 @@ func NewAssignmentHandler(as AssignmentService, l logger.Logger) *AssignmentHand
 }
 
 // HandlePostAssignment обрабатывает POST запрос на создание связки устройство-автомобиль
+// @Summary Привязать трекер к автомобилю
+// @Tags assignments
+// @Accept json
+// @Produce json
+// @Param request body dto.CreateAssignmentRequest true "ID устройства и автомобиля"
+// @Success 201 {object} dto.AssignmentResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 403 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse "устройство или автомобиль не найдены либо принадлежат другой организации"
+// @Failure 409 {object} dto.ErrorResponse "устройство или автомобиль уже заняты"
+// @Router /assignments [post]
+// @Security BearerAuth
 func (h *AssignmentHandler) HandlePostAssignment(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
@@ -54,5 +67,5 @@ func (h *AssignmentHandler) HandlePostAssignment(w http.ResponseWriter, r *http.
 	}
 
 	assignment := h.assignmentService.GetActiveAssignment(r.Context(), assignmentData.DeviceID)
-	respondSuccess(w, r, "device assigned", h.logger, dto.NewAssignmentResponse(assignment))
+	respondCreated(w, r, "device assigned", h.logger, dto.NewAssignmentResponse(assignment))
 }

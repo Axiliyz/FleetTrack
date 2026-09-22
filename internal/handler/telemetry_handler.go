@@ -39,6 +39,17 @@ func NewTelemetryHandler(service TelemetryService, logger logger.Logger) *Teleme
 }
 
 // HandleTelemetry принимает входящий JSON
+// @Summary Принять точку телеметрии от GPS-трекера
+// @Tags telemetry
+// @Accept json
+// @Produce json
+// @Param request body dto.TelemetryRequest true "Точка телеметрии"
+// @Success 201 {object} dto.TelemetryResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse "автомобиль не найден или принадлежит другой организации"
+// @Router /telemetry [post]
+// @Security BearerAuth
 func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
@@ -78,10 +89,33 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 		SpeedKmh:    savedTelemetry.SpeedKmh,
 	}
 
-	respondSuccess(w, r, "Telemetry got to post", h.logger, telemetryResponse)
+	respondCreated(w, r, "Telemetry got to post", h.logger, telemetryResponse)
 }
 
 // HandleGetListTelemetry возвращает список телеметрии
+// @Summary Список телеметрии с фильтрами
+// @Tags telemetry
+// @Produce json
+// @Param vehicle_id query int false "ID автомобиля"
+// @Param device_id query int false "ID трекера"
+// @Param trip_id query int false "ID рейса"
+// @Param driver_id query int false "ID водителя (для роли DRIVER игнорируется и подставляется свой)"
+// @Param lat_min query number false "Минимальная широта"
+// @Param lat_max query number false "Максимальная широта"
+// @Param lon_min query number false "Минимальная долгота"
+// @Param lon_max query number false "Максимальная долгота"
+// @Param fuel_min query number false "Минимальный уровень топлива"
+// @Param fuel_max query number false "Максимальный уровень топлива"
+// @Param from query string false "От даты (RFC3339)"
+// @Param to query string false "До даты (RFC3339)"
+// @Param limit query int false "Лимит записей (по умолчанию 100, максимум 500)"
+// @Param offset query int false "Смещение"
+// @Success 200 {array} dto.TelemetryResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 403 {object} dto.ErrorResponse "роль DRIVER без привязанного водителя"
+// @Router /telemetry [get]
+// @Security BearerAuth
 func (h *TelemetryHandler) HandleGetListTelemetry(w http.ResponseWriter, r *http.Request) {
 	filter, err := dto.ParseTelemetryFilter(r.URL.Query())
 	if err != nil {
@@ -124,6 +158,16 @@ func (h *TelemetryHandler) HandleGetListTelemetry(w http.ResponseWriter, r *http
 }
 
 // HandleGetTelemetryByID возвращает запись телеметрии по ID
+// @Summary Получить точку телеметрии по ID
+// @Tags telemetry
+// @Produce json
+// @Param id path int true "ID записи телеметрии"
+// @Success 200 {object} dto.TelemetryResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Router /telemetry/{id} [get]
+// @Security BearerAuth
 func (h *TelemetryHandler) HandleGetTelemetryByID(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
@@ -162,6 +206,15 @@ func (h *TelemetryHandler) HandleGetTelemetryByID(w http.ResponseWriter, r *http
 }
 
 // HandleGetTelemetryByVehicle возвращает все записи телеметрии по ID машины
+// @Summary Вся телеметрия по автомобилю
+// @Tags telemetry
+// @Produce json
+// @Param id path int true "ID автомобиля"
+// @Success 200 {array} dto.TelemetryResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Router /telemetry/vehicles/{id} [get]
+// @Security BearerAuth
 func (h *TelemetryHandler) HandleGetTelemetryByVehicle(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
@@ -200,6 +253,17 @@ func (h *TelemetryHandler) HandleGetTelemetryByVehicle(w http.ResponseWriter, r 
 }
 
 // HandleDeleteTelemetryByID удаляет телеметрию по её ID
+// @Summary Удалить точку телеметрии
+// @Tags telemetry
+// @Produce json
+// @Param id path int true "ID записи телеметрии"
+// @Success 200 {object} dto.TelemetryResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 403 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Router /telemetry/{id} [delete]
+// @Security BearerAuth
 func (h *TelemetryHandler) HandleDeleteTelemetryByID(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
@@ -234,6 +298,16 @@ func (h *TelemetryHandler) HandleDeleteTelemetryByID(w http.ResponseWriter, r *h
 }
 
 // HandleDeleteTelemetryByVehicleID удаляет телеметрию по машине по её ID
+// @Summary Удалить всю телеметрию автомобиля
+// @Tags telemetry
+// @Produce json
+// @Param id path int true "ID автомобиля"
+// @Success 200 {array} dto.TelemetryResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 403 {object} dto.ErrorResponse
+// @Router /telemetry/vehicles/{id} [delete]
+// @Security BearerAuth
 func (h *TelemetryHandler) HandleDeleteTelemetryByVehicleID(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)

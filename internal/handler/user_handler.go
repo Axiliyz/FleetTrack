@@ -33,6 +33,7 @@ type UserService interface {
 	DeleteUserByID(ctx context.Context, id int, organizationID *int) (model.User, error)
 }
 
+// NewUserHandler создаёт UserHandler с переданными сервисом пользователей и логгером
 func NewUserHandler(s UserService, l logger.Logger) *UserHandler {
 	return &UserHandler{
 		userService: s,
@@ -41,6 +42,18 @@ func NewUserHandler(s UserService, l logger.Logger) *UserHandler {
 }
 
 // HandleCreateUser обрабатывает POST запрос на создание нового пользователя
+// @Summary Создаёт нового пользователя
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param request body dto.CreateUserRequest true "Данные пользователя"
+// @Success 201 {object} dto.UserResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 403 {object} dto.ErrorResponse
+// @Failure 409 {object} dto.ErrorResponse
+// @Router /users [post]
+// @Security BearerAuth
 func (h *UserHandler) HandleCreateUser(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
@@ -64,10 +77,20 @@ func (h *UserHandler) HandleCreateUser(w http.ResponseWriter, r *http.Request) {
 		respondError(w, r, h.logger, err)
 		return
 	}
-	respondSuccess(w, r, "user created", h.logger, dto.NewUserResponse(savedUser))
+	respondCreated(w, r, "user created", h.logger, dto.NewUserResponse(savedUser))
 }
 
 // HandleGetUserByID получает пользователя по ID
+// @Summary Получить пользователя по ID
+// @Tags users
+// @Produce json
+// @Param id path int true "ID пользователя"
+// @Success 200 {object} dto.UserResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Router /users/{id} [get]
+// @Security BearerAuth
 func (h *UserHandler) HandleGetUserByID(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -94,6 +117,17 @@ func (h *UserHandler) HandleGetUserByID(w http.ResponseWriter, r *http.Request) 
 }
 
 // HandleGetListUsers возвращает список пользователей с фильтрами
+// @Summary Список пользователей организации
+// @Tags users
+// @Produce json
+// @Param role query string false "Фильтр по роли"
+// @Param limit query int false "Лимит записей (по умолчанию 100, максимум 500)"
+// @Param offset query int false "Смещение"
+// @Success 200 {array} dto.UserResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Router /users [get]
+// @Security BearerAuth
 func (h *UserHandler) HandleGetListUsers(w http.ResponseWriter, r *http.Request) {
 	filter, err := dto.ParseUserFilter(r.URL.Query())
 	if err != nil {
@@ -122,6 +156,17 @@ func (h *UserHandler) HandleGetListUsers(w http.ResponseWriter, r *http.Request)
 }
 
 // HandleDeleteUserByID обрабатывает DELETE запрос на удаление пользователя по ID
+// @Summary Удалить пользователя
+// @Tags users
+// @Produce json
+// @Param id path int true "ID пользователя"
+// @Success 200 {object} dto.UserResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 403 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Router /users/{id} [delete]
+// @Security BearerAuth
 func (h *UserHandler) HandleDeleteUserByID(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {

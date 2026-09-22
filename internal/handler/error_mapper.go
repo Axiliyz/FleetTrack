@@ -363,6 +363,12 @@ func mapError(err error) HTTPError {
 			Status:  http.StatusBadRequest,
 		}
 
+	case errors.Is(err, model.ErrDuplicateAlert):
+		return HTTPError{
+			Message: "alert is already exist",
+			Status:  http.StatusConflict,
+		}
+
 	default:
 		return HTTPError{
 			Message: "unknown error",

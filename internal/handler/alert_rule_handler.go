@@ -37,6 +37,17 @@ func NewAlertRuleHandler(ars AlertRuleService, l logger.Logger) *AlertRuleHandle
 }
 
 // HandlePostRule обрабатывает создание нового правила алертов
+// @Summary Создать правило алерта
+// @Tags alert-rules
+// @Accept json
+// @Produce json
+// @Param request body dto.CreateAlertRuleRequest true "Данные правила"
+// @Success 201 {object} dto.AlertRuleResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 403 {object} dto.ErrorResponse
+// @Router /alert-rules [post]
+// @Security BearerAuth
 func (h *AlertRuleHandler) HandlePostRule(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
@@ -63,10 +74,20 @@ func (h *AlertRuleHandler) HandlePostRule(w http.ResponseWriter, r *http.Request
 
 	var response = dto.NewAlertRuleResponse(rule)
 
-	respondSuccess(w, r, "rule created", h.logger, response)
+	respondCreated(w, r, "rule created", h.logger, response)
 }
 
 // HandleGetRuleByID возвращает правило алертов по его идентификатору
+// @Summary Получить правило алерта по ID
+// @Tags alert-rules
+// @Produce json
+// @Param id path int true "ID правила"
+// @Success 200 {object} dto.AlertRuleResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Router /alert-rules/{id} [get]
+// @Security BearerAuth
 func (h *AlertRuleHandler) HandleGetRuleByID(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
@@ -96,6 +117,17 @@ func (h *AlertRuleHandler) HandleGetRuleByID(w http.ResponseWriter, r *http.Requ
 }
 
 // HandleDeleteRuleByID удаляет правило алертов по его идентификатору с проверкой прав доступа
+// @Summary Удалить правило алерта
+// @Tags alert-rules
+// @Produce json
+// @Param id path int true "ID правила"
+// @Success 200 {object} dto.AlertRuleResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 403 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Router /alert-rules/{id} [delete]
+// @Security BearerAuth
 func (h *AlertRuleHandler) HandleDeleteRuleByID(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
@@ -131,6 +163,13 @@ func (h *AlertRuleHandler) HandleDeleteRuleByID(w http.ResponseWriter, r *http.R
 }
 
 // HandleGetRulesList возвращает список правил алертов организации текущего пользователя
+// @Summary Список правил алертов организации
+// @Tags alert-rules
+// @Produce json
+// @Success 200 {array} dto.AlertRuleResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Router /alert-rules [get]
+// @Security BearerAuth
 func (h *AlertRuleHandler) HandleGetRulesList(w http.ResponseWriter, r *http.Request) {
 	authCtx, ok := middleware.AuthFromContext(r.Context())
 	if !ok {

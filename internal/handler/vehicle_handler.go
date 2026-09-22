@@ -42,6 +42,18 @@ func NewVehicleHandler(s VehicleService, l logger.Logger) *VehicleHandler {
 }
 
 // HandlePostVehicle обрабатывает POST запрос на создание нового автомобиля
+// @Summary Создать автомобиль
+// @Tags vehicles
+// @Accept json
+// @Produce json
+// @Param request body dto.CreateVehicleRequest true "Данные автомобиля"
+// @Success 201 {object} dto.VehicleResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 403 {object} dto.ErrorResponse
+// @Failure 409 {object} dto.ErrorResponse
+// @Router /vehicles [post]
+// @Security BearerAuth
 func (h *VehicleHandler) HandlePostVehicle(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
@@ -74,10 +86,21 @@ func (h *VehicleHandler) HandlePostVehicle(w http.ResponseWriter, r *http.Reques
 		Status:         savedVehicle.Status,
 	}
 
-	respondSuccess(w, r, "vehicle created", h.logger, vehicleResponse)
+	respondCreated(w, r, "vehicle created", h.logger, vehicleResponse)
 }
 
 // HandleDeleteVehicle обрабатывает DELETE запрос на удаление автомобиля по ID
+// @Summary Удалить автомобиль
+// @Tags vehicles
+// @Produce json
+// @Param id path int true "ID автомобиля"
+// @Success 200 {object} dto.VehicleResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 403 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Router /vehicles/{id} [delete]
+// @Security BearerAuth
 func (h *VehicleHandler) HandleDeleteVehicle(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
@@ -112,6 +135,22 @@ func (h *VehicleHandler) HandleDeleteVehicle(w http.ResponseWriter, r *http.Requ
 }
 
 // HandleGetListVehicle возвращает список автомобилей с фильтрами
+// @Summary Список автомобилей организации
+// @Tags vehicles
+// @Produce json
+// @Param vin query string false "VIN (17 символов)"
+// @Param number_plate query string false "Госномер"
+// @Param model query string false "Модель"
+// @Param status query string false "Статус"
+// @Param created_from query string false "От даты создания (RFC3339)"
+// @Param created_to query string false "До даты создания (RFC3339)"
+// @Param limit query int false "Лимит записей (по умолчанию 100, максимум 500)"
+// @Param offset query int false "Смещение"
+// @Success 200 {array} dto.VehicleResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Router /vehicles [get]
+// @Security BearerAuth
 func (h *VehicleHandler) HandleGetListVehicle(w http.ResponseWriter, r *http.Request) {
 	filter, err := dto.ParseVehicleFilter(r.URL.Query())
 	if err != nil {
@@ -148,6 +187,19 @@ func (h *VehicleHandler) HandleGetListVehicle(w http.ResponseWriter, r *http.Req
 }
 
 // HandlePatchVehicle отвечает за изменение некоторых данных автомобиля
+// @Summary Изменить автомобиль
+// @Tags vehicles
+// @Accept json
+// @Produce json
+// @Param id path int true "ID автомобиля"
+// @Param request body dto.UpdateVehicleRequest true "Изменяемые поля"
+// @Success 200 {object} dto.VehicleResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 403 {object} dto.ErrorResponse "также возвращается, если в теле передан organization_id"
+// @Failure 404 {object} dto.ErrorResponse
+// @Router /vehicles/{id} [patch]
+// @Security BearerAuth
 func (h *VehicleHandler) HandlePatchVehicle(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
@@ -194,6 +246,16 @@ func (h *VehicleHandler) HandlePatchVehicle(w http.ResponseWriter, r *http.Reque
 }
 
 // HandleGetVehicleByID получает машину по ID
+// @Summary Получить автомобиль по ID
+// @Tags vehicles
+// @Produce json
+// @Param id path int true "ID автомобиля"
+// @Success 200 {object} dto.VehicleResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Router /vehicles/{id} [get]
+// @Security BearerAuth
 func (h *VehicleHandler) HandleGetVehicleByID(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {

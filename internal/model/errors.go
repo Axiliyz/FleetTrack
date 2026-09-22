@@ -83,4 +83,5 @@ var (
 	ErrInvalidRuleID          = errors.New("invalid rule id")
 	ErrInvalidChannelConfig   = errors.New("invalid notification channel config")
 	ErrUnsupportedChannelType = errors.New("unsupported notification channel type")
+	ErrDuplicateAlert         = errors.New("alert is already exist")
 )
