@@ -1,4 +1,3 @@
-// Package model содержит основные доменные сущности и типы бизнес-логики
 package model
 
 import (

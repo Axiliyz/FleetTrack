@@ -36,6 +36,8 @@ func mapUniqueViolation(err error) error {
 		return model.ErrDuplicateEmail
 	case "idx_users_driver_id":
 		return model.ErrDriverAlreadyLinked
+	case "idx_alerts_active_unique":
+		return model.ErrDuplicateAlert
 	default:
 		return err
 	}
@@ -272,6 +274,7 @@ func (r *PostgresVehicleRepository) Update(ctx context.Context, id int, upd mode
 	return v, nil
 }
 
+// UpdateLastTelemetryAt устанавливает время последней телеметрии
 func (r *PostgresVehicleRepository) UpdateLastTelemetryAt(ctx context.Context, vehicleID int, at time.Time) error {
 	const query = `UPDATE vehicles SET last_telemetry_at = $1 WHERE id = $2`
 	_, err := r.db.Exec(ctx, query, at, vehicleID)

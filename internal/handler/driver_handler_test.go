@@ -60,7 +60,7 @@ func TestHandlePostDriver(t *testing.T) {
 		serviceError   error
 		expectedStatus int
 	}{
-		{name: "success", requestBody: `{"organization_id": 1, "name": "Ivan Petrov"}`, expectedStatus: http.StatusOK},
+		{name: "success", requestBody: `{"organization_id": 1, "name": "Ivan Petrov"}`, expectedStatus: http.StatusCreated},
 		{name: "invalid json", requestBody: `not-json`, expectedStatus: http.StatusBadRequest},
 		{name: "invalid name", requestBody: `{"organization_id": 1, "name": ""}`, serviceError: model.ErrInvalidDriverName, expectedStatus: http.StatusBadRequest},
 	}

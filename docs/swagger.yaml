@@ -1,0 +1,1838 @@
+basePath: /
+definitions:
+  dto.AlertRuleResponse:
+    properties:
+      created_at:
+        type: string
+      enabled:
+        type: boolean
+      id:
+        type: integer
+      name:
+        type: string
+      organization_id:
+        type: integer
+      severity:
+        $ref: '#/definitions/model.SeverityLevel'
+      threshold:
+        type: number
+      type:
+        $ref: '#/definitions/model.AlertRuleType'
+      updated_at:
+        type: string
+    type: object
+  dto.AssignmentResponse:
+    properties:
+      device_id:
+        type: integer
+      ended_at:
+        type: string
+      id:
+        type: integer
+      started_at:
+        type: string
+      vehicle_id:
+        type: integer
+    type: object
+  dto.CreateAlertRuleRequest:
+    properties:
+      enabled:
+        type: boolean
+      name:
+        type: string
+      organization_id:
+        type: integer
+      severity:
+        $ref: '#/definitions/model.SeverityLevel'
+      threshold:
+        type: number
+      type:
+        $ref: '#/definitions/model.AlertRuleType'
+    type: object
+  dto.CreateAssignmentRequest:
+    properties:
+      device_id:
+        type: integer
+      vehicle_id:
+        type: integer
+    type: object
+  dto.CreateDeviceRequest:
+    properties:
+      organization_id:
+        type: integer
+      serial_number:
+        type: string
+    type: object
+  dto.CreateDriverRequest:
+    properties:
+      name:
+        type: string
+      organization_id:
+        type: integer
+    type: object
+  dto.CreateUserRequest:
+    properties:
+      email:
+        type: string
+      name:
+        type: string
+      organization_id:
+        type: integer
+      password:
+        type: string
+      role:
+        type: string
+    type: object
+  dto.CreateVehicleRequest:
+    properties:
+      model:
+        type: string
+      number_plate:
+        type: string
+      organization_id:
+        type: integer
+      vin:
+        type: string
+    type: object
+  dto.DeviceResponse:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      organization_id:
+        type: integer
+      serial_number:
+        type: string
+      status:
+        $ref: '#/definitions/model.DeviceStatus'
+    type: object
+  dto.DriverResponse:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      organization_id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  dto.ErrorResponse:
+    properties:
+      message:
+        type: string
+      request_id:
+        type: string
+      status:
+        type: string
+    type: object
+  dto.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    type: object
+  dto.OrgRequest:
+    properties:
+      name:
+        type: string
+    type: object
+  dto.OrgResponse:
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+  dto.RefreshTokenRequest:
+    properties:
+      refresh_token:
+        type: string
+    type: object
+  dto.RegisterOrganizationRequest:
+    properties:
+      admin_email:
+        type: string
+      admin_name:
+        type: string
+      admin_password:
+        type: string
+      organization_name:
+        type: string
+    type: object
+  dto.TelemetryRequest:
+    properties:
+      device_id:
+        type: integer
+      fuel:
+        type: number
+      lat:
+        type: number
+      lon:
+        type: number
+      vehicle_id:
+        type: integer
+    type: object
+  dto.TelemetryResponse:
+    properties:
+      device_id:
+        type: integer
+      distance_km:
+        type: number
+      received_at:
+        type: string
+      speed_kmh:
+        type: number
+      telemetry_id:
+        type: integer
+      trip_id:
+        type: integer
+      vehicle_id:
+        type: integer
+    type: object
+  dto.TripRequest:
+    properties:
+      driver_id:
+        type: integer
+      vehicle_id:
+        type: integer
+    type: object
+  dto.UpdateDriverRequest:
+    properties:
+      name:
+        type: string
+      organization_id:
+        type: integer
+    type: object
+  dto.UpdateTripRequest:
+    properties:
+      status:
+        $ref: '#/definitions/model.TripStatus'
+    type: object
+  dto.UpdateVehicleRequest:
+    properties:
+      number_plate:
+        type: string
+      organization_id:
+        type: integer
+      status:
+        $ref: '#/definitions/model.VehicleStatus'
+    type: object
+  dto.UserResponse:
+    properties:
+      email:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      organization_id:
+        type: integer
+      role:
+        $ref: '#/definitions/model.UserRole'
+    type: object
+  dto.VehicleResponse:
+    properties:
+      id:
+        type: integer
+      model:
+        type: string
+      number_plate:
+        type: string
+      organization_id:
+        type: integer
+      status:
+        $ref: '#/definitions/model.VehicleStatus'
+      vin:
+        type: string
+    type: object
+  model.AlertRuleType:
+    enum:
+    - SPEED_EXCEEDED
+    - DEVICE_OFFLINE
+    - LOW_FUEL
+    type: string
+    x-enum-varnames:
+    - AlertRuleSpeedExceed
+    - AlertRuleDeviceOffline
+    - AlertRuleLowFuel
+  model.AuthResult:
+    properties:
+      access_token:
+        type: string
+      refresh_token:
+        type: string
+    type: object
+  model.DeviceStatus:
+    enum:
+    - ACTIVE
+    - INACTIVE
+    - MAINTENANCE
+    type: string
+    x-enum-varnames:
+    - DeviceStatusActive
+    - DeviceStatusInactive
+    - DeviceStatusMaintenance
+  model.SeverityLevel:
+    enum:
+    - LOW
+    - MEDIUM
+    - HIGH
+    - CRITICAL
+    type: string
+    x-enum-varnames:
+    - SeverityLevelLow
+    - SeverityLevelMedium
+    - SeverityLevelHigh
+    - SeverityLevelCritical
+  model.Trip:
+    properties:
+      avg_speed_kmh:
+        type: number
+      distance_km:
+        type: number
+      driver_id:
+        type: integer
+      ended_at:
+        type: string
+      id:
+        type: integer
+      max_speed_kmh:
+        type: number
+      started_at:
+        type: string
+      status:
+        $ref: '#/definitions/model.TripStatus'
+      telemetry_count:
+        type: integer
+      vehicle_id:
+        type: integer
+    type: object
+  model.TripStatus:
+    enum:
+    - RUNNING
+    - CANCELLED
+    - SUCCEEDED
+    - SLEEPING
+    - SERVING
+    type: string
+    x-enum-varnames:
+    - TripStatusRunning
+    - TripStatusCancelled
+    - TripStatusSucceeded
+    - TripStatusSleeping
+    - TripStatusServing
+  model.UserRole:
+    enum:
+    - ADMIN
+    - DISPATCHER
+    - DRIVER
+    - ANALYTIC
+    type: string
+    x-enum-varnames:
+    - UserRoleAdmin
+    - UserRoleDispatcher
+    - UserRoleDriver
+    - UserRoleAnalytic
+  model.VehicleStatus:
+    enum:
+    - IDLE
+    - ON_TRIP
+    - IN_SERVICE
+    - DELETED
+    type: string
+    x-enum-varnames:
+    - VehicleStatusIdle
+    - VehicleStatusOnTrip
+    - VehicleStatusInService
+    - VehicleStatusDeleted
+host: localhost:8080
+info:
+  contact: {}
+  description: Бэкенд системы мониторинга и телематики автопарка
+  title: FleetTrack API
+  version: "1.0"
+paths:
+  /alert-rules:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.AlertRuleResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список правил алертов организации
+      tags:
+      - alert-rules
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные правила
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateAlertRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.AlertRuleResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Создать правило алерта
+      tags:
+      - alert-rules
+  /alert-rules/{id}:
+    delete:
+      parameters:
+      - description: ID правила
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.AlertRuleResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Удалить правило алерта
+      tags:
+      - alert-rules
+    get:
+      parameters:
+      - description: ID правила
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.AlertRuleResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Получить правило алерта по ID
+      tags:
+      - alert-rules
+  /assignments:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID устройства и автомобиля
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateAssignmentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.AssignmentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: устройство или автомобиль не найдены либо принадлежат другой
+            организации
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "409":
+          description: устройство или автомобиль уже заняты
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Привязать трекер к автомобилю
+      tags:
+      - assignments
+  /devices:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные устройства
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateDeviceRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.DeviceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Зарегистрировать GPS-трекер
+      tags:
+      - devices
+  /devices/{id}:
+    delete:
+      parameters:
+      - description: ID устройства
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.DeviceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Удалить трекер
+      tags:
+      - devices
+    get:
+      parameters:
+      - description: ID устройства
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.DeviceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Получить трекер по ID
+      tags:
+      - devices
+  /drivers:
+    get:
+      parameters:
+      - description: Фильтр по имени
+        in: query
+        name: name
+        type: string
+      - description: От даты создания (RFC3339)
+        in: query
+        name: created_from
+        type: string
+      - description: До даты создания (RFC3339)
+        in: query
+        name: created_to
+        type: string
+      - description: Лимит записей (по умолчанию 100, максимум 500)
+        in: query
+        name: limit
+        type: integer
+      - description: Смещение
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.DriverResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список водителей организации
+      tags:
+      - drivers
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные водителя
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateDriverRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.DriverResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Создать профиль водителя
+      tags:
+      - drivers
+  /drivers/{id}:
+    delete:
+      parameters:
+      - description: ID водителя
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.DriverResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "409":
+          description: у водителя есть рейсы, удаление невозможно
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Удалить водителя
+      tags:
+      - drivers
+    get:
+      parameters:
+      - description: ID водителя
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.DriverResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Получить водителя по ID
+      tags:
+      - drivers
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID водителя
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Изменяемые поля
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateDriverRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.DriverResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: также возвращается, если в теле передан organization_id
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Изменить водителя
+      tags:
+      - drivers
+  /login:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Учётные данные
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.AuthResult'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Вход в систему
+      tags:
+      - auth
+  /logout:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Рефреш токен
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RefreshTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Выход из системы
+      tags:
+      - auth
+  /organizations:
+    get:
+      description: Возвращает организацию текущего пользователя в виде списка из одного
+        элемента
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.OrgResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Получить свою организацию
+      tags:
+      - organization
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Название организации
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.OrgRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.OrgResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Создать организацию
+      tags:
+      - organization
+  /refresh:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Рефреш токен
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RefreshTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.AuthResult'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Обновление токенов доступа и рефреша
+      tags:
+      - auth
+  /register:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные организации
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RegisterOrganizationRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.AuthResult'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Регистрация компании
+      tags:
+      - auth
+  /telemetry:
+    get:
+      parameters:
+      - description: ID автомобиля
+        in: query
+        name: vehicle_id
+        type: integer
+      - description: ID трекера
+        in: query
+        name: device_id
+        type: integer
+      - description: ID рейса
+        in: query
+        name: trip_id
+        type: integer
+      - description: ID водителя (для роли DRIVER игнорируется и подставляется свой)
+        in: query
+        name: driver_id
+        type: integer
+      - description: Минимальная широта
+        in: query
+        name: lat_min
+        type: number
+      - description: Максимальная широта
+        in: query
+        name: lat_max
+        type: number
+      - description: Минимальная долгота
+        in: query
+        name: lon_min
+        type: number
+      - description: Максимальная долгота
+        in: query
+        name: lon_max
+        type: number
+      - description: Минимальный уровень топлива
+        in: query
+        name: fuel_min
+        type: number
+      - description: Максимальный уровень топлива
+        in: query
+        name: fuel_max
+        type: number
+      - description: От даты (RFC3339)
+        in: query
+        name: from
+        type: string
+      - description: До даты (RFC3339)
+        in: query
+        name: to
+        type: string
+      - description: Лимит записей (по умолчанию 100, максимум 500)
+        in: query
+        name: limit
+        type: integer
+      - description: Смещение
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.TelemetryResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: роль DRIVER без привязанного водителя
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список телеметрии с фильтрами
+      tags:
+      - telemetry
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Точка телеметрии
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.TelemetryRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.TelemetryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: автомобиль не найден или принадлежит другой организации
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Принять точку телеметрии от GPS-трекера
+      tags:
+      - telemetry
+  /telemetry/{id}:
+    delete:
+      parameters:
+      - description: ID записи телеметрии
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.TelemetryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Удалить точку телеметрии
+      tags:
+      - telemetry
+    get:
+      parameters:
+      - description: ID записи телеметрии
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.TelemetryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Получить точку телеметрии по ID
+      tags:
+      - telemetry
+  /telemetry/vehicles/{id}:
+    delete:
+      parameters:
+      - description: ID автомобиля
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.TelemetryResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Удалить всю телеметрию автомобиля
+      tags:
+      - telemetry
+    get:
+      parameters:
+      - description: ID автомобиля
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.TelemetryResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Вся телеметрия по автомобилю
+      tags:
+      - telemetry
+  /trips:
+    get:
+      parameters:
+      - description: ID водителя (для роли DRIVER игнорируется и подставляется свой)
+        in: query
+        name: driver_id
+        type: integer
+      - description: ID автомобиля
+        in: query
+        name: vehicle_id
+        type: integer
+      - description: Статус рейса
+        in: query
+        name: status
+        type: string
+      - description: От даты начала (RFC3339)
+        in: query
+        name: started_from
+        type: string
+      - description: До даты начала (RFC3339)
+        in: query
+        name: started_to
+        type: string
+      - description: Минимальная дистанция, км
+        in: query
+        name: min_distance
+        type: number
+      - description: Максимальная дистанция, км
+        in: query
+        name: max_distance
+        type: number
+      - description: Минимальная средняя скорость
+        in: query
+        name: min_avg_speed
+        type: number
+      - description: Максимальная средняя скорость
+        in: query
+        name: max_avg_speed
+        type: number
+      - description: Минимальная макс. скорость
+        in: query
+        name: min_max_speed
+        type: number
+      - description: Максимальная макс. скорость
+        in: query
+        name: max_max_speed
+        type: number
+      - description: Лимит записей (по умолчанию 100, максимум 500)
+        in: query
+        name: limit
+        type: integer
+      - description: Смещение
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Trip'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: роль DRIVER без привязанного водителя
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список рейсов с фильтрами
+      tags:
+      - trips
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID водителя и автомобиля
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.TripRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.Trip'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: водитель или автомобиль не найдены либо принадлежат другой
+            организации
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Открыть новый рейс
+      tags:
+      - trips
+  /trips/{id}:
+    delete:
+      parameters:
+      - description: ID рейса
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.Trip'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "409":
+          description: рейс уже завершён
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Отменить рейс
+      tags:
+      - trips
+    get:
+      parameters:
+      - description: ID рейса
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.Trip'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Получить рейс по ID
+      tags:
+      - trips
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID рейса
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Новый статус (COMPLETED, CANCELLED)
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateTripRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.Trip'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "409":
+          description: рейс уже завершён
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Изменить статус рейса
+      tags:
+      - trips
+  /users:
+    get:
+      parameters:
+      - description: Фильтр по роли
+        in: query
+        name: role
+        type: string
+      - description: Лимит записей (по умолчанию 100, максимум 500)
+        in: query
+        name: limit
+        type: integer
+      - description: Смещение
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.UserResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список пользователей организации
+      tags:
+      - users
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные пользователя
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Создаёт нового пользователя
+      tags:
+      - users
+  /users/{id}:
+    delete:
+      parameters:
+      - description: ID пользователя
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Удалить пользователя
+      tags:
+      - users
+    get:
+      parameters:
+      - description: ID пользователя
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Получить пользователя по ID
+      tags:
+      - users
+  /vehicles:
+    get:
+      parameters:
+      - description: VIN (17 символов)
+        in: query
+        name: vin
+        type: string
+      - description: Госномер
+        in: query
+        name: number_plate
+        type: string
+      - description: Модель
+        in: query
+        name: model
+        type: string
+      - description: Статус
+        in: query
+        name: status
+        type: string
+      - description: От даты создания (RFC3339)
+        in: query
+        name: created_from
+        type: string
+      - description: До даты создания (RFC3339)
+        in: query
+        name: created_to
+        type: string
+      - description: Лимит записей (по умолчанию 100, максимум 500)
+        in: query
+        name: limit
+        type: integer
+      - description: Смещение
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.VehicleResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список автомобилей организации
+      tags:
+      - vehicles
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные автомобиля
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateVehicleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.VehicleResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Создать автомобиль
+      tags:
+      - vehicles
+  /vehicles/{id}:
+    delete:
+      parameters:
+      - description: ID автомобиля
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.VehicleResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Удалить автомобиль
+      tags:
+      - vehicles
+    get:
+      parameters:
+      - description: ID автомобиля
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.VehicleResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Получить автомобиль по ID
+      tags:
+      - vehicles
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID автомобиля
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Изменяемые поля
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateVehicleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.VehicleResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: также возвращается, если в теле передан organization_id
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Изменить автомобиль
+      tags:
+      - vehicles
+securityDefinitions:
+  BearerAuth:
+    description: 'Введите: Bearer <access_token>'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

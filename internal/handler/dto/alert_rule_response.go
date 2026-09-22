@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// AlertRuleResponse — представление правила алерта в API-ответах
 type AlertRuleResponse struct {
 	ID             int                 `json:"id"`
 	OrganizationID int                 `json:"organization_id"`

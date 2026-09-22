@@ -60,7 +60,7 @@ func TestHandleAssignTrip(t *testing.T) {
 		serviceError   error
 		expectedStatus int
 	}{
-		{name: "success", requestBody: `{"driver_id": 1, "vehicle_id": 1}`, withAuth: true, expectedStatus: http.StatusOK},
+		{name: "success", requestBody: `{"driver_id": 1, "vehicle_id": 1}`, withAuth: true, expectedStatus: http.StatusCreated},
 		{name: "unauthorized", requestBody: `{"driver_id": 1, "vehicle_id": 1}`, withAuth: false, expectedStatus: http.StatusUnauthorized},
 		{name: "invalid json", requestBody: `not-json`, withAuth: true, expectedStatus: http.StatusBadRequest},
 		{name: "invalid driver id", requestBody: `{"driver_id": 0, "vehicle_id": 1}`, withAuth: true, serviceError: model.ErrInvalidDriverID, expectedStatus: http.StatusBadRequest},

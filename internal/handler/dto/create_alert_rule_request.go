@@ -2,6 +2,7 @@ package dto
 
 import "fleettrack/internal/model"
 
+// CreateAlertRuleRequest — тело запроса POST /alert-rules
 type CreateAlertRuleRequest struct {
 	OrganizationID int                 `json:"organization_id"`
 	Type           model.AlertRuleType `json:"type"`
@@ -11,6 +12,7 @@ type CreateAlertRuleRequest struct {
 	Enabled        *bool               `json:"enabled"`
 }
 
+// ToDomainModel конвертирует запрос в доменную модель model.AlertRule, подставляя Enabled=true по умолчанию
 func (r *CreateAlertRuleRequest) ToDomainModel() model.AlertRule {
 	enabled := true
 	if r.Enabled != nil {

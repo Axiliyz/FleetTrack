@@ -20,6 +20,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// AuthService реализует бизнес-логику логина, регистрации организации и ротации refresh-токенов
 type AuthService struct {
 	userRepository         repository.UserRepository
 	refreshTokenRepository repository.RefreshTokenRepository
@@ -30,6 +31,7 @@ type AuthService struct {
 	repoFactory            factory.RepositoryFactory
 }
 
+// NewAuthService собирает AuthService из репозиториев, JWT-сервиса и менеджера транзакций
 func NewAuthService(
 	userRepo repository.UserRepository,
 	refreshTokenRepo repository.RefreshTokenRepository,
@@ -76,6 +78,7 @@ func (s *AuthService) issueTokens(ctx context.Context, user model.User) (model.A
 	return model.AuthResult{AccessToken: accessToken, RefreshToken: plainRefresh}, nil
 }
 
+// Login проверяет email и пароль пользователя и выдаёт пару access/refresh токенов
 func (s *AuthService) Login(ctx context.Context, email string, password string) (model.AuthResult, error) {
 	user, err := s.userRepository.GetByEmail(ctx, email)
 	if err != nil {
@@ -92,7 +95,8 @@ func (s *AuthService) Login(ctx context.Context, email string, password string) 
 	return s.issueTokens(ctx, user)
 }
 
-func (s *AuthService) RegisterCompany(ctx context.Context, orgName, adminName, adminEmail, adminPassword string) (model.AuthResult, error) {
+// RegisterOrganization создаёт организацию и её первичного администратора в одной транзакции и выдаёт токены
+func (s *AuthService) RegisterOrganization(ctx context.Context, orgName, adminName, adminEmail, adminPassword string) (model.AuthResult, error) {
 	if strings.TrimSpace(orgName) == "" {
 		return model.AuthResult{}, model.ErrInvalidOrgName
 	}

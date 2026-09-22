@@ -42,6 +42,17 @@ func NewDriverHandler(s DriverService, l logger.Logger) *DriverHandler {
 }
 
 // HandlePostDriver обрабатывает POST запрос на создание нового водителя
+// @Summary Создать профиль водителя
+// @Tags drivers
+// @Accept json
+// @Produce json
+// @Param request body dto.CreateDriverRequest true "Данные водителя"
+// @Success 201 {object} dto.DriverResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 403 {object} dto.ErrorResponse
+// @Router /drivers [post]
+// @Security BearerAuth
 func (h *DriverHandler) HandlePostDriver(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
@@ -66,10 +77,20 @@ func (h *DriverHandler) HandlePostDriver(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	respondSuccess(w, r, "driver created", h.logger, dto.NewDriverResponse(driver))
+	respondCreated(w, r, "driver created", h.logger, dto.NewDriverResponse(driver))
 }
 
 // HandleGetDriverByID получает водителя по ID
+// @Summary Получить водителя по ID
+// @Tags drivers
+// @Produce json
+// @Param id path int true "ID водителя"
+// @Success 200 {object} dto.DriverResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Router /drivers/{id} [get]
+// @Security BearerAuth
 func (h *DriverHandler) HandleGetDriverByID(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -97,6 +118,19 @@ func (h *DriverHandler) HandleGetDriverByID(w http.ResponseWriter, r *http.Reque
 }
 
 // HandleGetListDriver возвращает список водителей с фильтрами
+// @Summary Список водителей организации
+// @Tags drivers
+// @Produce json
+// @Param name query string false "Фильтр по имени"
+// @Param created_from query string false "От даты создания (RFC3339)"
+// @Param created_to query string false "До даты создания (RFC3339)"
+// @Param limit query int false "Лимит записей (по умолчанию 100, максимум 500)"
+// @Param offset query int false "Смещение"
+// @Success 200 {array} dto.DriverResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Router /drivers [get]
+// @Security BearerAuth
 func (h *DriverHandler) HandleGetListDriver(w http.ResponseWriter, r *http.Request) {
 	filter, err := dto.ParseDriverFilter(r.URL.Query())
 	if err != nil {
@@ -126,6 +160,18 @@ func (h *DriverHandler) HandleGetListDriver(w http.ResponseWriter, r *http.Reque
 }
 
 // HandleDeleteDriver обрабатывает DELETE запрос на удаление водителя по ID
+// @Summary Удалить водителя
+// @Tags drivers
+// @Produce json
+// @Param id path int true "ID водителя"
+// @Success 200 {object} dto.DriverResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 403 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Failure 409 {object} dto.ErrorResponse "у водителя есть рейсы, удаление невозможно"
+// @Router /drivers/{id} [delete]
+// @Security BearerAuth
 func (h *DriverHandler) HandleDeleteDriver(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -150,6 +196,19 @@ func (h *DriverHandler) HandleDeleteDriver(w http.ResponseWriter, r *http.Reques
 }
 
 // HandlePatchDriver отвечает за изменение некоторых данных водителя
+// @Summary Изменить водителя
+// @Tags drivers
+// @Accept json
+// @Produce json
+// @Param id path int true "ID водителя"
+// @Param request body dto.UpdateDriverRequest true "Изменяемые поля"
+// @Success 200 {object} dto.DriverResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 403 {object} dto.ErrorResponse "также возвращается, если в теле передан organization_id"
+// @Failure 404 {object} dto.ErrorResponse
+// @Router /drivers/{id} [patch]
+// @Security BearerAuth
 func (h *DriverHandler) HandlePatchDriver(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))

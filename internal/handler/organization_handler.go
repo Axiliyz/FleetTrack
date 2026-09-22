@@ -33,6 +33,18 @@ func NewOrgHandler(s OrgService, l logger.Logger) *OrgHandler {
 }
 
 // HandlePostOrg обрабатывает создание новой организации
+// @Summary Создать организацию
+// @Tags organization
+// @Accept json
+// @Produce json
+// @Param request body dto.OrgRequest true "Название организации"
+// @Success 201 {object} dto.OrgResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 403 {object} dto.ErrorResponse
+// @Failure 409 {object} dto.ErrorResponse
+// @Router /organizations [post]
+// @Security BearerAuth
 func (h *OrgHandler) HandlePostOrg(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var orgData dto.OrgRequest
@@ -48,10 +60,18 @@ func (h *OrgHandler) HandlePostOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respondSuccess(w, r, "organization created", h.logger, dto.NewOrgResponse(org))
+	respondCreated(w, r, "organization created", h.logger, dto.NewOrgResponse(org))
 }
 
 // HandleGetListOrg возвращает список всех организаций
+// @Summary Получить свою организацию
+// @Description Возвращает организацию текущего пользователя в виде списка из одного элемента
+// @Tags organization
+// @Produce json
+// @Success 200 {array} dto.OrgResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Router /organizations [get]
+// @Security BearerAuth
 func (h *OrgHandler) HandleGetListOrg(w http.ResponseWriter, r *http.Request) {
 	authCtx, ok := middleware.AuthFromContext(r.Context())
 	if !ok {

@@ -82,7 +82,7 @@ func TestHandleTelemetry(t *testing.T) {
 			method:         "POST",
 			serviceError:   nil,
 			requestBody:    `{"device_id": 1, "vehicle_id": 1, "lat": 55.75, "lon": 37.61, "fuel": 0.8}`,
-			expectedStatus: http.StatusOK,
+			expectedStatus: http.StatusCreated,
 		},
 		{
 			name:           "wrong method",

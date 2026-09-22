@@ -11,6 +11,10 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+
+	_ "fleettrack/docs"
+
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 // NewRouter собирает HTTP-роутер приложения и подключает middleware
@@ -34,9 +38,11 @@ func NewRouter(
 	authLimiter := middleware.RateLimit(5, time.Minute, logger)
 
 	router.With(authLimiter).Post("/login", authHandler.HandleLogin)
-	router.With(authLimiter).Post("/register", authHandler.HandleRegisterCompany)
+	router.With(authLimiter).Post("/register", authHandler.HandleRegisterOrganization)
 	router.Post("/refresh", authHandler.HandleRefresh)
 	router.Post("/logout", authHandler.HandleLogout)
+
+	router.Get("/swagger/*", httpSwagger.WrapHandler)
 
 	router.Group(func(r chi.Router) {
 		r.Use(middleware.AuthMiddleware(jwtParser, logger))

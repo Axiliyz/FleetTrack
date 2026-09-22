@@ -66,3 +66,19 @@ func respondSuccess(w http.ResponseWriter, r *http.Request, message string, logg
 		logger.Error(err.Error())
 	}
 }
+
+// respondCreated пишет JSON ответа и ставит 201
+func respondCreated(w http.ResponseWriter, r *http.Request, message string, logger logger.Logger, data any) {
+	apiResponse := dto.APIResponse{
+		Status:    "success",
+		Message:   message,
+		RequestID: getRequestID(r.Context()),
+		Data:      data,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(apiResponse); err != nil {
+		logger.Error(err.Error())
+	}
+}

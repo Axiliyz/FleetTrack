@@ -9,6 +9,7 @@ import (
 	"net/http"
 )
 
+// RequireRole возвращает middleware, пропускающий запрос только если роль из контекста аутентификации входит в roles
 func RequireRole(l logger.Logger, roles ...model.UserRole) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

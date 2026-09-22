@@ -38,6 +38,18 @@ func NewDeviceHandler(s DeviceService, l logger.Logger) *DeviceHandler {
 }
 
 // HandlePostDevice обрабатывает POST запрос на создание нового устройства
+// @Summary Зарегистрировать GPS-трекер
+// @Tags devices
+// @Accept json
+// @Produce json
+// @Param request body dto.CreateDeviceRequest true "Данные устройства"
+// @Success 201 {object} dto.DeviceResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 403 {object} dto.ErrorResponse
+// @Failure 409 {object} dto.ErrorResponse
+// @Router /devices [post]
+// @Security BearerAuth
 func (h *DeviceHandler) HandlePostDevice(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
@@ -61,10 +73,20 @@ func (h *DeviceHandler) HandlePostDevice(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	respondSuccess(w, r, "device created", h.logger, dto.NewDeviceResponse(device))
+	respondCreated(w, r, "device created", h.logger, dto.NewDeviceResponse(device))
 }
 
 // HandleGetDeviceByID обрабатывает GET запрос на получение устройства по ID
+// @Summary Получить трекер по ID
+// @Tags devices
+// @Produce json
+// @Param id path int true "ID устройства"
+// @Success 200 {object} dto.DeviceResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Router /devices/{id} [get]
+// @Security BearerAuth
 func (h *DeviceHandler) HandleGetDeviceByID(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -92,6 +114,17 @@ func (h *DeviceHandler) HandleGetDeviceByID(w http.ResponseWriter, r *http.Reque
 }
 
 // HandleDeleteDeviceByID обрабатывает DELETE запрос на удаление устройства по ID
+// @Summary Удалить трекер
+// @Tags devices
+// @Produce json
+// @Param id path int true "ID устройства"
+// @Success 200 {object} dto.DeviceResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 403 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Router /devices/{id} [delete]
+// @Security BearerAuth
 func (h *DeviceHandler) HandleDeleteDeviceByID(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {

@@ -196,6 +196,7 @@ func (r *PostgresUserNotificationChannelRepository) Delete(ctx context.Context, 
 	return nil
 }
 
+// GetUserIDByTelegramChatID находит пользователя, привязавшего указанный Telegram chat_id как канал уведомлений
 func (r *PostgresUserNotificationChannelRepository) GetUserIDByTelegramChatID(ctx context.Context, chatID int) (int, error) {
 	const query = `
 	SELECT user_id

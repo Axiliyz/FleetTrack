@@ -13,6 +13,15 @@ import (
 	"time"
 )
 
+// @title FleetTrack API
+// @version 1.0
+// @description Бэкенд системы мониторинга и телематики автопарка
+// @host localhost:8080
+// @BasePath /
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Введите: Bearer <access_token>
 // main - точка сбора приложения
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

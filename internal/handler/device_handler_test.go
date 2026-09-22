@@ -49,7 +49,7 @@ func TestHandlePostDevice(t *testing.T) {
 		{
 			name:           "success",
 			requestBody:    `{"serial_number": "DEV-001"}`,
-			expectedStatus: http.StatusOK,
+			expectedStatus: http.StatusCreated,
 		},
 		{
 			name:           "invalid json",

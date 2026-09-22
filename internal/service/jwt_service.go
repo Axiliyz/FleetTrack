@@ -7,11 +7,13 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// JWTService подписывает и разбирает access-токены по алгоритму HS256
 type JWTService struct {
 	secret []byte
 	ttl    time.Duration
 }
 
+// NewJWTService создаёт JWTService с ключом подписи secret и временем жизни токена ttl
 func NewJWTService(secret string, ttl time.Duration) *JWTService {
 	return &JWTService{
 		secret: []byte(secret),
@@ -19,6 +21,7 @@ func NewJWTService(secret string, ttl time.Duration) *JWTService {
 	}
 }
 
+// Generate выпускает подписанный access-токен для пользователя user
 func (s *JWTService) Generate(user model.User) (string, error) {
 	claims := model.JWTClaims{
 		UserID:         user.ID,
@@ -38,6 +41,7 @@ func (s *JWTService) Generate(user model.User) (string, error) {
 	return signedToken, nil
 }
 
+// Parse проверяет подпись access-токена и возвращает его claims
 func (s *JWTService) Parse(tokenString string) (*model.JWTClaims, error) {
 	claims := &model.JWTClaims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
