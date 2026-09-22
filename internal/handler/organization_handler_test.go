@@ -46,7 +46,7 @@ func TestHandlePostOrg(t *testing.T) {
 			method:         "POST",
 			serviceError:   nil,
 			requestBody:    `{"name": "Acme"}`,
-			expectedStatus: http.StatusOK,
+			expectedStatus: http.StatusCreated,
 		},
 		{
 			name:           "wrong method",

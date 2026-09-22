@@ -83,7 +83,7 @@ func TestAlertRuleHandler_HandlePostRule(t *testing.T) {
 			body:           `{"organization_id": 999, "type": "SPEED_EXCEEDED", "name": "Speed", "threshold": 80, "severity": "HIGH"}`,
 			authCtx:        &model.AuthContext{UserID: 1, Role: model.UserRoleDispatcher, OrganizationID: 5},
 			serviceErr:     nil,
-			expectedStatus: http.StatusOK,
+			expectedStatus: http.StatusCreated,
 			checkOrgID:     5, // non-admin не может переопределить свою организацию
 		},
 		{
@@ -91,7 +91,7 @@ func TestAlertRuleHandler_HandlePostRule(t *testing.T) {
 			body:           `{"organization_id": 999, "type": "SPEED_EXCEEDED", "name": "Speed", "threshold": 80, "severity": "HIGH"}`,
 			authCtx:        &model.AuthContext{UserID: 1, Role: model.UserRoleAdmin, OrganizationID: 1},
 			serviceErr:     nil,
-			expectedStatus: http.StatusOK,
+			expectedStatus: http.StatusCreated,
 			checkOrgID:     999, // admin может создавать для любой организации
 		},
 		{

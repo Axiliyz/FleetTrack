@@ -63,7 +63,7 @@ func TestHandlePostVehicle(t *testing.T) {
 		{
 			name:           "success",
 			requestBody:    `{"organization_id": 1, "vin": "1HGCM82633A123456", "number_plate": "A123BC77", "model": "Camry"}`,
-			expectedStatus: http.StatusOK,
+			expectedStatus: http.StatusCreated,
 		},
 		{
 			name:           "invalid json",
