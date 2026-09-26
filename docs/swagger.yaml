@@ -1,5 +1,15 @@
 basePath: /
 definitions:
+  dto.APIResponse:
+    properties:
+      data: {}
+      message:
+        type: string
+      request_id:
+        type: string
+      status:
+        type: string
+    type: object
   dto.AlertRuleResponse:
     properties:
       created_at:
@@ -821,6 +831,23 @@ paths:
       summary: Изменить водителя
       tags:
       - drivers
+  /health:
+    get:
+      description: Публичный эндпоинт, не обращается к БД и внешним сервисам
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.APIResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Проверить, что процесс жив (liveness)
+      tags:
+      - health
   /login:
     post:
       consumes:
@@ -933,6 +960,23 @@ paths:
       summary: Создать организацию
       tags:
       - organization
+  /readyz:
+    get:
+      description: Публичный эндпоинт, проверяет доступность PostgreSQL
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.APIResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Проверить готовность принимать трафик (readiness)
+      tags:
+      - health
   /refresh:
     post:
       consumes:

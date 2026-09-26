@@ -25,6 +25,7 @@ var (
 	ErrMissingDBVars         = errors.New("missing required DB env vars")
 	ErrConnectingDB          = errors.New("error connecting to DB")
 	ErrMissingJWTVars        = errors.New("missing or invalid required JWT env vars")
+	ErrServiceUnavailable    = errors.New("service is unavailable, try later")
 
 	// Vehicle errors
 	ErrInvalidVIN         = errors.New("invalid vin")

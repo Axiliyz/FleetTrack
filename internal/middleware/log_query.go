@@ -7,10 +7,20 @@ import (
 	"time"
 )
 
+var unloggedPaths = map[string]struct{}{
+	"/health": {},
+	"/readyz": {},
+}
+
 // LogQuery - middleware, логирующее каждый обработанный HTTP запрос
 func LogQuery(logger logger.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if _, ok := unloggedPaths[r.URL.Path]; ok {
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			start := time.Now()
 
 			id, ok := r.Context().Value(RequestIDKey).(string)
