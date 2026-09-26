@@ -135,7 +135,13 @@ func New(cfg config.Config) (*App, error) {
 
 	partitionWorker.Start(workerCtx)
 
-	router := router.NewRouter(telemetryHandler, vehicleHandler, assignmentHandler, deviceHandler, orgHandler, tripHandler, driverHandler, userHandler, authHandler, jwtService, alertRuleHandler, logger)
+	healthService := service.NewHealthService(pool)
+	healthHandler := handler.NewHealthHandler(healthService, logger)
+
+	router := router.NewRouter(telemetryHandler, vehicleHandler,
+		assignmentHandler, deviceHandler, orgHandler, tripHandler,
+		driverHandler, userHandler, authHandler, jwtService,
+		alertRuleHandler, healthHandler, logger)
 
 	logger.Info("All background workers started: AlertService, NotificationWorker, TelegramWorker, OfflineWorker, PartitionWorker")
 

@@ -369,6 +369,12 @@ func mapError(err error) HTTPError {
 			Status:  http.StatusConflict,
 		}
 
+	case errors.Is(err, model.ErrServiceUnavailable):
+		return HTTPError{
+			Message: "service is unavailable, try later",
+			Status:  http.StatusServiceUnavailable,
+		}
+
 	default:
 		return HTTPError{
 			Message: "unknown error",

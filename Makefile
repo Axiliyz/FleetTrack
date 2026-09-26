@@ -23,6 +23,12 @@ vet:
 lint:
 	@golangci-lint run ./...
 
+swagger:
+	go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g cmd/api/main.go -o docs
+
+check: fmt vet test lint fmt
+
+
 # DOCKER
 
 docker-build:
@@ -83,6 +89,9 @@ help:
 	@echo "make docker-down"
 	@echo "make lint"
 	@echo "make fmt"
+	@echo "make swagger"
+	@echo "make check"
+	@echo "make clean"
 
 clean:
 	@read -p "Очистить окружение? [y/n]: " ans; \

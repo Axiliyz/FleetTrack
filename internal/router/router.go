@@ -23,7 +23,9 @@ func NewRouter(
 	assignmentHandler *handler.AssignmentHandler, deviceHandler *handler.DeviceHandler,
 	orgHandler *handler.OrgHandler, tripHandler *handler.TripHandler,
 	driverHandler *handler.DriverHandler, userHandler *handler.UserHandler,
-	authHandler *handler.AuthHandler, jwtParser middleware.JWTParser, alertRuleHandler *handler.AlertRuleHandler, logger logger.Logger) http.Handler {
+	authHandler *handler.AuthHandler, jwtParser middleware.JWTParser,
+	alertRuleHandler *handler.AlertRuleHandler, healthHandler *handler.HealthHandler,
+	logger logger.Logger) http.Handler {
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(middleware.Recovery(logger))
@@ -43,6 +45,9 @@ func NewRouter(
 	router.Post("/logout", authHandler.HandleLogout)
 
 	router.Get("/swagger/*", httpSwagger.WrapHandler)
+
+	router.Get("/health", healthHandler.HandleHealthCheck)
+	router.Get("/readyz", healthHandler.HandleReadinessCheck)
 
 	router.Group(func(r chi.Router) {
 		r.Use(middleware.AuthMiddleware(jwtParser, logger))

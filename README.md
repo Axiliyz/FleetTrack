@@ -4,7 +4,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=flat&logo=postgresql)](https://www.postgresql.org)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat&logo=docker)](https://www.docker.com)
 [![Architecture](https://img.shields.io/badge/Architecture-Clean%20%2F%20Hexagonal-brightgreen)](#архитектура)
-[![Tests](https://img.shields.io/badge/Tests-Passing-success)](https://github.com/Axiliyz/FleetTrack)
+[![CI](https://github.com/Axiliyz/FleetTrack/actions/workflows/ci.yml/badge.svg)](https://github.com/Axiliyz/FleetTrack/actions/workflows/ci.yml)
 
 Бэкенд системы мониторинга и телематики автопарка. Сервис осуществляет приём и валидацию данных с GPS/ГЛОНАСС-терминалов, расчёт кинематических показателей в реальном времени, фиксацию нарушений по настраиваемым правилам и гарантированную доставку уведомлений в Telegram и Email с использованием паттерна Transactional Outbox.
 
@@ -32,8 +32,11 @@
   - [Транспорт и трекеры](#3-транспорт-и-трекеры)
   - [Водители и рейсы](#4-водители-и-рейсы)
   - [Правила алертов](#5-правила-алертов)
+  - [Организации и пользователи](#6-организации-и-пользователи)
+  - [Проверки состояния (Health)](#7-проверки-состояния-health)
 - [Тестирование и качество кода](#тестирование-и-качество-кода)
 - [Миграции базы данных](#миграции-базы-данных)
+- [Лицензия](#лицензия)
 
 ---
 
@@ -57,9 +60,13 @@
 
 ```mermaid
 flowchart TD
-    Client["GPS Tracker / Web Client"] -->|HTTP / JSON| Middleware["Middleware (RequestID, RateLimit, JWT, Recovery)"]
+    Client["GPS Tracker / Web Client"] -->|HTTP / JSON| Middleware["Global Middleware (RequestID, Recovery, LogQuery, Timeout)"]
     Middleware --> Router["Router (Chi v5)"]
-    Router --> Handlers["Handlers & DTO Validation"]
+    Router -->|/login, /register| RateLimit["RateLimit (5 req/min)"]
+    Router -->|защищённые роуты| Auth["JWT Auth + RequireRole"]
+    Router -->|/health, /readyz, /swagger| Handlers
+    RateLimit --> Handlers["Handlers & DTO Validation"]
+    Auth --> Handlers
     
     subgraph Core ["Бизнес-логика (Domain & Services)"]
         Handlers --> Services["Services (Telemetry, Auth, Alert, Motion, Fleet)"]
@@ -100,7 +107,9 @@ flowchart TD
 * **Аутентификация**: [golang-jwt/jwt/v5](https://github.com/golang-jwt/jwt) (HS256 Access + Refresh токены)
 * **База данных**: [PostgreSQL 16](https://www.postgresql.org/) (партиционирование по диапазонам, частичные индексы, `SKIP LOCKED`)
 * **Миграции**: [golang-migrate/migrate](https://github.com/golang-migrate/migrate)
+* **Документация API**: [swaggo/swag](https://github.com/swaggo/swag) (Swagger 2.0, генерация из аннотаций)
 * **Контейнеризация**: Docker & Docker Compose
+* **CI**: GitHub Actions (build, vet, тесты с `-race`, golangci-lint)
 
 ---
 
@@ -108,15 +117,18 @@ flowchart TD
 
 ```text
 fleettrack/
+├── .github/
+│   └── workflows/            # CI: сборка, тесты, линтер
 ├── cmd/
 │   └── api/                  # Точка входа в приложение (main.go)
+├── docs/                     # Сгенерированная Swagger-документация (make swagger)
 ├── internal/
 │   ├── app/                  # Инициализация зависимостей, запуск и graceful shutdown
 │   ├── config/               # Загрузка и валидация конфигурации из переменных окружения
 │   ├── database/             # Интерфейсы работы с БД (DBTX, pgxpool)
 │   ├── handler/              # HTTP-хэндлеры, маршрутизация ответов и маппинг ошибок
 │   │   └── dto/              # Data Transfer Objects (DTO запросов и ответов)
-│   ├── logger/               # Структурированное логирование с поддержкой уровней
+│   ├── logger/               # Логирование с уровнями и цветным выводом
 │   ├── middleware/           # HTTP Middleware (Auth, RateLimiter, RequestID, Recovery, RoleCheck)
 │   ├── model/                # Доменные модели приложения и типизированные ошибки
 │   ├── notifier/             # Отправители уведомлений (Dispatcher, TelegramSender, EmailSender)
@@ -161,7 +173,9 @@ docker compose logs -f api
 
 После старта:
 * **API** доступен по адресу: `http://localhost:8080`
+* **Swagger UI**: `http://localhost:8080/swagger/index.html`
 * **PostgreSQL** доступен на хосте по порту `5433` (внутри контейнера `5432`)
+* Статус контейнеров и healthcheck API: `docker compose ps`
 
 ---
 
@@ -176,7 +190,7 @@ docker compose up postgres fleettrack-postgres-migrate -d
 # 2. Установите Go-зависимости
 go mod download
 
-# 3. Запустите сервер
+# 3. Запустите сервер (в .env должно быть DB_HOST=localhost)
 make run
 # либо: go run ./cmd/api
 ```
@@ -194,7 +208,8 @@ make run
 | `DB_USER` | `postgres` | Пользователь PostgreSQL |
 | `DB_PASSWORD` | `postgres` | Пароль базы данных |
 | `DB_NAME` | `fleettrack` | Имя базы данных |
-| `DB_PORT` | `5433` | Внешний порт PostgreSQL |
+| `DB_HOST` | `localhost` | Хост PostgreSQL для локального запуска (в Docker Compose переопределяется на `postgres`) |
+| `DB_PORT` | `5433` | Внешний порт PostgreSQL (в Docker Compose переопределяется на `5432`) |
 | `JWT_SECRET` | `super-secret-key` | Секретный ключ подписи JWT-токенов |
 | `JWT_ACCESS_TTL` | `15m` | Время жизни access-токена |
 | `JWT_REFRESH_TTL` | `168h` | Время жизни refresh-токена (7 дней) |
@@ -212,30 +227,29 @@ make run
 ### Stateful Alert Engine
 При поступлении точки телеметрии сервис `AlertService`:
 1. Находит активные правила для организации (`SPEED_EXCEEDED`, `LOW_FUEL`)
-2. Проверяет наличие открытого алерта по автомобилю и правилу через частичный уникальный индекс:
+2. Если условие нарушено, в одной транзакции захватывает advisory-блокировку по паре «автомобиль + правило» и проверяет, нет ли уже открытого алерта:
    ```sql
-   CREATE UNIQUE INDEX idx_alerts_active_unique 
-   ON alerts (vehicle_id, rule_id) 
-   WHERE status != 'RESOLVED';
+   SELECT pg_advisory_xact_lock($1::int, $2::int); -- vehicle_id, rule_id
    ```
-3. Если условие выполнено и открытого алерта нет — создается новый алерт со статусом `FIRED`
+3. Если открытого алерта нет — создаётся новый алерт со статусом `FIRED` и задачи на отправку уведомлений (см. Transactional Outbox)
 4. Если телеметрия вернулась в норму, а алерт открыт — статус автоматически переводится в `RESOLVED`
+
+**Почему advisory lock, а не уникальный индекс.** Две точки телеметрии по одной машине могут обрабатываться параллельно разными воркерами, и обе увидят «открытого алерта нет». Обычно такую гонку закрывают частичным уникальным индексом `(vehicle_id, rule_id) WHERE status != 'RESOLVED'`. Но таблица `alerts` партиционирована по `created_at`, а PostgreSQL требует включать ключ партиционирования в любой уникальный индекс. Индекс `(vehicle_id, rule_id, created_at)` дубли не ловит: два алерта с разным временем создания для него уникальны. Поэтому проверку и вставку сериализует транзакционная advisory-блокировка: вторая транзакция ждёт, пока первая завершится, и затем видит уже созданный алерт. Блокировка снимается автоматически при `COMMIT` или `ROLLBACK`.
 
 ### Детектор оффлайн-устройств (DEVICE_OFFLINE Watchdog)
 Для контроля работоспособности оборудования запущен фоновый воркер `OfflineWorker`:
 1. Периодически (раз в 30 секунд) запрашивает активные правила с типом `DEVICE_OFFLINE`
-2. По каждому правилу выполняет аналитический запрос к базе данных, проверяя все действующие привязки трекеров (`ended_at IS NULL`):
+2. По каждому правилу проверяет все действующие привязки трекеров (`ended_at IS NULL`):
    ```sql
    SELECT v.id, v.organization_id, da.device_id,
-          COALESCE(MAX(t.received_at), da.started_at) AS last_seen,
-          EXTRACT(EPOCH FROM (NOW() - COALESCE(MAX(t.received_at), da.started_at))) / 60 AS minutes_offline
+          COALESCE(v.last_telemetry_at, da.started_at) AS last_seen,
+          EXTRACT(EPOCH FROM (NOW() - COALESCE(v.last_telemetry_at, da.started_at))) / 60 AS minutes_offline
    FROM device_assignments da
    JOIN vehicles v ON v.id = da.vehicle_id
-   LEFT JOIN telemetry t ON t.vehicle_id = v.id
    WHERE da.ended_at IS NULL
-   GROUP BY v.id, v.organization_id, da.device_id, da.started_at
-   HAVING EXTRACT(EPOCH FROM (NOW() - COALESCE(MAX(t.received_at), da.started_at))) / 60 >= $1;
+     AND EXTRACT(EPOCH FROM (NOW() - COALESCE(v.last_telemetry_at, da.started_at))) / 60 >= $1;
    ```
+   Время последней точки хранится денормализованно в `vehicles.last_telemetry_at` и обновляется при приёме телеметрии. Благодаря этому запрос не сканирует партиционированную таблицу `telemetry` (`MAX(received_at)` по всем партициям) каждые 30 секунд.
 3. Если устройство молчит дольше заданного порога, и по автомобилю нет открытого инцидента — генерируется алерт `FIRED` с сообщением о времени отсутствия связи
 4. Как только от транспортного средства приходит свежая точка телеметрии, сервис `AlertService` автоматически переводит алерт `DEVICE_OFFLINE` в статус `RESOLVED`
 
@@ -279,6 +293,12 @@ make run
 ## Спецификация REST API
 
 Все защищенные эндпоинты требуют заголовок `Authorization: Bearer <access_token>`.
+
+Интерактивная документация доступна в Swagger UI: `http://localhost:8080/swagger/index.html`. Документация генерируется из аннотаций в хэндлерах:
+
+```bash
+make swagger
+```
 
 ### 1. Аутентификация и токены
 
@@ -326,7 +346,7 @@ curl -X POST http://localhost:8080/telemetry \
   }'
 ```
 
-**Ответ (200 OK):**
+**Ответ (201 Created):**
 ```json
 {
   "status": "success",
@@ -357,6 +377,7 @@ curl -X POST http://localhost:8080/telemetry \
 | `DELETE` | `/vehicles/{id}` | ADMIN, DISPATCHER | Удаление ТС |
 | `POST` | `/devices` | ADMIN, DISPATCHER | Регистрация нового GPS-терминала |
 | `GET` | `/devices/{id}` | Any Auth | Информация о трекере |
+| `DELETE` | `/devices/{id}` | ADMIN, DISPATCHER | Удаление трекера |
 | `POST` | `/assignments` | ADMIN, DISPATCHER | Привязка трекера к автомобилю |
 
 ---
@@ -366,10 +387,15 @@ curl -X POST http://localhost:8080/telemetry \
 | Метод | Эндпоинт | Роли | Описание |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/drivers` | Any Auth | Список водителей |
+| `GET` | `/drivers/{id}` | Any Auth | Водитель по ID |
 | `POST` | `/drivers` | ADMIN, DISPATCHER | Создание профиля водителя |
+| `PATCH` | `/drivers/{id}` | ADMIN, DISPATCHER | Обновление профиля водителя |
+| `DELETE` | `/drivers/{id}` | ADMIN, DISPATCHER | Удаление водителя |
 | `GET` | `/trips` | Any Auth | Список рейсов с фильтрацией |
+| `GET` | `/trips/{id}` | Any Auth | Рейс по ID |
 | `POST` | `/trips` | ADMIN, DISPATCHER | Открытие и назначение нового рейса |
 | `PATCH` | `/trips/{id}` | ADMIN, DISPATCHER | Обновление статуса рейса (`COMPLETED`, `CANCELLED`) |
+| `DELETE` | `/trips/{id}` | ADMIN, DISPATCHER | Удаление рейса |
 
 ---
 
@@ -398,9 +424,50 @@ curl -X POST http://localhost:8080/alert-rules \
 
 ---
 
+### 6. Организации и пользователи
+
+| Метод | Эндпоинт | Роли | Описание |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/organizations` | Any Auth | Организация текущего пользователя |
+| `POST` | `/organizations` | ADMIN | Создание организации |
+| `GET` | `/users` | Any Auth | Список пользователей организации |
+| `GET` | `/users/{id}` | Any Auth | Пользователь по ID |
+| `POST` | `/users` | ADMIN | Создание пользователя |
+| `DELETE` | `/users/{id}` | ADMIN | Удаление пользователя |
+
+---
+
+### 7. Проверки состояния (Health)
+
+Публичные эндпоинты для оркестратора и мониторинга, JWT не требуется.
+
+| Метод | Эндпоинт | Роли | Описание |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/health` | Public | Liveness: процесс жив и принимает запросы. Зависимости не проверяет |
+| `GET` | `/readyz` | Public | Readiness: доступна ли БД. При недоступности возвращает `503` |
+
+`/health` намеренно не обращается к БД: сбой зависимости не лечится рестартом, а при падении базы оркестратор перезапустил бы все инстансы одновременно. Недоступность БД отражает только `/readyz`: инстанс временно снимается с балансировки, но не перезапускается. Проверка БД выполняется с собственным коротким таймаутом (3 секунды).
+
+#### Пример (`GET /readyz`):
+```bash
+curl -i http://localhost:8080/readyz
+```
+
+---
+
 ## Тестирование и качество кода
 
-В репозитории реализовано покрытие модульными тестами ключевых слоёв (сервисы, хэндлеры, репозитории, middleware, воркеры, нотификаторы).
+Модульные тесты покрывают сервисы, хэндлеры, DTO, валидаторы, middleware, воркеры и нотификаторы. Внешние зависимости в них заменяются fake-реализациями интерфейсов. Для слоя репозиториев тестируется построение SQL-фильтров.
+
+### Запуск тестов
+
+```bash
+# Все тесты
+make test
+
+# С детектором гонок и покрытием (как в CI)
+go test ./... -race -cover
+```
 
 ### Статический анализ и форматирование
 
@@ -436,4 +503,8 @@ make migrate-create seq=add_custom_field
 
 ## Лицензия
 
-Проект распространяется под лицензией MIT.
+© 2026 Axiliyz. Все права защищены. Полный текст — в файле [LICENSE](LICENSE).
+
+**Можно:** читать код, клонировать репозиторий, собирать, запускать и тестировать проект у себя для изучения или оценки навыков автора (например, при найме), а также менять локальную копию для этих целей.
+
+**Нельзя без письменного разрешения автора:** использовать код полностью или частично в коммерческих продуктах, в продакшене или в своих проектах; распространять, публиковать и продавать код или его изменённые версии; выдавать код за свой.
