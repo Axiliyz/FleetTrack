@@ -87,7 +87,7 @@ func TestHealthServiceCheckReadiness(t *testing.T) {
 
 func TestHealthServiceCheckReadinessSetsDeadline(t *testing.T) {
 	pinger := &fakePinger{}
-	s := NewHealthService(pinger.gotCtx)
+	s := NewHealthService(pinger)
 
 	if err := s.CheckReadiness(context.Background()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
