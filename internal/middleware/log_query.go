@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+// unloggedPaths — пути, которые LogQuery не пишет в лог (пробы оркестратора
+// вызываются часто и засоряли бы вывод)
 var unloggedPaths = map[string]struct{}{
 	"/health": {},
 	"/readyz": {},
