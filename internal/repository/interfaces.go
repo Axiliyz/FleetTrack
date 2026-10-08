@@ -69,12 +69,12 @@ type VehicleRepository interface {
 	GetList(ctx context.Context, filter model.VehicleFilter) ([]model.Vehicle, error)
 
 	// Delete удаляет машину по ID. organizationID != nil ограничивает удаление машинами
-	// этой организации; nil - без ограничения (для ADMIN).
+	// этой организации; nil снимает ограничение.
 	// Возвращает удалённую машину, и ошибку, если не удалось
 	Delete(ctx context.Context, id int, organizationID *int) (model.Vehicle, error)
 
 	// Update обновляет некоторые поля по авто. organizationID != nil ограничивает обновление
-	// машинами этой организации; nil - без ограничения (для ADMIN).
+	// машинами этой организации; nil снимает ограничение.
 	Update(ctx context.Context, id int, upd model.UpdateVehicle, organizationID *int) (model.Vehicle, error)
 
 	// UpdateLastTelemetryAt устанавливает поле last_telemetry_at, нужно для партиций
@@ -92,7 +92,7 @@ type DeviceRepository interface {
 	Create(ctx context.Context, d *model.Device) error
 
 	// Delete удаляет девайс по ID. organizationID != nil ограничивает удаление устройствами
-	// этой организации; nil - без ограничения (для ADMIN).
+	// этой организации; nil снимает ограничение.
 	// Возвращает удалённую запись или ошибку
 	Delete(ctx context.Context, id int, organizationID *int) (model.Device, error)
 }
@@ -123,12 +123,12 @@ type DriverRepository interface {
 	GetList(ctx context.Context, filter model.DriverFilter) ([]model.Driver, error)
 
 	// Delete удаляет водителя по ID. organizationID != nil ограничивает удаление водителями
-	// этой организации; nil - без ограничения (для ADMIN).
+	// этой организации; nil снимает ограничение.
 	// Возвращает удалённую запись, и ошибку, если не удалось
 	Delete(ctx context.Context, id int, organizationID *int) (model.Driver, error)
 
 	// Update обновляет некоторые поля водителя. organizationID != nil ограничивает обновление
-	// водителями этой организации; nil - без ограничения (для ADMIN).
+	// водителями этой организации; nil снимает ограничение.
 	Update(ctx context.Context, id int, upd model.UpdateDriver, organizationID *int) (model.Driver, error)
 }
 

@@ -257,7 +257,6 @@ func buildAlertRuleWhereClause(filter model.AlertRuleFilter) (string, []any) {
 	if filter.CreatedAt != nil {
 		conditions = append(conditions, fmt.Sprintf("created_at >= $%d", argN))
 		args = append(args, *filter.CreatedAt)
-		argN++ //nolint:ineffassign
 	}
 
 	whereClause := ""

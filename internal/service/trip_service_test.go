@@ -15,6 +15,8 @@ type mockTripRepository struct {
 	deleteErr error
 	getErr    error
 	trips     []model.Trip
+
+	statsUpdates int
 }
 
 func (m *mockTripRepository) GetByID(ctx context.Context, id int, organizationID *int) (model.Trip, error) {
@@ -54,6 +56,7 @@ func (m *mockTripRepository) DeleteTrip(ctx context.Context, id int, organizatio
 }
 
 func (m *mockTripRepository) UpdateTripStats(ctx context.Context, id int, distance, speed float64) (model.Trip, error) {
+	m.statsUpdates++
 	return model.Trip{}, nil
 }
 

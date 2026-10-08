@@ -375,9 +375,14 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/dto.AlertRuleResponse'
-            type: array
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.AlertRuleResponse'
+                  type: array
+              type: object
         "401":
           description: Unauthorized
           schema:
@@ -403,7 +408,12 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/dto.AlertRuleResponse'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.AlertRuleResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -435,7 +445,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.AlertRuleResponse'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.AlertRuleResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -470,7 +485,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.AlertRuleResponse'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.AlertRuleResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -505,7 +525,12 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/dto.AssignmentResponse'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.AssignmentResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -549,7 +574,12 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/dto.DeviceResponse'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.DeviceResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -585,7 +615,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.DeviceResponse'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.DeviceResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -620,7 +655,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.DeviceResponse'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.DeviceResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -667,9 +707,14 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/dto.DriverResponse'
-            type: array
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.DriverResponse'
+                  type: array
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -699,7 +744,12 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/dto.DriverResponse'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.DriverResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -731,7 +781,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.DriverResponse'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.DriverResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -770,7 +825,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.DriverResponse'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.DriverResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -809,7 +869,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.DriverResponse'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.DriverResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -865,7 +930,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/model.AuthResult'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AuthResult'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -893,6 +963,8 @@ paths:
       responses:
         "200":
           description: OK
+          schema:
+            $ref: '#/definitions/dto.APIResponse'
         "400":
           description: Bad Request
           schema:
@@ -910,9 +982,14 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/dto.OrgResponse'
-            type: array
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.OrgResponse'
+                  type: array
+              type: object
         "401":
           description: Unauthorized
           schema:
@@ -938,7 +1015,12 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/dto.OrgResponse'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.OrgResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -994,7 +1076,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/model.AuthResult'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AuthResult'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -1027,7 +1114,12 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/model.AuthResult'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AuthResult'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -1104,9 +1196,14 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/dto.TelemetryResponse'
-            type: array
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.TelemetryResponse'
+                  type: array
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -1140,7 +1237,12 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/dto.TelemetryResponse'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.TelemetryResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -1172,7 +1274,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.TelemetryResponse'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.TelemetryResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -1207,7 +1314,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.TelemetryResponse'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.TelemetryResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -1239,9 +1351,14 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/dto.TelemetryResponse'
-            type: array
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.TelemetryResponse'
+                  type: array
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -1272,9 +1389,14 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/dto.TelemetryResponse'
-            type: array
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.TelemetryResponse'
+                  type: array
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -1349,9 +1471,14 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/model.Trip'
-            type: array
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/model.Trip'
+                  type: array
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -1385,7 +1512,12 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/model.Trip'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Trip'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -1422,7 +1554,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/model.Trip'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Trip'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -1461,7 +1598,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/model.Trip'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Trip'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -1500,7 +1642,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/model.Trip'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Trip'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -1547,9 +1694,14 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/dto.UserResponse'
-            type: array
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.UserResponse'
+                  type: array
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -1579,7 +1731,12 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/dto.UserResponse'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.UserResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -1615,7 +1772,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.UserResponse'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.UserResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -1650,7 +1812,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.UserResponse'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.UserResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -1709,9 +1876,14 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/dto.VehicleResponse'
-            type: array
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.VehicleResponse'
+                  type: array
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -1741,7 +1913,12 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/dto.VehicleResponse'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.VehicleResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -1777,7 +1954,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.VehicleResponse'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.VehicleResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -1812,7 +1994,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.VehicleResponse'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.VehicleResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -1851,7 +2038,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.VehicleResponse'
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.VehicleResponse'
+              type: object
         "400":
           description: Bad Request
           schema:

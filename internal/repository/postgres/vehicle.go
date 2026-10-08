@@ -80,11 +80,11 @@ func (r *PostgresVehicleRepository) Create(ctx context.Context, v *model.Vehicle
 	return nil
 }
 
-// GetByID для PostgresVehicleRepository возвращает машину по её ID
+// GetByID для PostgresVehicleRepository возвращает машину по её ID; удалённые машины не возвращаются
 func (r *PostgresVehicleRepository) GetByID(ctx context.Context, id int) (model.Vehicle, error) {
 	const query = `
 	SELECT id, organization_id, vin, number_plate, model, status, created_at, updated_at, last_telemetry_at
-	FROM vehicles WHERE id = $1`
+	FROM vehicles WHERE id = $1 AND status <> 'DELETED'`
 	var v model.Vehicle
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&v.ID, &v.OrganizationID, &v.VIN, &v.NumberPlate,
@@ -99,7 +99,8 @@ func (r *PostgresVehicleRepository) GetByID(ctx context.Context, id int) (model.
 	return v, nil
 }
 
-// buildWhereClause берёт фильтр и возвращает готовый кусок WHERE... и срез аргументов
+// buildVehicleWhereClause берёт фильтр и возвращает кусок WHERE и срез аргументов.
+// Без явного фильтра по статусу удалённые машины исключаются.
 func buildVehicleWhereClause(filter model.VehicleFilter) (string, []any) {
 	var conditions []string
 	var args []any
@@ -128,6 +129,8 @@ func buildVehicleWhereClause(filter model.VehicleFilter) (string, []any) {
 		conditions = append(conditions, fmt.Sprintf("status = $%d", argN))
 		args = append(args, *filter.Status)
 		argN++
+	} else {
+		conditions = append(conditions, "status <> 'DELETED'")
 	}
 	if filter.CreatedFrom != nil {
 		conditions = append(conditions, fmt.Sprintf("created_at >= $%d", argN))
@@ -137,7 +140,6 @@ func buildVehicleWhereClause(filter model.VehicleFilter) (string, []any) {
 	if filter.CreatedTo != nil {
 		conditions = append(conditions, fmt.Sprintf("created_at <= $%d", argN))
 		args = append(args, *filter.CreatedTo)
-		argN++ //nolint:ineffassign
 	}
 	if len(conditions) == 0 {
 		return "", args
@@ -183,13 +185,13 @@ func (r *PostgresVehicleRepository) GetList(ctx context.Context, filter model.Ve
 	return vehicles, rows.Err()
 }
 
-// Delete для PostgresVehicleRepository удаляет машину по её ID.
-// organizationID != nil ограничивает удаление машинами этой организации (для не-ADMIN);
-// nil означает отсутствие ограничения (ADMIN может удалить машину любой организации).
+// Delete для PostgresVehicleRepository мягко удаляет машину (status = DELETED).
+// Уже удалённая машина считается ненайденной.
+// organizationID != nil ограничивает удаление машинами этой организации; nil снимает ограничение.
 func (r *PostgresVehicleRepository) Delete(ctx context.Context, id int, organizationID *int) (model.Vehicle, error) {
 	query := `
-	UPDATE vehicles SET status = 'DELETED'
-	WHERE id = $1`
+	UPDATE vehicles SET status = 'DELETED', updated_at = NOW()
+	WHERE id = $1 AND status <> 'DELETED'`
 	args := []any{id}
 	if organizationID != nil {
 		query += " AND organization_id = $2"
@@ -212,7 +214,7 @@ func (r *PostgresVehicleRepository) Delete(ctx context.Context, id int, organiza
 	return v, nil
 }
 
-// buildVehicleSetClause берёт изменяемые поля и возвращает готовый кусок WHERE... и срез аргументов
+// buildVehicleSetClause берёт изменяемые поля и возвращает готовый кусок SET и срез аргументов
 func buildVehicleSetClause(updater model.UpdateVehicle) (string, []any) {
 	var conditions []string
 	var args []any
@@ -230,7 +232,6 @@ func buildVehicleSetClause(updater model.UpdateVehicle) (string, []any) {
 	if updater.Status != nil {
 		conditions = append(conditions, fmt.Sprintf("status = $%d", argN))
 		args = append(args, *updater.Status)
-		argN++ //nolint:ineffassign
 	}
 	if len(conditions) == 0 {
 		return "", args
@@ -239,15 +240,15 @@ func buildVehicleSetClause(updater model.UpdateVehicle) (string, []any) {
 }
 
 // Update для PostgresVehicleRepository обновляет некоторые данные авто по ID.
-// organizationID != nil ограничивает обновление машинами этой организации (для не-ADMIN);
-// nil означает отсутствие ограничения (ADMIN может изменить машину любой организации).
+// Удалённые машины не изменяются и считаются ненайденными.
+// organizationID != nil ограничивает обновление машинами этой организации; nil снимает ограничение.
 func (r *PostgresVehicleRepository) Update(ctx context.Context, id int, upd model.UpdateVehicle, organizationID *int) (model.Vehicle, error) {
 	setClause, args := buildVehicleSetClause(upd)
 	if setClause == "" {
 		return r.GetByID(ctx, id)
 	}
 
-	where := fmt.Sprintf("id = $%d", len(args)+1)
+	where := fmt.Sprintf("id = $%d AND status <> 'DELETED'", len(args)+1)
 	args = append(args, id)
 	if organizationID != nil {
 		where += fmt.Sprintf(" AND organization_id = $%d", len(args)+1)

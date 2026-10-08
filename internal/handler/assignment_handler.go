@@ -36,7 +36,7 @@ func NewAssignmentHandler(as AssignmentService, l logger.Logger) *AssignmentHand
 // @Accept json
 // @Produce json
 // @Param request body dto.CreateAssignmentRequest true "ID устройства и автомобиля"
-// @Success 201 {object} dto.AssignmentResponse
+// @Success 201 {object} dto.APIResponse{data=dto.AssignmentResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse
@@ -45,8 +45,6 @@ func NewAssignmentHandler(as AssignmentService, l logger.Logger) *AssignmentHand
 // @Router /assignments [post]
 // @Security BearerAuth
 func (h *AssignmentHandler) HandlePostAssignment(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	var assignmentData dto.CreateAssignmentRequest
 
 	err := json.NewDecoder(r.Body).Decode(&assignmentData)

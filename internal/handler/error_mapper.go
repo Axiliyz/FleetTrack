@@ -12,373 +12,83 @@ type HTTPError struct {
 	Status  int
 }
 
-// mapError преобразует внутреннюю ошибку приложения в HTTP ошибку с кодом статуса
-// Возвращает HTTPError
+// errorMappings связывает доменные ошибки с HTTP-статусом и сообщением для клиента.
+// Порядок важен: побеждает первая ошибка, совпавшая через errors.Is.
+var errorMappings = []struct {
+	err     error
+	status  int
+	message string
+}{
+	{model.ErrDecoding, http.StatusInternalServerError, "error decoding"},
+	{model.ErrEncoding, http.StatusInternalServerError, "error encoding"},
+	{model.ErrInvalidCoords, http.StatusBadRequest, "invalid coords"},
+	{model.ErrInvalidMethod, http.StatusMethodNotAllowed, "unsupported method"},
+	{model.ErrInvalidFuel, http.StatusBadRequest, "invalid fuel"},
+	{model.ErrInvalidTimestamp, http.StatusBadRequest, "invalid timestamp"},
+	{model.ErrInvalidDeviceID, http.StatusBadRequest, "invalid device id"},
+	{model.ErrInvalidVehicleID, http.StatusBadRequest, "invalid vehicle id"},
+	{model.ErrInvalidJSON, http.StatusBadRequest, "invalid json"},
+	{model.ErrNotFound, http.StatusNotFound, "record not found"},
+	{model.ErrInvalidTelemetryID, http.StatusBadRequest, "invalid telemetry id"},
+	{model.ErrInvalidDriverID, http.StatusBadRequest, "invalid driver id"},
+	{model.ErrInvalidTripID, http.StatusBadRequest, "invalid trip id"},
+	{model.ErrInvalidOrganizationID, http.StatusBadRequest, "invalid organization id"},
+	{model.ErrInvalidLimit, http.StatusBadRequest, "invalid limit"},
+	{model.ErrInvalidOffset, http.StatusBadRequest, "invalid offset"},
+	{model.ErrInvalidInteger, http.StatusBadRequest, "invalid integer(must be > 0)"},
+	{model.ErrInvalidFloat, http.StatusBadRequest, "invalid float(must be > 0)"},
+	{model.ErrMissingDBVars, http.StatusServiceUnavailable, "missing required DB env vars"},
+	{model.ErrConnectingDB, http.StatusServiceUnavailable, "error connecting to DB"},
+	{model.ErrInvalidVIN, http.StatusBadRequest, "invalid vin"},
+	{model.ErrDuplicateVIN, http.StatusConflict, "vehicle with this vin already exists"},
+	{model.ErrDuplicatePlate, http.StatusConflict, "vehicle with this number plate already exists"},
+	{model.ErrInvalidNumberPlate, http.StatusBadRequest, "invalid number plate"},
+	{model.ErrInvalidStatus, http.StatusBadRequest, "invalid status"},
+	{model.ErrInvalidModel, http.StatusBadRequest, "invalid car model"},
+	{model.ErrDeviceAlreadyAssigned, http.StatusConflict, "device is already assigned"},
+	{model.ErrVehicleIsBusy, http.StatusConflict, "vehicle is busy"},
+	{model.ErrDeviceIsBusy, http.StatusConflict, "device is active or on maintenance"},
+	{model.ErrDeviceNotAssigned, http.StatusConflict, "device is not assigned to this vehicle"},
+	{model.ErrInvalidSerialNumber, http.StatusBadRequest, "invalid serial number"},
+	{model.ErrDuplicateSerialNumber, http.StatusConflict, "device with this serial number already exists"},
+	{model.ErrInvalidOrgName, http.StatusBadRequest, "invalid organization name"},
+	{model.ErrTripAlreadyFinished, http.StatusConflict, "trip is already finished"},
+	{model.ErrInvalidDriverName, http.StatusBadRequest, "invalid driver name"},
+	{model.ErrDriverHasActiveTrips, http.StatusConflict, "driver has trips and can't be deleted"},
+	{model.ErrCalculating, http.StatusBadRequest, "can't calculate motion"},
+	{model.ErrInvalidTime, http.StatusBadRequest, "invalid time"},
+	{model.ErrNoValue, http.StatusBadRequest, "no previous value to calculate"},
+	{model.ErrNoActiveTrip, http.StatusConflict, "no active trip"},
+	{model.ErrInvalidSpeed, http.StatusBadRequest, "invalid speed"},
+	{model.ErrInvalidDistance, http.StatusBadRequest, "invalid distance"},
+	{model.ErrDuplicateOrgName, http.StatusConflict, "organization with this name already exists"},
+	{model.ErrInvalidName, http.StatusBadRequest, "invalid user name"},
+	{model.ErrInvalidEmail, http.StatusBadRequest, "invalid email"},
+	{model.ErrDuplicateEmail, http.StatusConflict, "user with this email already exists"},
+	{model.ErrInvalidPassword, http.StatusBadRequest, "invalid password"},
+	{model.ErrForbiddenPassword, http.StatusConflict, "forbidden password"},
+	{model.ErrInvalidUserID, http.StatusBadRequest, "invalid user id"},
+	{model.ErrInvalidUserRole, http.StatusBadRequest, "invalid user role"},
+	{model.ErrInvalidToken, http.StatusUnauthorized, "invalid token"},
+	{model.ErrInvalidSigningMethod, http.StatusUnauthorized, "invalid token"},
+	{model.ErrMissingToken, http.StatusUnauthorized, "missing bearer token"},
+	{model.ErrInvalidCredentials, http.StatusUnauthorized, "invalid credentials"},
+	{model.ErrDriverAlreadyLinked, http.StatusConflict, "driver is already linked to another user"},
+	{model.ErrForbidden, http.StatusForbidden, "forbidden"},
+	{model.ErrDriverNotLinked, http.StatusForbidden, "user account has no linked driver"},
+	{model.ErrInvalidThreshold, http.StatusBadRequest, "invalid threshold"},
+	{model.ErrInvalidRuleID, http.StatusBadRequest, "invalid rule id"},
+	{model.ErrDuplicateAlert, http.StatusConflict, "alert is already exist"},
+	{model.ErrServiceUnavailable, http.StatusServiceUnavailable, "service is unavailable, try later"},
+}
+
+// mapError преобразует внутреннюю ошибку приложения в HTTP ошибку с кодом статуса.
+// Неизвестные ошибки отдаются как 500 без деталей.
 func mapError(err error) HTTPError {
-	switch {
-	case errors.Is(err, model.ErrDecoding):
-		return HTTPError{
-			Message: "error decoding",
-			Status:  http.StatusInternalServerError,
-		}
-
-	case errors.Is(err, model.ErrEncoding):
-		return HTTPError{
-			Message: "error encoding",
-			Status:  http.StatusInternalServerError,
-		}
-
-	case errors.Is(err, model.ErrInvalidCoords):
-		return HTTPError{
-			Message: "invalid coords",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrInvalidMethod):
-		return HTTPError{
-			Message: "unsupported method",
-			Status:  http.StatusMethodNotAllowed,
-		}
-
-	case errors.Is(err, model.ErrInvalidFuel):
-		return HTTPError{
-			Message: "invalid fuel",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrInvalidTimestamp):
-		return HTTPError{
-			Message: "invalid timestamp",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrInvalidDeviceID):
-		return HTTPError{
-			Message: "invalid device id",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrInvalidVehicleID):
-		return HTTPError{
-			Message: "invalid vehicle id",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrInvalidJSON):
-		return HTTPError{
-			Message: "invalid json",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrNotFound):
-		return HTTPError{
-			Message: "record not found",
-			Status:  http.StatusNotFound,
-		}
-
-	case errors.Is(err, model.ErrInvalidTelemetryID):
-		return HTTPError{
-			Message: "invalid telemetry id",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrInvalidDriverID):
-		return HTTPError{
-			Message: "invalid driver id",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrInvalidTripID):
-		return HTTPError{
-			Message: "invalid trip id",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrInvalidOrganizationID):
-		return HTTPError{
-			Message: "invalid organization id",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrInvalidLimit):
-		return HTTPError{
-			Message: "invalid limit",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrInvalidOffset):
-		return HTTPError{
-			Message: "invalid offset",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrInvalidInteger):
-		return HTTPError{
-			Message: "invalid integer(must be > 0)",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrInvalidFloat):
-		return HTTPError{
-			Message: "invalid float(must be > 0)",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrMissingDBVars):
-		return HTTPError{
-			Message: "missing required DB env vars",
-			Status:  http.StatusServiceUnavailable,
-		}
-
-	case errors.Is(err, model.ErrConnectingDB):
-		return HTTPError{
-			Message: "error connecting to DB",
-			Status:  http.StatusServiceUnavailable,
-		}
-
-	case errors.Is(err, model.ErrInvalidVIN):
-		return HTTPError{
-			Message: "invalid vin",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrDuplicateVIN):
-		return HTTPError{
-			Message: "vehicle with this vin already exists",
-			Status:  http.StatusConflict,
-		}
-
-	case errors.Is(err, model.ErrDuplicatePlate):
-		return HTTPError{
-			Message: "vehicle with this number plate already exists",
-			Status:  http.StatusConflict,
-		}
-
-	case errors.Is(err, model.ErrInvalidNumberPlate):
-		return HTTPError{
-			Message: "invalid number plate",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrInvalidStatus):
-		return HTTPError{
-			Message: "invalid status",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrInvalidModel):
-		return HTTPError{
-			Message: "invalid car model",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrDeviceAlreadyAssigned):
-		return HTTPError{
-			Message: "device is already assigned",
-			Status:  http.StatusConflict,
-		}
-
-	case errors.Is(err, model.ErrVehicleIsBusy):
-		return HTTPError{
-			Message: "vehicle is busy",
-			Status:  http.StatusConflict,
-		}
-
-	case errors.Is(err, model.ErrDeviceIsBusy):
-		return HTTPError{
-			Message: "device is active or on maintenance",
-			Status:  http.StatusConflict,
-		}
-
-	case errors.Is(err, model.ErrInvalidSerialNumber):
-		return HTTPError{
-			Message: "invalid serial number",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrDuplicateSerialNumber):
-		return HTTPError{
-			Message: "device with this serial number already exists",
-			Status:  http.StatusConflict,
-		}
-
-	case errors.Is(err, model.ErrInvalidOrgName):
-		return HTTPError{
-			Message: "invalid organization name",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrTripAlreadyFinished):
-		return HTTPError{
-			Message: "trip is already finished",
-			Status:  http.StatusConflict,
-		}
-
-	case errors.Is(err, model.ErrInvalidDriverName):
-		return HTTPError{
-			Message: "invalid driver name",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrDriverHasActiveTrips):
-		return HTTPError{
-			Message: "driver has trips and can't be deleted",
-			Status:  http.StatusConflict,
-		}
-
-	case errors.Is(err, model.ErrCalculating):
-		return HTTPError{
-			Message: "can't calculate motion",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrInvalidTime):
-		return HTTPError{
-			Message: "invalid time",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrNoValue):
-		return HTTPError{
-			Message: "no previous value to calculate",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrNoActiveTrip):
-		return HTTPError{
-			Message: "no active trip",
-			Status:  http.StatusConflict,
-		}
-
-	case errors.Is(err, model.ErrInvalidSpeed):
-		return HTTPError{
-			Message: "invalid speed",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrInvalidDistance):
-		return HTTPError{
-			Message: "invalid distance",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrDuplicateOrgName):
-		return HTTPError{
-			Message: "organization with this name already exists",
-			Status:  http.StatusConflict,
-		}
-
-	case errors.Is(err, model.ErrInvalidName):
-		return HTTPError{
-			Message: "invalid user name",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrInvalidEmail):
-		return HTTPError{
-			Message: "invalid email",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrDuplicateEmail):
-		return HTTPError{
-			Message: "user with this email already exists",
-			Status:  http.StatusConflict,
-		}
-
-	case errors.Is(err, model.ErrInvalidPassword):
-		return HTTPError{
-			Message: "invalid password",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrForbiddenPassword):
-		return HTTPError{
-			Message: "forbidden password",
-			Status:  http.StatusConflict,
-		}
-	case errors.Is(err, model.ErrInvalidUserID):
-		return HTTPError{
-			Message: "invalid user id",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrInvalidUserRole):
-		return HTTPError{
-			Message: "invalid user role",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrInvalidToken):
-		return HTTPError{
-			Message: "invalid token",
-			Status:  http.StatusUnauthorized,
-		}
-
-	case errors.Is(err, model.ErrInvalidSigningMethod):
-		return HTTPError{
-			Message: "invalid token",
-			Status:  http.StatusUnauthorized,
-		}
-
-	case errors.Is(err, model.ErrMissingToken):
-		return HTTPError{
-			Message: "missing bearer token",
-			Status:  http.StatusUnauthorized,
-		}
-
-	case errors.Is(err, model.ErrInvalidCredentials):
-		return HTTPError{
-			Message: "invalid credentials",
-			Status:  http.StatusUnauthorized,
-		}
-
-	case errors.Is(err, model.ErrDriverAlreadyLinked):
-		return HTTPError{
-			Message: "driver is already linked to another user",
-			Status:  http.StatusConflict,
-		}
-
-	case errors.Is(err, model.ErrForbidden):
-		return HTTPError{
-			Message: "forbidden",
-			Status:  http.StatusForbidden,
-		}
-
-	case errors.Is(err, model.ErrDriverNotLinked):
-		return HTTPError{
-			Message: "user account has no linked driver",
-			Status:  http.StatusForbidden,
-		}
-
-	case errors.Is(err, model.ErrInvalidThreshold):
-		return HTTPError{
-			Message: "invalid threshold",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrInvalidRuleID):
-		return HTTPError{
-			Message: "invalid rule id",
-			Status:  http.StatusBadRequest,
-		}
-
-	case errors.Is(err, model.ErrDuplicateAlert):
-		return HTTPError{
-			Message: "alert is already exist",
-			Status:  http.StatusConflict,
-		}
-
-	case errors.Is(err, model.ErrServiceUnavailable):
-		return HTTPError{
-			Message: "service is unavailable, try later",
-			Status:  http.StatusServiceUnavailable,
-		}
-
-	default:
-		return HTTPError{
-			Message: "unknown error",
-			Status:  http.StatusInternalServerError,
+	for _, m := range errorMappings {
+		if errors.Is(err, m.err) {
+			return HTTPError{Message: m.message, Status: m.status}
 		}
 	}
+	return HTTPError{Message: "unknown error", Status: http.StatusInternalServerError}
 }

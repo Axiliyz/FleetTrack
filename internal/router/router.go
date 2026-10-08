@@ -2,7 +2,6 @@
 package router
 
 import (
-	"fleettrack/internal/config"
 	"fleettrack/internal/handler"
 	"fleettrack/internal/logger"
 	"fleettrack/internal/middleware"
@@ -25,12 +24,13 @@ func NewRouter(
 	driverHandler *handler.DriverHandler, userHandler *handler.UserHandler,
 	authHandler *handler.AuthHandler, jwtParser middleware.JWTParser,
 	alertRuleHandler *handler.AlertRuleHandler, healthHandler *handler.HealthHandler,
-	logger logger.Logger) http.Handler {
+	requestTimeout time.Duration, logger logger.Logger) http.Handler {
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
+	router.Use(middleware.Metrics)
 	router.Use(middleware.Recovery(logger))
 	router.Use(middleware.LogQuery(logger))
-	router.Use(middleware.TimeoutMiddleware(config.RequestTimeout))
+	router.Use(middleware.TimeoutMiddleware(requestTimeout))
 
 	router.MethodNotAllowed((func(w http.ResponseWriter, r *http.Request) {
 		logger.Error(model.ErrInvalidMethod.Error())

@@ -38,12 +38,11 @@ func NewAuthHandler(s AuthService, l logger.Logger) *AuthHandler {
 // @Accept json
 // @Produce json
 // @Param request body dto.LoginRequest true "Учётные данные"
-// @Success 200 {object} model.AuthResult
+// @Success 200 {object} dto.APIResponse{data=model.AuthResult}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Router /login [post]
 func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	var request dto.LoginRequest
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
@@ -65,12 +64,11 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Param request body dto.RegisterOrganizationRequest true "Данные организации"
-// @Success 201 {object} model.AuthResult
+// @Success 201 {object} dto.APIResponse{data=model.AuthResult}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 409 {object} dto.ErrorResponse
 // @Router /register [post]
 func (h *AuthHandler) HandleRegisterOrganization(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	var request dto.RegisterOrganizationRequest
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
@@ -83,7 +81,7 @@ func (h *AuthHandler) HandleRegisterOrganization(w http.ResponseWriter, r *http.
 		respondError(w, r, h.logger, err)
 		return
 	}
-	respondCreated(w, r, "Organization registered", h.logger, result)
+	respondCreated(w, r, "organization registered", h.logger, result)
 }
 
 // HandleRefresh обрабатывает POST /refresh: ротирует пару access/refresh токенов по валидному refresh-токену
@@ -92,13 +90,12 @@ func (h *AuthHandler) HandleRegisterOrganization(w http.ResponseWriter, r *http.
 // @Accept json
 // @Produce json
 // @Param request body dto.RefreshTokenRequest true "Рефреш токен"
-// @Success 200 {object} model.AuthResult
+// @Success 200 {object} dto.APIResponse{data=model.AuthResult}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 404 {object} dto.ErrorResponse
 // @Router /refresh [post]
 func (h *AuthHandler) HandleRefresh(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	var request dto.RefreshTokenRequest
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
@@ -120,11 +117,10 @@ func (h *AuthHandler) HandleRefresh(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Param request body dto.RefreshTokenRequest true "Рефреш токен"
-// @Success 200
+// @Success 200 {object} dto.APIResponse
 // @Failure 400 {object} dto.ErrorResponse
 // @Router /logout [post]
 func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	var request dto.RefreshTokenRequest
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {

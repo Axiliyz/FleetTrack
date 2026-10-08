@@ -1,5 +1,5 @@
 // Package app собирает приложение: конфигурацию, подключение к БД,
-// репозитории, сервисы, хендлеры и HTTP-сервер
+// репозитории, сервисы, хендлеры и HTTP-серверы
 package app
 
 import (
@@ -8,6 +8,7 @@ import (
 	"fleettrack/internal/database"
 	"fleettrack/internal/handler"
 	"fleettrack/internal/logger"
+	"fleettrack/internal/metrics"
 	"fleettrack/internal/notifier"
 	"fleettrack/internal/repository/factory"
 	"fleettrack/internal/repository/postgres"
@@ -19,172 +20,178 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+// stopper - фоновый воркер, который останавливается по отмене контекста и ждёт завершения в Stop
+type stopper interface {
+	Stop()
+}
 
 // App хранит собранные зависимости запущенного приложения
 type App struct {
-	Server             *http.Server
-	DB                 *pgxpool.Pool
-	AlertService       *service.AlertService
-	NotificationWorker *worker.NotificationWorker
-	TelegramWorker     *worker.TelegramWorker
-	OfflineWorker      *worker.OfflineWorker
-	PartitionWorker    *worker.PartitionWorker
-	cancel             context.CancelFunc
+	// Server обслуживает публичное API
+	Server *http.Server
+	// MetricsServer отдаёт метрики Prometheus на отдельном внутреннем порту
+	MetricsServer *http.Server
+
+	db               *pgxpool.Pool
+	logger           logger.Logger
+	telemetryService *service.TelemetryService
+	alertService     *service.AlertService
+	periodicWorkers  []stopper
+
+	cancelWorkers context.CancelFunc
+	cancelBatcher context.CancelFunc
+	cancelAlerts  context.CancelFunc
 }
 
 // New собирает приложение: подключается к БД, создаёт репозитории,
-// сервисы, хендлеры и HTTP-роутер
-func New(cfg config.Config) (*App, error) {
-	ctx := context.Background()
-	logger := logger.NewStdLogger(logger.DebugLevel)
-	pool, err := database.NewPostgresPool(ctx, cfg.DB.DSN())
+// сервисы, хендлеры, HTTP-серверы и запускает фоновые воркеры
+//
+// Фоновые компоненты получают собственные контексты, а не ctx запуска: они должны
+// жить до вызова Close.
+//
+//nolint:contextcheck
+func New(ctx context.Context, cfg config.Config, log logger.Logger) (*App, error) {
+	pool, err := database.NewPostgresPool(ctx, cfg.DB.DSN(), cfg.DB.MaxConns)
 	if err != nil {
-		logger.Error(err.Error())
 		return nil, err
 	}
 
 	repoFactory := factory.NewPostgresRepositoryFactory()
-	txManager := transaction.NewPostgresTransactionManager(pool)
-	assignmentService := service.NewAssignmentService(
-		postgres.NewPostgresAssignmentRepository(pool),
-		postgres.NewPostgresDeviceRepository(pool),
-		postgres.NewPostgresVehicleRepository(pool),
-		txManager,
-		repoFactory,
-	)
-	assignmentHandler := handler.NewAssignmentHandler(assignmentService, logger)
+	txManager := transaction.NewPostgresTransactionManager(pool, transaction.WithObserver(metrics.RecordDBTxPhase))
 
 	deviceRepo := postgres.NewPostgresDeviceRepository(pool)
-	deviceService := service.NewDeviceService(deviceRepo, logger, txManager, repoFactory)
-	deviceHandler := handler.NewDeviceHandler(deviceService, logger)
-
+	vehicleRepo := postgres.NewPostgresVehicleRepository(pool)
+	assignmentRepo := postgres.NewPostgresAssignmentRepository(pool)
+	telemetryRepo := postgres.NewPostgresTelemetryRepository(pool)
+	orgRepo := postgres.NewPostgresOrgRepository(pool)
+	tripRepo := postgres.NewPostgresTripRepository(pool)
+	driverRepo := postgres.NewPostgresDriverRepository(pool)
+	userRepo := postgres.NewPostgresUserRepository(pool)
+	refreshTokenRepo := postgres.NewPostgresRefreshTokenRepository(pool)
 	alertRepo := postgres.NewPostgresAlertRepository(pool)
 	alertRuleRepo := postgres.NewPostgresAlertRuleRepository(pool)
 	channelRepo := postgres.NewUserNotificationChannelRepository(pool)
 	notificationRepo := postgres.NewPostgresAlertNotificationRepository(pool)
-	alertService := service.NewAlertService(
-		alertRepo,
-		alertRuleRepo,
-		channelRepo,
-		notificationRepo,
-		txManager,
-		repoFactory,
-		logger,
-	)
-	alertRuleHandler := handler.NewAlertRuleHandler(alertService, logger)
-
-	workerCtx, cancel := context.WithCancel(context.Background())
-	alertService.Start(workerCtx, 4)
-
-	motionService := service.NewMotionServiceImpl()
-	telemetryRepo := postgres.NewPostgresTelemetryRepository(pool)
-	telemetryService := service.NewTelemetryService(telemetryRepo, logger, txManager, repoFactory, motionService, alertService, workerCtx)
-	telemetryHandler := handler.NewTelemetryHandler(telemetryService, logger)
-
-	vehicleRepo := postgres.NewPostgresVehicleRepository(pool)
-	vehicleService := service.NewVehicleService(vehicleRepo, logger)
-	vehicleHandler := handler.NewVehicleHandler(vehicleService, logger)
-
-	orgRepo := postgres.NewPostgresOrgRepository(pool)
-	orgService := service.NewOrgService(orgRepo, logger)
-	orgHandler := handler.NewOrgHandler(orgService, logger)
-
-	tripRepo := postgres.NewPostgresTripRepository(pool)
-	tripService := service.NewTripService(tripRepo, logger)
-	tripHandler := handler.NewTripHandler(tripService, logger)
-
-	driverRepo := postgres.NewPostgresDriverRepository(pool)
-	driverService := service.NewDriverService(driverRepo, logger)
-	driverHandler := handler.NewDriverHandler(driverService, logger)
-
-	userRepo := postgres.NewPostgresUserRepository(pool)
-	userService := service.NewUserService(userRepo, logger)
-	userHandler := handler.NewUserHandler(userService, logger)
-
-	refreshTokenRepo := postgres.NewPostgresRefreshTokenRepository(pool)
-	jwtService := service.NewJWTService(cfg.JWT.Secret, cfg.JWT.TTL)
-	authService := service.NewAuthService(userRepo, refreshTokenRepo, jwtService, cfg.JWT.RefreshTTL, logger, txManager, repoFactory)
-	authHandler := handler.NewAuthHandler(authService, logger)
-
-	telegramSender := notifier.NewTelegramSender(cfg.Telegram.BotToken, nil)
-	emailSender := notifier.NewEmailSender(cfg.SMTP)
-	dispatcher := notifier.NewDispatcher(telegramSender, emailSender, logger)
-
-	notificationWorker := worker.NewNotificationWorker(
-		notificationRepo,
-		dispatcher,
-		logger,
-		2*time.Second,
-		50,
-	)
-	notificationWorker.Start(workerCtx)
-
-	telegramWorker := worker.NewTelegramWorker(
-		cfg.Telegram.BotToken, alertService, channelRepo, nil, logger,
-	)
-	telegramWorker.Start(workerCtx)
-
-	offlineWorker := worker.NewOfflineWorker(
-		alertRepo, alertRuleRepo, alertService, logger, 30*time.Second,
-	)
-	offlineWorker.Start(workerCtx)
-
 	partitionRepo := postgres.NewPostgresPartitionRepository(pool)
-	partitionWorker := worker.NewPartitionWorker(partitionRepo, logger, 24*time.Hour, 3)
 
-	partitionWorker.Start(workerCtx)
+	alertService := service.NewAlertService(
+		alertRepo, alertRuleRepo, channelRepo, notificationRepo,
+		txManager, repoFactory, log, cfg.Workers.AlertQueueSize,
+	)
+	metrics.RegisterAlertQueueLength(func() float64 { return float64(alertService.QueueLength()) })
 
+	telemetryService := service.NewTelemetryService(
+		telemetryRepo, log, txManager, repoFactory, service.NewMotionServiceImpl(), alertService,
+		service.TelemetryBatchConfig{
+			BufferSize: cfg.Workers.TelemetryBufferSize,
+			MaxSize:    cfg.Workers.TelemetryBatchSize,
+			MaxWait:    cfg.Workers.TelemetryBatchWait,
+		},
+	)
+
+	assignmentService := service.NewAssignmentService(assignmentRepo, deviceRepo, vehicleRepo, txManager, repoFactory)
+	deviceService := service.NewDeviceService(deviceRepo, log, txManager, repoFactory)
+	vehicleService := service.NewVehicleService(vehicleRepo, log)
+	orgService := service.NewOrgService(orgRepo, log)
+	tripService := service.NewTripService(tripRepo, log)
+	driverService := service.NewDriverService(driverRepo, log)
+	userService := service.NewUserService(userRepo, log)
+	jwtService := service.NewJWTService(cfg.JWT.Secret, cfg.JWT.TTL)
+	authService := service.NewAuthService(userRepo, refreshTokenRepo, jwtService, cfg.JWT.RefreshTTL, log, txManager, repoFactory)
 	healthService := service.NewHealthService(pool)
-	healthHandler := handler.NewHealthHandler(healthService, logger)
 
-	router := router.NewRouter(telemetryHandler, vehicleHandler,
-		assignmentHandler, deviceHandler, orgHandler, tripHandler,
-		driverHandler, userHandler, authHandler, jwtService,
-		alertRuleHandler, healthHandler, logger)
+	dispatcher := notifier.NewDispatcher(
+		notifier.NewTelegramSender(cfg.Telegram.BotToken, nil),
+		notifier.NewEmailSender(cfg.SMTP),
+		log,
+	)
 
-	logger.Info("All background workers started: AlertService, NotificationWorker, TelegramWorker, OfflineWorker, PartitionWorker")
+	a := &App{
+		db:               pool,
+		logger:           log,
+		telemetryService: telemetryService,
+		alertService:     alertService,
+	}
 
-	srv := &http.Server{
+	// Контексты разделены, чтобы при остановке гасить компоненты по очереди:
+	// сначала периодические воркеры, затем батчер телеметрии, затем очередь алертов.
+	alertsCtx, cancelAlerts := context.WithCancel(context.Background())
+	batcherCtx, cancelBatcher := context.WithCancel(context.Background())
+	workerCtx, cancelWorkers := context.WithCancel(context.Background())
+	a.cancelAlerts, a.cancelBatcher, a.cancelWorkers = cancelAlerts, cancelBatcher, cancelWorkers
+
+	alertService.Start(alertsCtx, cfg.Workers.AlertWorkers)
+	telemetryService.StartBatcher(batcherCtx)
+
+	notificationWorker := worker.NewNotificationWorker(notificationRepo, dispatcher, log, 2*time.Second, 50)
+	telegramWorker := worker.NewTelegramWorker(cfg.Telegram.BotToken, alertService, channelRepo, nil, log)
+	offlineWorker := worker.NewOfflineWorker(alertRepo, alertRuleRepo, alertService, log, 30*time.Second)
+	partitionWorker := worker.NewPartitionWorker(partitionRepo, log, 24*time.Hour, 3)
+
+	notificationWorker.Start(workerCtx)
+	telegramWorker.Start(workerCtx)
+	offlineWorker.Start(workerCtx)
+	partitionWorker.Start(workerCtx)
+	a.periodicWorkers = []stopper{notificationWorker, telegramWorker, offlineWorker, partitionWorker}
+
+	apiRouter := router.NewRouter(
+		handler.NewTelemetryHandler(telemetryService, log),
+		handler.NewVehicleHandler(vehicleService, log),
+		handler.NewAssignmentHandler(assignmentService, log),
+		handler.NewDeviceHandler(deviceService, log),
+		handler.NewOrgHandler(orgService, log),
+		handler.NewTripHandler(tripService, log),
+		handler.NewDriverHandler(driverService, log),
+		handler.NewUserHandler(userService, log),
+		handler.NewAuthHandler(authService, log),
+		jwtService,
+		handler.NewAlertRuleHandler(alertService, log),
+		handler.NewHealthHandler(healthService, log),
+		cfg.API.RequestTimeout,
+		log,
+	)
+
+	a.Server = &http.Server{
 		Addr:              ":" + cfg.API.Port,
-		Handler:           router,
+		Handler:           apiRouter,
 		ReadTimeout:       10 * time.Second,
 		ReadHeaderTimeout: 5 * time.Second,
 		WriteTimeout:      10 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
 
-	return &App{
-		Server:             srv,
-		DB:                 pool,
-		AlertService:       alertService,
-		NotificationWorker: notificationWorker,
-		TelegramWorker:     telegramWorker,
-		OfflineWorker:      offlineWorker,
-		PartitionWorker:    partitionWorker,
-		cancel:             cancel,
-	}, nil
+	metricsMux := http.NewServeMux()
+	metricsMux.Handle("/metrics", promhttp.Handler())
+	a.MetricsServer = &http.Server{
+		Addr:              ":" + cfg.API.MetricsPort,
+		Handler:           metricsMux,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	log.Info("background workers started: alerts, telemetry batcher, notifications, telegram, offline, partitions")
+	return a, nil
 }
 
-// Close закрывает пул соединений с БД и останавливает фоновые воркеры
+// Close останавливает фоновую обработку и закрывает пул соединений.
+// Вызывать после остановки HTTP-серверов, чтобы новые запросы уже не приходили.
+//
+// Порядок важен: периодические воркеры -> батчер телеметрии (дописывает буфер) ->
+// очередь алертов (дочитывается до конца) -> пул соединений.
 func (a *App) Close() {
-	if a.cancel != nil {
-		a.cancel()
+	a.cancelWorkers()
+	for _, w := range a.periodicWorkers {
+		w.Stop()
 	}
-	if a.NotificationWorker != nil {
-		a.NotificationWorker.Stop()
-	}
-	if a.TelegramWorker != nil {
-		a.TelegramWorker.Stop()
-	}
-	if a.OfflineWorker != nil {
-		a.OfflineWorker.Stop()
-	}
-	if a.PartitionWorker != nil {
-		a.PartitionWorker.Stop()
-	}
-	if a.AlertService != nil {
-		a.AlertService.Stop()
-	}
-	a.DB.Close()
+
+	a.cancelBatcher()
+	a.telemetryService.WaitBatcher()
+
+	a.alertService.Stop()
+	a.cancelAlerts()
+
+	a.db.Close()
+	a.logger.Info("application stopped")
 }

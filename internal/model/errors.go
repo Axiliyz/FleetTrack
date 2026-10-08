@@ -39,6 +39,7 @@ var (
 	// Devices errors
 	ErrDeviceAlreadyAssigned = errors.New("device is already assigned")
 	ErrDeviceIsBusy          = errors.New("device is active or on maintenance")
+	ErrDeviceNotAssigned     = errors.New("device is not assigned to this vehicle")
 	ErrInvalidSerialNumber   = errors.New("invalid serial number")
 	ErrDuplicateSerialNumber = errors.New("device with this serial number already exists")
 

@@ -47,7 +47,7 @@ func NewUserHandler(s UserService, l logger.Logger) *UserHandler {
 // @Accept json
 // @Produce json
 // @Param request body dto.CreateUserRequest true "Данные пользователя"
-// @Success 201 {object} dto.UserResponse
+// @Success 201 {object} dto.APIResponse{data=dto.UserResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse
@@ -55,8 +55,6 @@ func NewUserHandler(s UserService, l logger.Logger) *UserHandler {
 // @Router /users [post]
 // @Security BearerAuth
 func (h *UserHandler) HandleCreateUser(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	var userData dto.CreateUserRequest
 	err := json.NewDecoder(r.Body).Decode(&userData)
 	if err != nil {
@@ -85,7 +83,7 @@ func (h *UserHandler) HandleCreateUser(w http.ResponseWriter, r *http.Request) {
 // @Tags users
 // @Produce json
 // @Param id path int true "ID пользователя"
-// @Success 200 {object} dto.UserResponse
+// @Success 200 {object} dto.APIResponse{data=dto.UserResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 404 {object} dto.ErrorResponse
@@ -123,7 +121,7 @@ func (h *UserHandler) HandleGetUserByID(w http.ResponseWriter, r *http.Request) 
 // @Param role query string false "Фильтр по роли"
 // @Param limit query int false "Лимит записей (по умолчанию 100, максимум 500)"
 // @Param offset query int false "Смещение"
-// @Success 200 {array} dto.UserResponse
+// @Success 200 {object} dto.APIResponse{data=[]dto.UserResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Router /users [get]
@@ -160,7 +158,7 @@ func (h *UserHandler) HandleGetListUsers(w http.ResponseWriter, r *http.Request)
 // @Tags users
 // @Produce json
 // @Param id path int true "ID пользователя"
-// @Success 200 {object} dto.UserResponse
+// @Success 200 {object} dto.APIResponse{data=dto.UserResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse

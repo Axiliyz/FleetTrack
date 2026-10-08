@@ -1,8 +1,7 @@
 package middleware
 
 import (
-	"encoding/json"
-	"fleettrack/internal/handler/dto"
+	"fleettrack/internal/httpresp"
 	"fleettrack/internal/logger"
 	"net"
 	"net/http"
@@ -72,20 +71,5 @@ func RateLimit(limit int, window time.Duration, log logger.Logger) func(http.Han
 
 func respondTooManyRequests(w http.ResponseWriter, r *http.Request, log logger.Logger) {
 	log.Warn("rate limit exceeded for " + clientIP(r))
-
-	id, ok := r.Context().Value(RequestIDKey).(string)
-	if !ok {
-		id = "unknown"
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusTooManyRequests)
-
-	if err := json.NewEncoder(w).Encode(dto.ErrorResponse{
-		Status:    "error",
-		Message:   "too many requests",
-		RequestID: id,
-	}); err != nil {
-		log.Error(err.Error())
-	}
+	httpresp.Error(w, r, log, http.StatusTooManyRequests, "too many requests")
 }

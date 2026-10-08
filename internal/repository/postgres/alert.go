@@ -254,7 +254,6 @@ func buildAlertWhereClause(filter model.AlertFilter) (string, []any) {
 	if filter.ResolvedBy != nil {
 		conditions = append(conditions, fmt.Sprintf("resolved_by = $%d", argN))
 		args = append(args, *filter.ResolvedBy)
-		argN++ //nolint:ineffassign
 	}
 
 	whereClause := ""

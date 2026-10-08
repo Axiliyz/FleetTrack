@@ -109,7 +109,6 @@ func buildWhereClause(filter model.TelemetryFilter) (string, []any) {
 	if filter.To != nil {
 		conditions = append(conditions, fmt.Sprintf("received_at <= $%d", argN))
 		args = append(args, *filter.To)
-		argN++ //nolint:ineffassign
 	}
 	if len(conditions) < 1 {
 		return "", args

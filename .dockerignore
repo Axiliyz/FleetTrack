@@ -7,3 +7,7 @@ tmp/
 out/
 bin/
 docker-compose.yml
+loadtest/
+grafana/
+prometheus.yml
+docker-compose.loadtest.yml

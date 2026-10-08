@@ -43,7 +43,7 @@ func NewDeviceHandler(s DeviceService, l logger.Logger) *DeviceHandler {
 // @Accept json
 // @Produce json
 // @Param request body dto.CreateDeviceRequest true "Данные устройства"
-// @Success 201 {object} dto.DeviceResponse
+// @Success 201 {object} dto.APIResponse{data=dto.DeviceResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse
@@ -51,8 +51,6 @@ func NewDeviceHandler(s DeviceService, l logger.Logger) *DeviceHandler {
 // @Router /devices [post]
 // @Security BearerAuth
 func (h *DeviceHandler) HandlePostDevice(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	var deviceData dto.CreateDeviceRequest
 	if err := json.NewDecoder(r.Body).Decode(&deviceData); err != nil {
 		respondError(w, r, h.logger, model.ErrInvalidJSON)
@@ -81,7 +79,7 @@ func (h *DeviceHandler) HandlePostDevice(w http.ResponseWriter, r *http.Request)
 // @Tags devices
 // @Produce json
 // @Param id path int true "ID устройства"
-// @Success 200 {object} dto.DeviceResponse
+// @Success 200 {object} dto.APIResponse{data=dto.DeviceResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 404 {object} dto.ErrorResponse
@@ -118,7 +116,7 @@ func (h *DeviceHandler) HandleGetDeviceByID(w http.ResponseWriter, r *http.Reque
 // @Tags devices
 // @Produce json
 // @Param id path int true "ID устройства"
-// @Success 200 {object} dto.DeviceResponse
+// @Success 200 {object} dto.APIResponse{data=dto.DeviceResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse

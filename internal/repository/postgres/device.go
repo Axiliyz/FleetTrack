@@ -56,8 +56,7 @@ func (r *PostgresDeviceRepository) GetByID(ctx context.Context, id int) (model.D
 }
 
 // Delete удаляет девайс по ID. organizationID != nil ограничивает удаление устройствами
-// этой организации; nil означает отсутствие ограничения (ADMIN может удалить устройство
-// любой организации).
+// этой организации; nil снимает ограничение.
 func (r *PostgresDeviceRepository) Delete(ctx context.Context, id int, organizationID *int) (model.Device, error) {
 	query := `
 	UPDATE devices

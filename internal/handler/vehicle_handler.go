@@ -47,7 +47,7 @@ func NewVehicleHandler(s VehicleService, l logger.Logger) *VehicleHandler {
 // @Accept json
 // @Produce json
 // @Param request body dto.CreateVehicleRequest true "Данные автомобиля"
-// @Success 201 {object} dto.VehicleResponse
+// @Success 201 {object} dto.APIResponse{data=dto.VehicleResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse
@@ -55,8 +55,6 @@ func NewVehicleHandler(s VehicleService, l logger.Logger) *VehicleHandler {
 // @Router /vehicles [post]
 // @Security BearerAuth
 func (h *VehicleHandler) HandlePostVehicle(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	var vehicleData dto.CreateVehicleRequest
 	err := json.NewDecoder(r.Body).Decode(&vehicleData)
 	if err != nil {
@@ -94,7 +92,7 @@ func (h *VehicleHandler) HandlePostVehicle(w http.ResponseWriter, r *http.Reques
 // @Tags vehicles
 // @Produce json
 // @Param id path int true "ID автомобиля"
-// @Success 200 {object} dto.VehicleResponse
+// @Success 200 {object} dto.APIResponse{data=dto.VehicleResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse
@@ -146,7 +144,7 @@ func (h *VehicleHandler) HandleDeleteVehicle(w http.ResponseWriter, r *http.Requ
 // @Param created_to query string false "До даты создания (RFC3339)"
 // @Param limit query int false "Лимит записей (по умолчанию 100, максимум 500)"
 // @Param offset query int false "Смещение"
-// @Success 200 {array} dto.VehicleResponse
+// @Success 200 {object} dto.APIResponse{data=[]dto.VehicleResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Router /vehicles [get]
@@ -183,7 +181,7 @@ func (h *VehicleHandler) HandleGetListVehicle(w http.ResponseWriter, r *http.Req
 		})
 	}
 
-	respondSuccess(w, r, "Vehicles list", h.logger, responses)
+	respondSuccess(w, r, "vehicles list", h.logger, responses)
 }
 
 // HandlePatchVehicle отвечает за изменение некоторых данных автомобиля
@@ -193,7 +191,7 @@ func (h *VehicleHandler) HandleGetListVehicle(w http.ResponseWriter, r *http.Req
 // @Produce json
 // @Param id path int true "ID автомобиля"
 // @Param request body dto.UpdateVehicleRequest true "Изменяемые поля"
-// @Success 200 {object} dto.VehicleResponse
+// @Success 200 {object} dto.APIResponse{data=dto.VehicleResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse "также возвращается, если в теле передан organization_id"
@@ -201,8 +199,6 @@ func (h *VehicleHandler) HandleGetListVehicle(w http.ResponseWriter, r *http.Req
 // @Router /vehicles/{id} [patch]
 // @Security BearerAuth
 func (h *VehicleHandler) HandlePatchVehicle(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
 		respondError(w, r, h.logger, model.ErrInvalidVehicleID)
@@ -250,7 +246,7 @@ func (h *VehicleHandler) HandlePatchVehicle(w http.ResponseWriter, r *http.Reque
 // @Tags vehicles
 // @Produce json
 // @Param id path int true "ID автомобиля"
-// @Success 200 {object} dto.VehicleResponse
+// @Success 200 {object} dto.APIResponse{data=dto.VehicleResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 404 {object} dto.ErrorResponse

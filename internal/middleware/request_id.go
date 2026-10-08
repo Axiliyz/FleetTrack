@@ -2,37 +2,23 @@
 package middleware
 
 import (
-	"context"
+	"fleettrack/internal/requestid"
 	"net/http"
 
 	"github.com/google/uuid"
 )
 
-type key string
+const maxRequestIDLen = 128
 
-// RequestIDKey - ключ контекста, по которому хранится и извлекается request id запроса
-const RequestIDKey key = "request_id"
-
-// RequestID для проброса хэндлера дальше
-// Возвращает новый хэндлер
+// RequestID берёт ID запроса из заголовка X-Request-ID или генерирует новый,
+// кладёт его в контекст и возвращает клиенту в том же заголовке.
 func RequestID(next http.Handler) http.Handler {
-
-	return http.HandlerFunc(func(
-		w http.ResponseWriter,
-		r *http.Request,
-	) {
-
-		id := uuid.New().String()
-
-		ctx := context.WithValue(
-			r.Context(),
-			RequestIDKey,
-			id,
-		)
-
-		next.ServeHTTP(
-			w,
-			r.WithContext(ctx),
-		)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.Header.Get(requestid.Header)
+		if id == "" || len(id) > maxRequestIDLen {
+			id = uuid.NewString()
+		}
+		w.Header().Set(requestid.Header, id)
+		next.ServeHTTP(w, r.WithContext(requestid.NewContext(r.Context(), id)))
 	})
 }

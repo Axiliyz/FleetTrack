@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fleettrack/internal/database"
 	"fleettrack/internal/logger"
 	"fleettrack/internal/model"
@@ -9,6 +10,9 @@ import (
 	"fleettrack/internal/repository/factory"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type mockRepository struct {
@@ -30,7 +34,7 @@ func (m *mockRepository) GetItemByID(ctx context.Context, id int) (model.Telemet
 	return model.Telemetry{}, nil
 }
 
-func (r *mockRepository) GetListByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error) {
+func (m *mockRepository) GetListByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error) {
 	return []model.Telemetry{}, nil
 }
 
@@ -38,12 +42,12 @@ func (m *mockRepository) DeleteItemByID(ctx context.Context, id int, organizatio
 	return model.Telemetry{}, nil
 }
 
-func (r *mockRepository) DeleteListByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error) {
+func (m *mockRepository) DeleteListByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error) {
 	return []model.Telemetry{}, nil
 }
 
-func (r *mockRepository) GetLastByVehicle(ctx context.Context, id int) (model.Telemetry, error) {
-	return r.lastTelemetry, r.lastErr
+func (m *mockRepository) GetLastByVehicle(ctx context.Context, id int) (model.Telemetry, error) {
+	return m.lastTelemetry, m.lastErr
 }
 
 // fakeTxManager - подмена transaction.TransactionManager: выполняет fn без реальной БД
@@ -55,21 +59,63 @@ func (m *fakeTxManager) WithTx(ctx context.Context, fn func(tx database.DBTX) er
 	if m.err != nil {
 		return m.err
 	}
-	return fn(nil)
+	return fn(fakeDBTX{})
+}
+
+// fakeDBTX - подмена транзакции: принимает служебные SAVEPOINT-команды батчера
+type fakeDBTX struct{}
+
+func (fakeDBTX) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
+	return pgconn.CommandTag{}, nil
+}
+
+func (fakeDBTX) Query(context.Context, string, ...any) (pgx.Rows, error) {
+	return nil, errors.New("fakeDBTX: Query not supported")
+}
+
+func (fakeDBTX) QueryRow(context.Context, string, ...any) pgx.Row {
+	return nil
+}
+
+// fakeAssignmentRepo по умолчанию считает устройство назначенным той же машине (device_id == vehicle_id)
+type fakeAssignmentRepo struct {
+	vehicleForDevice map[int]int
+}
+
+func (f *fakeAssignmentRepo) GetActiveAssignment(ctx context.Context, deviceID int) (model.DeviceAssignment, error) {
+	vehicleID, ok := f.vehicleForDevice[deviceID]
+	if !ok {
+		vehicleID = deviceID
+	}
+	return model.DeviceAssignment{DeviceID: deviceID, VehicleID: vehicleID}, nil
+}
+
+func (f *fakeAssignmentRepo) CreateAssignment(ctx context.Context, a *model.DeviceAssignment) error {
+	return nil
+}
+
+func (f *fakeAssignmentRepo) EndAssignment(ctx context.Context, deviceID int) error {
+	return nil
 }
 
 // fakeRepoFactory - подмена factory.RepositoryFactory: отдаёт заранее заданные моки репозиториев
 type fakeRepoFactory struct {
-	telemetry repository.TelemetryRepository
-	trip      repository.TripRepository
-	vehicle   repository.VehicleRepository
+	telemetry  repository.TelemetryRepository
+	trip       repository.TripRepository
+	vehicle    repository.VehicleRepository
+	assignment repository.AssignmentRepository
 }
 
 func (f *fakeRepoFactory) New(tx database.DBTX) factory.Repositories {
+	assignment := f.assignment
+	if assignment == nil {
+		assignment = &fakeAssignmentRepo{}
+	}
 	return factory.Repositories{
-		Telemetry: f.telemetry,
-		Trip:      f.trip,
-		Vehicle:   f.vehicle,
+		Telemetry:  f.telemetry,
+		Trip:       f.trip,
+		Vehicle:    f.vehicle,
+		Assignment: assignment,
 	}
 }
 
@@ -251,7 +297,10 @@ func TestProcessTelemetry(t *testing.T) {
 	repoFactory := &fakeRepoFactory{telemetry: repo, trip: tripRepo, vehicle: &mockVehicleRepository{}}
 	motion := &fakeMotionService{data: &model.MotionData{DistanceKm: 1.2, SpeedKmh: 40}}
 	log := logger.NewStdLogger(logger.DebugLevel)
-	service := NewTelemetryService(repo, log, txManager, repoFactory, motion, nil, context.Background())
+	service := NewTelemetryService(repo, log, txManager, repoFactory, motion, nil, testBatchConfig)
+	batchCtx, batchCancel := context.WithCancel(context.Background())
+	t.Cleanup(batchCancel)
+	service.StartBatcher(batchCtx)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -271,7 +320,10 @@ func TestProcessTelemetry_NoActiveTrip(t *testing.T) {
 	txManager := &fakeTxManager{}
 	repoFactory := &fakeRepoFactory{telemetry: repo, trip: tripRepo, vehicle: &mockVehicleRepository{}}
 	log := logger.NewStdLogger(logger.DebugLevel)
-	service := NewTelemetryService(repo, log, txManager, repoFactory, &fakeMotionService{}, nil, context.Background())
+	service := NewTelemetryService(repo, log, txManager, repoFactory, &fakeMotionService{}, nil, testBatchConfig)
+	batchCtx, batchCancel := context.WithCancel(context.Background())
+	t.Cleanup(batchCancel)
+	service.StartBatcher(batchCtx)
 
 	valid := model.Telemetry{DeviceID: 1, VehicleID: 1, Lat: 55.75, Lon: 37.61, Fuel: float32Ptr(0.8)}
 	res, err := service.ProcessTelemetry(context.Background(), valid)
@@ -295,7 +347,10 @@ func TestProcessTelemetry_FirstPointForVehicle(t *testing.T) {
 	txManager := &fakeTxManager{}
 	repoFactory := &fakeRepoFactory{telemetry: repo, trip: tripRepo, vehicle: &mockVehicleRepository{}}
 	log := logger.NewStdLogger(logger.DebugLevel)
-	service := NewTelemetryService(repo, log, txManager, repoFactory, &fakeMotionService{}, nil, context.Background())
+	service := NewTelemetryService(repo, log, txManager, repoFactory, &fakeMotionService{}, nil, testBatchConfig)
+	batchCtx, batchCancel := context.WithCancel(context.Background())
+	t.Cleanup(batchCancel)
+	service.StartBatcher(batchCtx)
 
 	valid := model.Telemetry{DeviceID: 1, VehicleID: 1, Lat: 55.75, Lon: 37.61, Fuel: float32Ptr(0.8)}
 	got, err := service.ProcessTelemetry(context.Background(), valid)
@@ -365,7 +420,10 @@ func TestGetTelemetryList(t *testing.T) {
 
 	repo := &mockRepository{}
 	logger := logger.NewStdLogger(logger.DebugLevel)
-	service := NewTelemetryService(repo, logger, nil, nil, nil, nil, context.Background())
+	service := NewTelemetryService(repo, logger, nil, nil, nil, nil, testBatchConfig)
+	batchCtx, batchCancel := context.WithCancel(context.Background())
+	t.Cleanup(batchCancel)
+	service.StartBatcher(batchCtx)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -376,3 +434,5 @@ func TestGetTelemetryList(t *testing.T) {
 		})
 	}
 }
+
+var testBatchConfig = TelemetryBatchConfig{BufferSize: 100, MaxSize: 10, MaxWait: 5 * time.Millisecond}

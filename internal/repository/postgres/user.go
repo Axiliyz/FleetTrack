@@ -95,7 +95,6 @@ func buildUserWhereClause(filter model.UserFilter) (string, []any) {
 	if filter.Role != nil {
 		conditions = append(conditions, fmt.Sprintf("role = $%d", argN))
 		args = append(args, *filter.Role)
-		argN++ //nolint:ineffassign
 	}
 	if len(conditions) == 0 {
 		return "", args

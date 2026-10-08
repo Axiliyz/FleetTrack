@@ -1,30 +1,22 @@
 package middleware
 
 import (
+	"fleettrack/internal/httpresp"
 	"fleettrack/internal/logger"
+	"fleettrack/internal/requestid"
 	"fmt"
 	"net/http"
 )
 
 // Recovery перехватывает панику и отправляет 500 ответ
-func Recovery(logger logger.Logger) func(http.Handler) http.Handler {
+func Recovery(log logger.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-			defer func() {
-				ctx := r.Context()
-				id, ok := ctx.Value(
-					RequestIDKey,
-				).(string)
-
-				if !ok {
-					id = "unknown"
-				}
-
+			defer func() { //nolint:contextcheck // контекст запроса передаётся через r
 				if rec := recover(); rec != nil {
-					logger.Error(fmt.Sprintf("panic:\nrequest_id = %s, \nmethod = %s \nURL = %s, \npanic = %v", id, r.Method, r.URL.Path, rec))
-
-					http.Error(w, "Internal server error", http.StatusInternalServerError)
+					log.Error(fmt.Sprintf("panic: request_id=%s method=%s path=%s panic=%v",
+						requestid.FromContext(r.Context()), r.Method, r.URL.Path, rec))
+					httpresp.Error(w, r, log, http.StatusInternalServerError, "internal server error")
 				}
 			}()
 			next.ServeHTTP(w, r)

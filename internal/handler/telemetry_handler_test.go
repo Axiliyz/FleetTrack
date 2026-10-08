@@ -22,16 +22,15 @@ func float32Ptr(v float32) *float32 { return &v }
 func (m *mockTelemetryService) ProcessTelemetry(ctx context.Context, t model.Telemetry) (model.Telemetry, error) {
 	if m.returnError != nil {
 		return model.Telemetry{}, m.returnError
-	} else {
-		return model.Telemetry{
-			TelemetryID: 123,
-			VehicleID:   1,
-			DeviceID:    12,
-			Lat:         44.4,
-			Lon:         44.4,
-			Fuel:        float32Ptr(0.5),
-		}, nil
 	}
+	return model.Telemetry{
+		TelemetryID: 123,
+		VehicleID:   1,
+		DeviceID:    12,
+		Lat:         44.4,
+		Lon:         44.4,
+		Fuel:        float32Ptr(0.5),
+	}, nil
 }
 
 func (m *mockTelemetryService) GetTelemetryList(ctx context.Context, filter model.TelemetryFilter) ([]model.Telemetry, error) {

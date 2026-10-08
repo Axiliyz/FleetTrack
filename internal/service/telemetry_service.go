@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fleettrack/internal/database"
 	"fleettrack/internal/logger"
+	"fleettrack/internal/metrics"
 	"fleettrack/internal/model"
 	"fleettrack/internal/repository"
 	"fleettrack/internal/repository/factory"
@@ -13,6 +14,13 @@ import (
 	"fmt"
 	"time"
 )
+
+// TelemetryBatchConfig задаёт параметры пакетной записи телеметрии
+type TelemetryBatchConfig struct {
+	BufferSize int
+	MaxSize    int
+	MaxWait    time.Duration
+}
 
 // TelemetryService обрабатывает и валидирует телеметрию
 type TelemetryService struct {
@@ -22,20 +30,38 @@ type TelemetryService struct {
 	repoFactory   factory.RepositoryFactory
 	motionService MotionService
 	alertService  *AlertService
-	enqueueCtx    context.Context
+	batcher       *batcher[model.Telemetry, model.Telemetry]
+	batcherDone   chan struct{}
 }
 
-// NewTelemetryService создаёт новый сервис с заданным репозиторием и логгером
-func NewTelemetryService(r repository.TelemetryRepository, logger logger.Logger, tx transaction.TransactionManager, rf factory.RepositoryFactory, ms MotionService, as *AlertService, ctx context.Context) *TelemetryService {
-	return &TelemetryService{
+// NewTelemetryService создаёт сервис телеметрии. Запись идёт пачками, поэтому
+// перед использованием нужно вызвать StartBatcher.
+func NewTelemetryService(r repository.TelemetryRepository, logger logger.Logger, tx transaction.TransactionManager, rf factory.RepositoryFactory, ms MotionService, as *AlertService, batchCfg TelemetryBatchConfig) *TelemetryService {
+	s := &TelemetryService{
 		repository:    r,
 		logger:        logger,
 		txManager:     tx,
 		repoFactory:   rf,
 		motionService: ms,
 		alertService:  as,
-		enqueueCtx:    ctx,
+		batcherDone:   make(chan struct{}),
 	}
+	s.batcher = newBatcher[model.Telemetry, model.Telemetry](batchCfg.BufferSize, batchCfg.MaxSize, batchCfg.MaxWait, s.flushBatch)
+	return s
+}
+
+// StartBatcher запускает пакетную запись телеметрии. По отмене ctx батчер дописывает
+// накопленные записи и завершается; дождаться этого можно через WaitBatcher.
+func (s *TelemetryService) StartBatcher(ctx context.Context) {
+	go func() {
+		defer close(s.batcherDone)
+		s.batcher.Run(ctx)
+	}()
+}
+
+// WaitBatcher блокируется, пока батчер, запущенный через StartBatcher, не завершится.
+func (s *TelemetryService) WaitBatcher() {
+	<-s.batcherDone
 }
 
 // validateTelemetry проверяет входные данные телеметрии.
@@ -116,95 +142,133 @@ func (s *TelemetryService) applyMotion(ctx context.Context, repos factory.Reposi
 	return err
 }
 
-// ProcessTelemetry валидирует телеметрию и сохраняет в репозиторий.
-// Возвращает сохраненную телеметрию или ошибку валидации.
+// ProcessTelemetry валидирует телеметрию и сохраняет её в составе пачки.
+// Возвращает сохранённую телеметрию или ошибку.
 //
 // Если DeviceTimestamp не указан - устанавливает текущее время.
-// ReceivedAt всегда ставится в текущее время
+// ReceivedAt всегда ставится в текущее время.
 func (s *TelemetryService) ProcessTelemetry(ctx context.Context, t model.Telemetry) (model.Telemetry, error) {
+	serviceStart := time.Now()
+	defer func() { metrics.RecordTelemetryStage("service_total", time.Since(serviceStart).Seconds()) }()
+
 	if err := validateTelemetry(t); err != nil {
 		return model.Telemetry{}, err
 	}
 
-	// Если пришло без времени отправления = Now
 	if t.DeviceTimestamp.IsZero() {
 		t.DeviceTimestamp = time.Now()
 	}
 	t.ReceivedAt = time.Now()
 
-	err := s.txManager.WithTx(ctx, func(tx database.DBTX) error {
-		repos := s.repoFactory.New(tx)
-
-		trip, err := resolveActiveTrip(ctx, repos, t.VehicleID)
-		if err != nil && !errors.Is(err, model.ErrNoActiveTrip) {
-			return err
-		}
-
-		last, err := resolveLastTelemetry(ctx, repos, t.VehicleID)
-		if err != nil {
-			return err
-		}
-
-		if trip.ID != 0 {
-			t.TripID = trip.ID
-			if err := s.applyMotion(ctx, repos, last, trip, &t); err != nil {
-				s.logger.Warn(fmt.Sprintf("failed to apply motion: %s", err.Error()))
-			}
-		} else if last != nil && s.motionService != nil {
-			if motion, err := s.motionService.Calculate(last, t); err == nil && motion != nil {
-				t.DistanceKm = motion.DistanceKm
-				t.SpeedKmh = motion.SpeedKmh
-			}
-		}
-
-		orgID, err := resolveVehicleOrg(ctx, repos, t.VehicleID)
-		if err != nil {
-			return err
-		}
-		if t.OrganizationID != 0 && t.OrganizationID != orgID {
-			return model.ErrNotFound
-		}
-		t.OrganizationID = orgID
-
-		if err := repos.Telemetry.Save(ctx, &t); err != nil {
-			return err
-		}
-
-		return repos.Vehicle.UpdateLastTelemetryAt(ctx, t.VehicleID, t.ReceivedAt)
-	})
+	saved, err := s.batcher.Submit(ctx, t)
 	if err != nil {
 		return model.Telemetry{}, err
 	}
 
-	var message string
-	if t.Fuel != nil {
-		message = fmt.Sprintf(
-			"data stored: ID: %d Device: %d Vehicle: %d Lat: %f Lon: %f Fuel: %f",
-			t.TelemetryID,
-			t.DeviceID,
-			t.VehicleID,
-			t.Lat,
-			t.Lon,
-			*t.Fuel,
-		)
-	} else {
-		message = fmt.Sprintf(
-			"data stored: ID: %d Device: %d Vehicle: %d Lat: %f Lon: %f Fuel: %s",
-			t.TelemetryID,
-			t.DeviceID,
-			t.VehicleID,
-			t.Lat,
-			t.Lon,
-			"No data",
-		)
-	}
 	if s.alertService != nil {
-		// ВРЕМЕННОЕ РЕШЕНИЕ
-		// Потенциально бутылочное горлышко, алерты дико тормозят систему
-		// После тестов скорее всего + брокер/outbox
-		s.alertService.Enqueue(s.enqueueCtx, t)
+		enqueueStart := time.Now()
+		s.alertService.Enqueue(ctx, saved)
+		metrics.RecordTelemetryStage("alert_enqueue", time.Since(enqueueStart).Seconds())
 	}
-	s.logger.Info(message)
+
+	s.logger.Debug(fmt.Sprintf("telemetry stored: id=%d device=%d vehicle=%d", saved.TelemetryID, saved.DeviceID, saved.VehicleID))
+	return saved, nil
+}
+
+// flushBatch пишет пачку одной транзакцией. Каждая запись выполняется под своим
+// SAVEPOINT: её ошибка откатывает только её изменения и возвращается только её
+// отправителю. Ошибка всей пачки возвращается, лишь если сломалась сама транзакция.
+func (s *TelemetryService) flushBatch(ctx context.Context, batch []model.Telemetry) ([]itemResult[model.Telemetry], error) {
+	results := make([]itemResult[model.Telemetry], len(batch))
+	err := s.txManager.WithTx(ctx, func(tx database.DBTX) error {
+		repos := s.repoFactory.New(tx)
+		for i, t := range batch {
+			if _, err := tx.Exec(ctx, "SAVEPOINT telemetry_item"); err != nil {
+				return err
+			}
+			saved, itemErr := s.saveInTx(ctx, repos, t)
+			if itemErr != nil {
+				if _, err := tx.Exec(ctx, "ROLLBACK TO SAVEPOINT telemetry_item"); err != nil {
+					return err
+				}
+				results[i] = itemResult[model.Telemetry]{err: itemErr}
+				continue
+			}
+			if _, err := tx.Exec(ctx, "RELEASE SAVEPOINT telemetry_item"); err != nil {
+				return err
+			}
+			results[i] = itemResult[model.Telemetry]{value: saved}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+// saveInTx проверяет право записи и сохраняет одну точку телеметрии в рамках транзакции.
+// Проверки идут до любых изменений: машина должна принадлежать организации отправителя,
+// а устройство - быть назначено этой машине.
+func (s *TelemetryService) saveInTx(ctx context.Context, repos factory.Repositories, t model.Telemetry) (model.Telemetry, error) {
+	stageStart := time.Now()
+	orgID, err := resolveVehicleOrg(ctx, repos, t.VehicleID)
+	metrics.RecordTelemetryStage("vehicle_org", time.Since(stageStart).Seconds())
+	if err != nil {
+		return model.Telemetry{}, err
+	}
+	if t.OrganizationID != 0 && t.OrganizationID != orgID {
+		return model.Telemetry{}, model.ErrNotFound
+	}
+	t.OrganizationID = orgID
+
+	assignment, err := repos.Assignment.GetActiveAssignment(ctx, t.DeviceID)
+	if err != nil && !errors.Is(err, model.ErrNotFound) {
+		return model.Telemetry{}, err
+	}
+	if err != nil || assignment.VehicleID != t.VehicleID {
+		return model.Telemetry{}, model.ErrDeviceNotAssigned
+	}
+
+	stageStart = time.Now()
+	trip, err := resolveActiveTrip(ctx, repos, t.VehicleID)
+	metrics.RecordTelemetryStage("active_trip", time.Since(stageStart).Seconds())
+	if err != nil && !errors.Is(err, model.ErrNoActiveTrip) {
+		return model.Telemetry{}, err
+	}
+
+	stageStart = time.Now()
+	last, err := resolveLastTelemetry(ctx, repos, t.VehicleID)
+	metrics.RecordTelemetryStage("last_telemetry", time.Since(stageStart).Seconds())
+	if err != nil {
+		return model.Telemetry{}, err
+	}
+
+	if trip.ID != 0 {
+		t.TripID = trip.ID
+		if err := s.applyMotion(ctx, repos, last, trip, &t); err != nil {
+			s.logger.Warn(fmt.Sprintf("failed to apply motion: %s", err.Error()))
+		}
+	} else if last != nil && s.motionService != nil {
+		if motion, err := s.motionService.Calculate(last, t); err == nil && motion != nil {
+			t.DistanceKm = motion.DistanceKm
+			t.SpeedKmh = motion.SpeedKmh
+		}
+	}
+
+	stageStart = time.Now()
+	err = repos.Telemetry.Save(ctx, &t)
+	metrics.RecordTelemetryStage("save", time.Since(stageStart).Seconds())
+	if err != nil {
+		return model.Telemetry{}, err
+	}
+
+	stageStart = time.Now()
+	err = repos.Vehicle.UpdateLastTelemetryAt(ctx, t.VehicleID, t.ReceivedAt)
+	metrics.RecordTelemetryStage("update_vehicle", time.Since(stageStart).Seconds())
+	if err != nil {
+		return model.Telemetry{}, err
+	}
 	return t, nil
 }
 

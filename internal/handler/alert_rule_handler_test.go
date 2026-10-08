@@ -20,7 +20,6 @@ type mockAlertRuleService struct {
 	createErr   error
 	getErr      error
 	listErr     error
-	updateErr   error
 	deleteErr   error
 	rule        model.AlertRule
 	rules       []model.AlertRule
@@ -52,13 +51,6 @@ func (m *mockAlertRuleService) GetRulesList(ctx context.Context, filter model.Al
 	}
 	m.lastFilter = filter
 	return m.rules, nil
-}
-
-func (m *mockAlertRuleService) UpdateRule(ctx context.Context, r model.AlertRule) (model.AlertRule, error) {
-	if m.updateErr != nil {
-		return model.AlertRule{}, m.updateErr
-	}
-	return r, nil
 }
 
 func (m *mockAlertRuleService) DeleteRuleByID(ctx context.Context, id int) (model.AlertRule, error) {

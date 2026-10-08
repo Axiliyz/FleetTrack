@@ -72,6 +72,7 @@ func TestEvaluateTelemetryNoDuplicateAlerts(t *testing.T) {
 		transaction.NewPostgresTransactionManager(postgres.TestPool),
 		factory.NewPostgresRepositoryFactory(),
 		logger.NewStdLogger(logger.ErrorLevel),
+		100,
 	)
 
 	// Одна и та же телеметрия передаётся в обе горутины: превышение скорости
