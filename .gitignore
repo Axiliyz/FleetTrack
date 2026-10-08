@@ -42,6 +42,8 @@ dist/
 # ======================
 
 .env
+.env.*
+!.env.example
 
 # ======================
 # Logs
@@ -69,6 +71,16 @@ postgres_data/
 # docker override
 docker-compose.override.yml
 
+# ======================
+# Load testing
+# ======================
+
+# генерируется `make` из локальной БД
+loadtest/pairs.json
+
+# pg_dump-снимки
+*.dump
+
 
 # ======================
 # Security
@@ -83,8 +95,8 @@ docker-compose.override.yml
 # ======================
 
 *.pprof
-cpu.prof
-mem.prof
+*.prof
+coverage.html
 
 # ======================
 # Temporary
@@ -93,6 +105,6 @@ mem.prof
 tmp/
 temp/
 
-*.claude
+.claude/
 
 *TODO*

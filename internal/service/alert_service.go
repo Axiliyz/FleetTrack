@@ -6,12 +6,14 @@ import (
 	"errors"
 	"fleettrack/internal/database"
 	"fleettrack/internal/logger"
+	"fleettrack/internal/metrics"
 	"fleettrack/internal/model"
 	"fleettrack/internal/repository"
 	"fleettrack/internal/repository/factory"
 	"fleettrack/internal/transaction"
 	"fmt"
 	"sync"
+	"time"
 )
 
 // AlertService управляет жизненным циклом алертов, оценкой телеметрии и фоновой очередью
@@ -24,11 +26,13 @@ type AlertService struct {
 	repoFactory      factory.RepositoryFactory
 	logger           logger.Logger
 	queue            chan model.Telemetry
+	queueMu          sync.RWMutex
+	queueClosed      bool
 	wg               sync.WaitGroup
 }
 
 // NewAlertService создаёт новый экземпляр AlertService с буферизированной очередью обработки
-func NewAlertService(a repository.AlertRepository, r repository.AlertRuleRepository, c repository.NotificationChannelRepository, n repository.AlertNotificationRepository, tx transaction.TransactionManager, repoFactory factory.RepositoryFactory, l logger.Logger) *AlertService {
+func NewAlertService(a repository.AlertRepository, r repository.AlertRuleRepository, c repository.NotificationChannelRepository, n repository.AlertNotificationRepository, tx transaction.TransactionManager, repoFactory factory.RepositoryFactory, l logger.Logger, queueSize int) *AlertService {
 	return &AlertService{
 		alertRepo:        a,
 		ruleRepo:         r,
@@ -37,29 +41,37 @@ func NewAlertService(a repository.AlertRepository, r repository.AlertRuleReposit
 		txManager:        tx,
 		repoFactory:      repoFactory,
 		logger:           l,
-		queue:            make(chan model.Telemetry, 10000),
+		queue:            make(chan model.Telemetry, queueSize),
 	}
 }
 
 // EvaluateTelemetry проверяет точку телеметрии на соответствие активным правилам организации
 func (s *AlertService) EvaluateTelemetry(ctx context.Context, t model.Telemetry) error {
+	evalStart := time.Now()
+	defer func() { metrics.RecordTelemetryStage("alert_eval_total", time.Since(evalStart).Seconds()) }()
+	stageStart := time.Now()
 	activeRules, err := s.ruleRepo.GetActiveRulesByOrg(ctx, t.OrganizationID)
+	metrics.RecordTelemetryStage("alert_eval_rules", time.Since(stageStart).Seconds())
 	if err != nil {
 		return err
 	}
 	for _, r := range activeRules {
 		triggered, val, msg := checkRuleCondition(r, t)
 
+		stageStart = time.Now()
 		activeAlert, err := s.alertRepo.GetActiveAlert(ctx, t.VehicleID, r.ID)
+		metrics.RecordTelemetryStage("alert_eval_active", time.Since(stageStart).Seconds())
 		if err != nil && !errors.Is(err, model.ErrNotFound) {
 			return err
 		}
 		hasActiveAlert := err == nil
 
 		if triggered && !hasActiveAlert {
+			stageStart = time.Now()
 			if err := s.fireAlert(ctx, t, r, val, msg); err != nil {
 				return err
 			}
+			metrics.RecordTelemetryStage("alert_eval_fire", time.Since(stageStart).Seconds())
 		}
 
 		if !triggered && hasActiveAlert {
@@ -149,16 +161,35 @@ func (s *AlertService) fireAlert(ctx context.Context, t model.Telemetry, r model
 	return nil
 }
 
-// Enqueue добавляет точку телеметрии в блокирующую очередь обработки алертов
+// Enqueue ставит точку телеметрии в очередь оценки алертов. Если очередь заполнена,
+// ждёт свободного места, но не дольше, чем живёт ctx запроса. Точки, не попавшие
+// в очередь (отмена ctx или остановка сервиса), учитываются в метрике и логируются.
 func (s *AlertService) Enqueue(ctx context.Context, t model.Telemetry) {
+	s.queueMu.RLock()
+	defer s.queueMu.RUnlock()
+	if s.queueClosed {
+		s.dropFromQueue(t, "alert service stopped")
+		return
+	}
 	select {
 	case s.queue <- t:
 	case <-ctx.Done():
-		s.logger.Warn(fmt.Sprintf("alert queue enqueue cancelled for vehicle %d", t.VehicleID))
+		s.dropFromQueue(t, ctx.Err().Error())
 	}
 }
 
-// Start запускает указанное количество горутин-воркеров для разбора очереди
+func (s *AlertService) dropFromQueue(t model.Telemetry, reason string) {
+	metrics.RecordAlertQueueDropped()
+	s.logger.Warn(fmt.Sprintf("telemetry %d of vehicle %d not queued for alert evaluation: %s", t.TelemetryID, t.VehicleID, reason))
+}
+
+// QueueLength возвращает число точек, ожидающих оценки алертов.
+func (s *AlertService) QueueLength() int {
+	return len(s.queue)
+}
+
+// Start запускает воркеры оценки алертов. ctx используется для запросов к БД и
+// должен оставаться живым до завершения Stop, иначе очередь не будет дочитана.
 func (s *AlertService) Start(ctx context.Context, workers int) {
 	for i := 0; i < workers; i++ {
 		s.wg.Add(1)
@@ -166,28 +197,25 @@ func (s *AlertService) Start(ctx context.Context, workers int) {
 	}
 }
 
-// worker обрабатывает входящие точки телеметрии из очереди
+// worker разбирает очередь до её закрытия в Stop
 func (s *AlertService) worker(ctx context.Context) {
 	defer s.wg.Done()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case t, ok := <-s.queue:
-			if !ok {
-				return
-			}
-			if err := s.EvaluateTelemetry(ctx, t); err != nil {
-				s.logger.Error(fmt.Sprintf("failed to evaluate telemetry, err: %s, vehicle: %d", err, t.VehicleID))
-			}
+	for t := range s.queue {
+		if err := s.EvaluateTelemetry(ctx, t); err != nil {
+			s.logger.Error(fmt.Sprintf("failed to evaluate telemetry, err: %s, vehicle: %d", err, t.VehicleID))
 		}
 	}
 }
 
-// Stop корректно останавливает воркеры и дожидается опустошения очереди
+// Stop закрывает очередь для новых точек, дожидается, пока воркеры обработают
+// уже поставленные, и возвращает управление. Повторный вызов безопасен.
 func (s *AlertService) Stop() {
-	close(s.queue)
+	s.queueMu.Lock()
+	if !s.queueClosed {
+		s.queueClosed = true
+		close(s.queue)
+	}
+	s.queueMu.Unlock()
 	s.wg.Wait()
 }
 
@@ -238,14 +266,6 @@ func (s *AlertService) GetRuleByID(ctx context.Context, id int) (model.AlertRule
 // GetRulesList возвращает список правил алертов по переданному фильтру
 func (s *AlertService) GetRulesList(ctx context.Context, filter model.AlertRuleFilter) ([]model.AlertRule, error) {
 	return s.ruleRepo.GetList(ctx, filter)
-}
-
-// UpdateRule валидирует и обновляет существующее правило алертов
-func (s *AlertService) UpdateRule(ctx context.Context, r model.AlertRule) (model.AlertRule, error) {
-	if err := validateAlertRule(r); err != nil {
-		return model.AlertRule{}, err
-	}
-	return s.ruleRepo.Update(ctx, r)
 }
 
 // DeleteRuleByID удаляет правило алертов по его идентификатору

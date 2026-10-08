@@ -2,6 +2,7 @@ package logger
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/fatih/color"
@@ -66,4 +67,19 @@ func (l *StdLogger) Error(message string) {
 		return
 	}
 	color.Red("[ERROR] %s | %s\n", timestamp(), message)
+}
+
+// ParseLevel разбирает уровень логирования из строки: debug, info, warn, error.
+func ParseLevel(s string) (Level, error) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "debug":
+		return DebugLevel, nil
+	case "info", "":
+		return InfoLevel, nil
+	case "warn", "warning":
+		return WarnLevel, nil
+	case "error":
+		return ErrorLevel, nil
+	}
+	return InfoLevel, fmt.Errorf("unknown log level %q", s)
 }

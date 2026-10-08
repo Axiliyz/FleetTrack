@@ -47,15 +47,13 @@ func NewDriverHandler(s DriverService, l logger.Logger) *DriverHandler {
 // @Accept json
 // @Produce json
 // @Param request body dto.CreateDriverRequest true "Данные водителя"
-// @Success 201 {object} dto.DriverResponse
+// @Success 201 {object} dto.APIResponse{data=dto.DriverResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse
 // @Router /drivers [post]
 // @Security BearerAuth
 func (h *DriverHandler) HandlePostDriver(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	var driverData dto.CreateDriverRequest
 	err := json.NewDecoder(r.Body).Decode(&driverData)
 	if err != nil {
@@ -85,7 +83,7 @@ func (h *DriverHandler) HandlePostDriver(w http.ResponseWriter, r *http.Request)
 // @Tags drivers
 // @Produce json
 // @Param id path int true "ID водителя"
-// @Success 200 {object} dto.DriverResponse
+// @Success 200 {object} dto.APIResponse{data=dto.DriverResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 404 {object} dto.ErrorResponse
@@ -126,7 +124,7 @@ func (h *DriverHandler) HandleGetDriverByID(w http.ResponseWriter, r *http.Reque
 // @Param created_to query string false "До даты создания (RFC3339)"
 // @Param limit query int false "Лимит записей (по умолчанию 100, максимум 500)"
 // @Param offset query int false "Смещение"
-// @Success 200 {array} dto.DriverResponse
+// @Success 200 {object} dto.APIResponse{data=[]dto.DriverResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Router /drivers [get]
@@ -164,7 +162,7 @@ func (h *DriverHandler) HandleGetListDriver(w http.ResponseWriter, r *http.Reque
 // @Tags drivers
 // @Produce json
 // @Param id path int true "ID водителя"
-// @Success 200 {object} dto.DriverResponse
+// @Success 200 {object} dto.APIResponse{data=dto.DriverResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse
@@ -202,7 +200,7 @@ func (h *DriverHandler) HandleDeleteDriver(w http.ResponseWriter, r *http.Reques
 // @Produce json
 // @Param id path int true "ID водителя"
 // @Param request body dto.UpdateDriverRequest true "Изменяемые поля"
-// @Success 200 {object} dto.DriverResponse
+// @Success 200 {object} dto.APIResponse{data=dto.DriverResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse "также возвращается, если в теле передан organization_id"
@@ -210,7 +208,6 @@ func (h *DriverHandler) HandleDeleteDriver(w http.ResponseWriter, r *http.Reques
 // @Router /drivers/{id} [patch]
 // @Security BearerAuth
 func (h *DriverHandler) HandlePatchDriver(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
 		respondError(w, r, h.logger, model.ErrInvalidDriverID)

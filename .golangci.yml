@@ -1,5 +1,9 @@
+version: "2"
+
 run:
-  timeout: 3m
+  timeout: 5m
+  build-tags:
+    - integration
 
 linters:
   enable:
@@ -8,3 +12,37 @@ linters:
     - staticcheck
     - unused
     - ineffassign
+    - revive
+    - gosec
+    - errorlint
+    - bodyclose
+    - noctx
+    - containedctx
+    - contextcheck
+    - misspell
+  settings:
+    revive:
+      rules:
+        - name: exported
+          arguments:
+            - disableStutteringCheck
+        - name: package-comments
+        - name: context-as-argument
+        - name: error-return
+        - name: error-naming
+        - name: receiver-naming
+        - name: var-naming
+        - name: indent-error-flow
+        - name: unused-parameter
+          disabled: true
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec
+          - errcheck
+          - noctx
+          - containedctx
+          - errorlint

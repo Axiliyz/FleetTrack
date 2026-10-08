@@ -1,8 +1,7 @@
 package middleware
 
 import (
-	"encoding/json"
-	"fleettrack/internal/handler/dto"
+	"fleettrack/internal/httpresp"
 	"fleettrack/internal/logger"
 	"fleettrack/internal/model"
 	"fmt"
@@ -37,20 +36,5 @@ func RequireRole(l logger.Logger, roles ...model.UserRole) func(http.Handler) ht
 
 func respondForbidden(w http.ResponseWriter, r *http.Request, log logger.Logger, err error) {
 	log.Warn(err.Error())
-
-	id, ok := r.Context().Value(RequestIDKey).(string)
-	if !ok {
-		id = "unknown"
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusForbidden)
-
-	if encErr := json.NewEncoder(w).Encode(dto.ErrorResponse{
-		Status:    "error",
-		Message:   "forbidden",
-		RequestID: id,
-	}); encErr != nil {
-		log.Error(encErr.Error())
-	}
+	httpresp.Error(w, r, log, http.StatusForbidden, "forbidden")
 }

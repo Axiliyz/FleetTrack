@@ -75,7 +75,6 @@ func buildDriverWhereClause(filter model.DriverFilter) (string, []any) {
 	if filter.CreatedTo != nil {
 		conditions = append(conditions, fmt.Sprintf("created_at <= $%d", argN))
 		args = append(args, *filter.CreatedTo)
-		argN++ //nolint:ineffassign
 	}
 	if len(conditions) == 0 {
 		return "", args
@@ -121,7 +120,6 @@ func buildDriverSetClause(upd model.UpdateDriver) (string, []any) {
 	if upd.Name != nil {
 		conditions = append(conditions, fmt.Sprintf("name = $%d", argN))
 		args = append(args, *upd.Name)
-		argN++ //nolint:ineffassign
 	}
 	if len(conditions) == 0 {
 		return "", args
@@ -130,8 +128,7 @@ func buildDriverSetClause(upd model.UpdateDriver) (string, []any) {
 }
 
 // Update для PostgresDriverRepository обновляет некоторые данные водителя по ID.
-// organizationID != nil ограничивает обновление водителями этой организации (для не-ADMIN);
-// nil означает отсутствие ограничения (ADMIN может изменить водителя любой организации).
+// organizationID != nil ограничивает обновление водителями этой организации; nil снимает ограничение.
 func (r *PostgresDriverRepository) Update(ctx context.Context, id int, upd model.UpdateDriver, organizationID *int) (model.Driver, error) {
 	setClause, args := buildDriverSetClause(upd)
 	if setClause == "" {
@@ -164,8 +161,7 @@ func (r *PostgresDriverRepository) Update(ctx context.Context, id int, upd model
 }
 
 // Delete для PostgresDriverRepository удаляет водителя по его ID.
-// organizationID != nil ограничивает удаление водителями этой организации (для не-ADMIN);
-// nil означает отсутствие ограничения (ADMIN может удалить водителя любой организации).
+// organizationID != nil ограничивает удаление водителями этой организации; nil снимает ограничение.
 // Если у водителя есть рейсы, ссылающиеся на него - возвращает model.ErrDriverHasActiveTrips
 func (r *PostgresDriverRepository) Delete(ctx context.Context, id int, organizationID *int) (model.Driver, error) {
 	query := `DELETE FROM drivers WHERE id = $1`

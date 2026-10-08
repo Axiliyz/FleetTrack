@@ -24,7 +24,6 @@ type AlertRuleService interface {
 	CreateRule(ctx context.Context, r model.AlertRule) (model.AlertRule, error)
 	GetRuleByID(ctx context.Context, id int) (model.AlertRule, error)
 	GetRulesList(ctx context.Context, filter model.AlertRuleFilter) ([]model.AlertRule, error)
-	UpdateRule(ctx context.Context, r model.AlertRule) (model.AlertRule, error)
 	DeleteRuleByID(ctx context.Context, id int) (model.AlertRule, error)
 }
 
@@ -42,15 +41,13 @@ func NewAlertRuleHandler(ars AlertRuleService, l logger.Logger) *AlertRuleHandle
 // @Accept json
 // @Produce json
 // @Param request body dto.CreateAlertRuleRequest true "Данные правила"
-// @Success 201 {object} dto.AlertRuleResponse
+// @Success 201 {object} dto.APIResponse{data=dto.AlertRuleResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse
 // @Router /alert-rules [post]
 // @Security BearerAuth
 func (h *AlertRuleHandler) HandlePostRule(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	var ruleData dto.CreateAlertRuleRequest
 	if err := json.NewDecoder(r.Body).Decode(&ruleData); err != nil {
 		respondError(w, r, h.logger, model.ErrInvalidJSON)
@@ -82,7 +79,7 @@ func (h *AlertRuleHandler) HandlePostRule(w http.ResponseWriter, r *http.Request
 // @Tags alert-rules
 // @Produce json
 // @Param id path int true "ID правила"
-// @Success 200 {object} dto.AlertRuleResponse
+// @Success 200 {object} dto.APIResponse{data=dto.AlertRuleResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 404 {object} dto.ErrorResponse
@@ -121,7 +118,7 @@ func (h *AlertRuleHandler) HandleGetRuleByID(w http.ResponseWriter, r *http.Requ
 // @Tags alert-rules
 // @Produce json
 // @Param id path int true "ID правила"
-// @Success 200 {object} dto.AlertRuleResponse
+// @Success 200 {object} dto.APIResponse{data=dto.AlertRuleResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse
@@ -166,7 +163,7 @@ func (h *AlertRuleHandler) HandleDeleteRuleByID(w http.ResponseWriter, r *http.R
 // @Summary Список правил алертов организации
 // @Tags alert-rules
 // @Produce json
-// @Success 200 {array} dto.AlertRuleResponse
+// @Success 200 {object} dto.APIResponse{data=[]dto.AlertRuleResponse}
 // @Failure 401 {object} dto.ErrorResponse
 // @Router /alert-rules [get]
 // @Security BearerAuth

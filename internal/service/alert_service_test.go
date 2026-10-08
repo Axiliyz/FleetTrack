@@ -323,7 +323,7 @@ func TestCheckRuleCondition(t *testing.T) {
 func TestAlertService_CreateRule(t *testing.T) {
 	log := logger.NewStdLogger(logger.DebugLevel)
 	ruleRepo := &mockAlertRuleRepo{}
-	svc := NewAlertService(nil, ruleRepo, nil, nil, nil, nil, log)
+	svc := NewAlertService(nil, ruleRepo, nil, nil, nil, nil, log, 100)
 
 	tests := []struct {
 		name    string
@@ -398,7 +398,7 @@ func TestAlertService_CreateRule(t *testing.T) {
 
 	// Проверка ошибки репозитория
 	ruleRepoErr := &mockAlertRuleRepo{createErr: errors.New("db error")}
-	svcErr := NewAlertService(nil, ruleRepoErr, nil, nil, nil, nil, log)
+	svcErr := NewAlertService(nil, ruleRepoErr, nil, nil, nil, nil, log, 100)
 	validRule := model.AlertRule{OrganizationID: 1, Name: "Правило", Type: model.AlertRuleSpeedExceed, Threshold: 60, Severity: model.SeverityLevelLow}
 	_, err := svcErr.CreateRule(context.Background(), validRule)
 	if err == nil {
@@ -422,7 +422,7 @@ func TestAlertService_RuleCRUD(t *testing.T) {
 			{ID: 5, OrganizationID: 1},
 		},
 	}
-	svc := NewAlertService(nil, ruleRepo, nil, nil, nil, nil, log)
+	svc := NewAlertService(nil, ruleRepo, nil, nil, nil, nil, log, 100)
 
 	// GetRuleByID
 	rule, err := svc.GetRuleByID(context.Background(), 5)
@@ -434,28 +434,6 @@ func TestAlertService_RuleCRUD(t *testing.T) {
 	rules, err := svc.GetRulesList(context.Background(), model.AlertRuleFilter{})
 	if err != nil || len(rules) != 1 {
 		t.Fatalf("ошибка GetRulesList: %v", err)
-	}
-
-	// UpdateRule
-	upd := model.AlertRule{
-		ID:             5,
-		OrganizationID: 1,
-		Name:           "Обновлённое имя",
-		Type:           model.AlertRuleSpeedExceed,
-		Threshold:      110,
-		Severity:       model.SeverityLevelCritical,
-	}
-	updated, err := svc.UpdateRule(context.Background(), upd)
-	if err != nil || updated.Threshold != 110 {
-		t.Fatalf("ошибка UpdateRule: %v", err)
-	}
-
-	// UpdateRule с невалидным именем
-	updInvalid := upd
-	updInvalid.Name = ""
-	_, err = svc.UpdateRule(context.Background(), updInvalid)
-	if !errors.Is(err, model.ErrInvalidName) {
-		t.Errorf("ожидалась ошибка ErrInvalidName при обновлении, получено %v", err)
 	}
 
 	// DeleteRuleByID
@@ -495,7 +473,7 @@ func TestAlertService_EvaluateTelemetry_FireAlert(t *testing.T) {
 		notificationRepo: notificationRepo,
 	}
 
-	svc := NewAlertService(alertRepo, ruleRepo, channelRepo, notificationRepo, txManager, repoFactory, log)
+	svc := NewAlertService(alertRepo, ruleRepo, channelRepo, notificationRepo, txManager, repoFactory, log, 100)
 
 	point := model.Telemetry{
 		OrganizationID: 1,
@@ -553,7 +531,7 @@ func TestAlertService_EvaluateTelemetry_Deduplication(t *testing.T) {
 		notificationRepo: notificationRepo,
 	}
 
-	svc := NewAlertService(alertRepo, ruleRepo, channelRepo, notificationRepo, txManager, repoFactory, log)
+	svc := NewAlertService(alertRepo, ruleRepo, channelRepo, notificationRepo, txManager, repoFactory, log, 100)
 
 	point := model.Telemetry{
 		OrganizationID: 1,
@@ -599,7 +577,7 @@ func TestAlertService_EvaluateTelemetry_AutoResolve(t *testing.T) {
 		notificationRepo: notificationRepo,
 	}
 
-	svc := NewAlertService(alertRepo, ruleRepo, channelRepo, notificationRepo, txManager, repoFactory, log)
+	svc := NewAlertService(alertRepo, ruleRepo, channelRepo, notificationRepo, txManager, repoFactory, log, 100)
 
 	// Скорость снизилась до 60 км/ч (ниже порога 80)
 	point := model.Telemetry{
@@ -646,7 +624,7 @@ func TestAlertService_WorkerQueue(t *testing.T) {
 		notificationRepo: notificationRepo,
 	}
 
-	svc := NewAlertService(alertRepo, ruleRepo, channelRepo, notificationRepo, txManager, repoFactory, log)
+	svc := NewAlertService(alertRepo, ruleRepo, channelRepo, notificationRepo, txManager, repoFactory, log, 100)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

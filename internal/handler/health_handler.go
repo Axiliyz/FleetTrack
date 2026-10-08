@@ -37,12 +37,11 @@ func NewHealthHandler(s HealthService, l logger.Logger) *HealthHandler {
 // @Failure 503 {object} dto.ErrorResponse
 // @Router /health [get]
 func (h *HealthHandler) HandleHealthCheck(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	if err := h.healthService.CheckHealth(r.Context()); err != nil {
 		respondError(w, r, h.logger, err)
 		return
 	}
-	respondSuccess(w, r, "OK", h.logger, nil)
+	respondSuccess(w, r, "ok", h.logger, nil)
 }
 
 // HandleReadinessCheck обрабатывает GET запрос на readiness-проверку
@@ -54,10 +53,9 @@ func (h *HealthHandler) HandleHealthCheck(w http.ResponseWriter, r *http.Request
 // @Failure 503 {object} dto.ErrorResponse
 // @Router /readyz [get]
 func (h *HealthHandler) HandleReadinessCheck(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	if err := h.healthService.CheckReadiness(r.Context()); err != nil {
 		respondError(w, r, h.logger, err)
 		return
 	}
-	respondSuccess(w, r, "OK", h.logger, nil)
+	respondSuccess(w, r, "ok", h.logger, nil)
 }

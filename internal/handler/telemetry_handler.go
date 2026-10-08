@@ -44,15 +44,13 @@ func NewTelemetryHandler(service TelemetryService, logger logger.Logger) *Teleme
 // @Accept json
 // @Produce json
 // @Param request body dto.TelemetryRequest true "Точка телеметрии"
-// @Success 201 {object} dto.TelemetryResponse
+// @Success 201 {object} dto.APIResponse{data=dto.TelemetryResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 404 {object} dto.ErrorResponse "автомобиль не найден или принадлежит другой организации"
 // @Router /telemetry [post]
 // @Security BearerAuth
 func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	var telemetryData dto.TelemetryRequest
 
 	err := json.NewDecoder(r.Body).Decode(&telemetryData)
@@ -89,7 +87,7 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 		SpeedKmh:    savedTelemetry.SpeedKmh,
 	}
 
-	respondCreated(w, r, "Telemetry got to post", h.logger, telemetryResponse)
+	respondCreated(w, r, "telemetry stored", h.logger, telemetryResponse)
 }
 
 // HandleGetListTelemetry возвращает список телеметрии
@@ -110,7 +108,7 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 // @Param to query string false "До даты (RFC3339)"
 // @Param limit query int false "Лимит записей (по умолчанию 100, максимум 500)"
 // @Param offset query int false "Смещение"
-// @Success 200 {array} dto.TelemetryResponse
+// @Success 200 {object} dto.APIResponse{data=[]dto.TelemetryResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse "роль DRIVER без привязанного водителя"
@@ -154,7 +152,7 @@ func (h *TelemetryHandler) HandleGetListTelemetry(w http.ResponseWriter, r *http
 		})
 	}
 
-	respondSuccess(w, r, "Telemetry list", h.logger, responses)
+	respondSuccess(w, r, "telemetry list", h.logger, responses)
 }
 
 // HandleGetTelemetryByID возвращает запись телеметрии по ID
@@ -162,7 +160,7 @@ func (h *TelemetryHandler) HandleGetListTelemetry(w http.ResponseWriter, r *http
 // @Tags telemetry
 // @Produce json
 // @Param id path int true "ID записи телеметрии"
-// @Success 200 {object} dto.TelemetryResponse
+// @Success 200 {object} dto.APIResponse{data=dto.TelemetryResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 404 {object} dto.ErrorResponse
@@ -202,7 +200,7 @@ func (h *TelemetryHandler) HandleGetTelemetryByID(w http.ResponseWriter, r *http
 		SpeedKmh:    telemetry.SpeedKmh,
 	}
 
-	respondSuccess(w, r, "Telemetry found", h.logger, telemetryResponse)
+	respondSuccess(w, r, "telemetry found", h.logger, telemetryResponse)
 }
 
 // HandleGetTelemetryByVehicle возвращает все записи телеметрии по ID машины
@@ -210,7 +208,7 @@ func (h *TelemetryHandler) HandleGetTelemetryByID(w http.ResponseWriter, r *http
 // @Tags telemetry
 // @Produce json
 // @Param id path int true "ID автомобиля"
-// @Success 200 {array} dto.TelemetryResponse
+// @Success 200 {object} dto.APIResponse{data=[]dto.TelemetryResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Router /telemetry/vehicles/{id} [get]
@@ -249,7 +247,7 @@ func (h *TelemetryHandler) HandleGetTelemetryByVehicle(w http.ResponseWriter, r 
 		})
 	}
 
-	respondSuccess(w, r, "Telemetry list", h.logger, responses)
+	respondSuccess(w, r, "telemetry list", h.logger, responses)
 }
 
 // HandleDeleteTelemetryByID удаляет телеметрию по её ID
@@ -257,7 +255,7 @@ func (h *TelemetryHandler) HandleGetTelemetryByVehicle(w http.ResponseWriter, r 
 // @Tags telemetry
 // @Produce json
 // @Param id path int true "ID записи телеметрии"
-// @Success 200 {object} dto.TelemetryResponse
+// @Success 200 {object} dto.APIResponse{data=dto.TelemetryResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse
@@ -294,7 +292,7 @@ func (h *TelemetryHandler) HandleDeleteTelemetryByID(w http.ResponseWriter, r *h
 		SpeedKmh:    deleted.SpeedKmh,
 	}
 
-	respondSuccess(w, r, "Telemetry deleted", h.logger, telemetryResponse)
+	respondSuccess(w, r, "telemetry deleted", h.logger, telemetryResponse)
 }
 
 // HandleDeleteTelemetryByVehicleID удаляет телеметрию по машине по её ID
@@ -302,7 +300,7 @@ func (h *TelemetryHandler) HandleDeleteTelemetryByID(w http.ResponseWriter, r *h
 // @Tags telemetry
 // @Produce json
 // @Param id path int true "ID автомобиля"
-// @Success 200 {array} dto.TelemetryResponse
+// @Success 200 {object} dto.APIResponse{data=[]dto.TelemetryResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse
@@ -341,5 +339,5 @@ func (h *TelemetryHandler) HandleDeleteTelemetryByVehicleID(w http.ResponseWrite
 		})
 	}
 
-	respondSuccess(w, r, "Telemetries of vehicle deleted", h.logger, responses)
+	respondSuccess(w, r, "vehicle telemetry deleted", h.logger, responses)
 }

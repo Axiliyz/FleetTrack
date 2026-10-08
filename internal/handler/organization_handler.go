@@ -38,7 +38,7 @@ func NewOrgHandler(s OrgService, l logger.Logger) *OrgHandler {
 // @Accept json
 // @Produce json
 // @Param request body dto.OrgRequest true "Название организации"
-// @Success 201 {object} dto.OrgResponse
+// @Success 201 {object} dto.APIResponse{data=dto.OrgResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse
@@ -46,7 +46,6 @@ func NewOrgHandler(s OrgService, l logger.Logger) *OrgHandler {
 // @Router /organizations [post]
 // @Security BearerAuth
 func (h *OrgHandler) HandlePostOrg(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	var orgData dto.OrgRequest
 	err := json.NewDecoder(r.Body).Decode(&orgData)
 	if err != nil {
@@ -68,7 +67,7 @@ func (h *OrgHandler) HandlePostOrg(w http.ResponseWriter, r *http.Request) {
 // @Description Возвращает организацию текущего пользователя в виде списка из одного элемента
 // @Tags organization
 // @Produce json
-// @Success 200 {array} dto.OrgResponse
+// @Success 200 {object} dto.APIResponse{data=[]dto.OrgResponse}
 // @Failure 401 {object} dto.ErrorResponse
 // @Router /organizations [get]
 // @Security BearerAuth

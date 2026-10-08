@@ -42,7 +42,7 @@ func NewTripHandler(s TripService, l logger.Logger) *TripHandler {
 // @Accept json
 // @Produce json
 // @Param request body dto.TripRequest true "ID водителя и автомобиля"
-// @Success 201 {object} model.Trip
+// @Success 201 {object} dto.APIResponse{data=model.Trip}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse
@@ -50,8 +50,6 @@ func NewTripHandler(s TripService, l logger.Logger) *TripHandler {
 // @Router /trips [post]
 // @Security BearerAuth
 func (h *TripHandler) HandleAssignTrip(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	authCtx, ok := middleware.AuthFromContext(r.Context())
 	if !ok {
 		respondError(w, r, h.logger, model.ErrMissingToken)
@@ -82,7 +80,7 @@ func (h *TripHandler) HandleAssignTrip(w http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Param id path int true "ID рейса"
 // @Param request body dto.UpdateTripRequest true "Новый статус (COMPLETED, CANCELLED)"
-// @Success 200 {object} model.Trip
+// @Success 200 {object} dto.APIResponse{data=model.Trip}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse
@@ -91,8 +89,6 @@ func (h *TripHandler) HandleAssignTrip(w http.ResponseWriter, r *http.Request) {
 // @Router /trips/{id} [patch]
 // @Security BearerAuth
 func (h *TripHandler) HandleUpdateTrip(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	authCtx, ok := middleware.AuthFromContext(r.Context())
 	if !ok {
 		respondError(w, r, h.logger, model.ErrMissingToken)
@@ -126,7 +122,7 @@ func (h *TripHandler) HandleUpdateTrip(w http.ResponseWriter, r *http.Request) {
 // @Tags trips
 // @Produce json
 // @Param id path int true "ID рейса"
-// @Success 200 {object} model.Trip
+// @Success 200 {object} dto.APIResponse{data=model.Trip}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse
@@ -174,7 +170,7 @@ func (h *TripHandler) HandleDeleteTrip(w http.ResponseWriter, r *http.Request) {
 // @Param max_max_speed query number false "Максимальная макс. скорость"
 // @Param limit query int false "Лимит записей (по умолчанию 100, максимум 500)"
 // @Param offset query int false "Смещение"
-// @Success 200 {array} model.Trip
+// @Success 200 {object} dto.APIResponse{data=[]model.Trip}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse "роль DRIVER без привязанного водителя"
@@ -214,7 +210,7 @@ func (h *TripHandler) HandleGetListTrips(w http.ResponseWriter, r *http.Request)
 // @Tags trips
 // @Produce json
 // @Param id path int true "ID рейса"
-// @Success 200 {object} model.Trip
+// @Success 200 {object} dto.APIResponse{data=model.Trip}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 404 {object} dto.ErrorResponse

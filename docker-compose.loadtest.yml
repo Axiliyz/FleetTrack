@@ -1,0 +1,4 @@
+services:
+  api:
+    environment:
+      DB_NAME: fleettrack_loadtest

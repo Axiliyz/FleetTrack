@@ -2,11 +2,14 @@ package middleware
 
 import (
 	"fleettrack/internal/logger"
+	"fleettrack/internal/requestid"
 	"fmt"
 	"net/http"
 	"time"
 )
 
+// unloggedPaths — пути, которые LogQuery не пишет в лог (пробы оркестратора
+// вызываются часто и засоряли бы вывод)
 var unloggedPaths = map[string]struct{}{
 	"/health": {},
 	"/readyz": {},
@@ -23,10 +26,6 @@ func LogQuery(logger logger.Logger) func(http.Handler) http.Handler {
 
 			start := time.Now()
 
-			id, ok := r.Context().Value(RequestIDKey).(string)
-			if !ok {
-				id = "unknown"
-			}
 			rw := &ResponseWriter{
 				ResponseWriter: w,
 				statusCode:     http.StatusOK,
@@ -36,7 +35,8 @@ func LogQuery(logger logger.Logger) func(http.Handler) http.Handler {
 
 			duration := time.Since(start)
 
-			logger.Info(fmt.Sprintf("request_id = %s\nmethod = %s\npath = %s\nstatus=%d\nduration=%s", id, r.Method, r.URL.Path, rw.statusCode, duration))
+			logger.Info(fmt.Sprintf("request_id=%s method=%s path=%s status=%d duration=%s",
+				requestid.FromContext(r.Context()), r.Method, r.URL.Path, rw.statusCode, duration))
 		})
 	}
 

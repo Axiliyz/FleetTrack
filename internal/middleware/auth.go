@@ -2,8 +2,7 @@ package middleware
 
 import (
 	"context"
-	"encoding/json"
-	"fleettrack/internal/handler/dto"
+	"fleettrack/internal/httpresp"
 	"fleettrack/internal/logger"
 	"fleettrack/internal/model"
 	"net/http"
@@ -68,23 +67,7 @@ func ContextWithAuth(ctx context.Context, authCtx model.AuthContext) context.Con
 }
 
 // respondUnauthorized логирует ошибку аутентификации и отправляет JSON-ответ 401
-// в том же формате, что и остальные обработчики (см. handler.writeError)
 func respondUnauthorized(w http.ResponseWriter, r *http.Request, log logger.Logger, err error) {
 	log.Warn(err.Error())
-
-	id, ok := r.Context().Value(RequestIDKey).(string)
-	if !ok {
-		id = "unknown"
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusUnauthorized)
-
-	if encErr := json.NewEncoder(w).Encode(dto.ErrorResponse{
-		Status:    "error",
-		Message:   "unauthorized",
-		RequestID: id,
-	}); encErr != nil {
-		log.Error(encErr.Error())
-	}
+	httpresp.Error(w, r, log, http.StatusUnauthorized, "unauthorized")
 }

@@ -69,7 +69,7 @@ func TestValidateDevice(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := svc.ValidateDevice(context.Background(), tt.device)
-			if !errors.Is(err, tt.wantErr) && err != tt.wantErr {
+			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("got %v, want %v", err, tt.wantErr)
 			}
 		})
@@ -92,7 +92,7 @@ func TestValidateVehicle(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := svc.ValidateVehicle(context.Background(), tt.vehicle)
-			if !errors.Is(err, tt.wantErr) && err != tt.wantErr {
+			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("got %v, want %v", err, tt.wantErr)
 			}
 		})
@@ -119,7 +119,7 @@ func TestAssignDevice(t *testing.T) {
 		svc := NewAssignmentService(assignmentRepo, deviceRepo, vehicleRepo, &mockTxManager{}, &mockRepoFactory{deviceRepo: deviceRepo, vehicleRepo: vehicleRepo, assignmentRepo: assignmentRepo})
 
 		err := svc.AssignDevice(context.Background(), 1, 2, 1)
-		if err != model.ErrNotFound {
+		if !errors.Is(err, model.ErrNotFound) {
 			t.Errorf("got %v, want %v", err, model.ErrNotFound)
 		}
 	})
@@ -131,7 +131,7 @@ func TestAssignDevice(t *testing.T) {
 		svc := NewAssignmentService(assignmentRepo, deviceRepo, vehicleRepo, &mockTxManager{}, &mockRepoFactory{deviceRepo: deviceRepo, vehicleRepo: vehicleRepo, assignmentRepo: assignmentRepo})
 
 		err := svc.AssignDevice(context.Background(), 1, 2, 1)
-		if err != model.ErrNotFound {
+		if !errors.Is(err, model.ErrNotFound) {
 			t.Errorf("got %v, want %v", err, model.ErrNotFound)
 		}
 	})
