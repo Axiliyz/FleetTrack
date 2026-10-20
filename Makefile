@@ -113,6 +113,20 @@ loadtest-pairs:
 	@docker compose exec -T postgres psql -U $(DB_USER) -d $(LT_DB) -At -c "select json_agg(json_build_object('device_id', device_id, 'vehicle_id', vehicle_id)) from device_assignments;" > loadtest/pairs.json
 	@echo "Пары записаны в loadtest/pairs.json"
 
+# WEB
+
+web-install:
+	@cd web && npm ci
+
+web-dev:
+	@cd web && npm run dev
+
+web-check:
+	@cd web && npm run typecheck && npm test
+
+web-build:
+	@cd web && npm run build
+
 # USEFUL
 
 help:
@@ -132,6 +146,10 @@ help:
 	@echo "make loadtest-stop       (вернуть API на рабочую базу после тестов)"
 	@echo "make loadtest-check      (счётчик строк телеметрии в тестовой базе)"
 	@echo "make loadtest-pairs      (выгрузить пары device/vehicle для k6)"
+	@echo "make web-install         (зависимости фронтенда)"
+	@echo "make web-dev             (диспетчерская на http://localhost:5173)"
+	@echo "make web-check           (типы и тесты фронтенда)"
+	@echo "make web-build           (сборка фронтенда в web/dist)"
 	@echo "make clean"
 
 clean:
