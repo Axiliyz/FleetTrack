@@ -163,15 +163,16 @@ func (r *PostgresAlertRepository) Resolve(ctx context.Context, id int, resolvedB
 	return a, nil
 }
 
-// AcknowledgeAlert переводит алерт из статуса FIRED в ACKNOWLEDGED оператором
-func (r *PostgresAlertRepository) AcknowledgeAlert(ctx context.Context, alertID, userID int) (model.Alert, error) {
+// AcknowledgeAlert переводит алерт из статуса FIRED в ACKNOWLEDGED оператором.
+// organization_id стоит в WHERE: доступ проверяется тем же запросом, что и меняет строку
+func (r *PostgresAlertRepository) AcknowledgeAlert(ctx context.Context, alertID, userID, organizationID int) (model.Alert, error) {
 	const query = `
 	UPDATE alerts
 	SET 
 		status = 'ACKNOWLEDGED',
 		acknowledged_at = NOW(),
 		acknowledged_by = $1
-	WHERE id = $2 AND status = 'FIRED'
+	WHERE id = $2 AND status = 'FIRED' AND organization_id = $3
 	RETURNING 
 		id, 
 		organization_id, 
@@ -189,7 +190,7 @@ func (r *PostgresAlertRepository) AcknowledgeAlert(ctx context.Context, alertID,
 		resolved_by`
 
 	var a model.Alert
-	err := r.db.QueryRow(ctx, query, userID, alertID).Scan(
+	err := r.db.QueryRow(ctx, query, userID, alertID, organizationID).Scan(
 		&a.ID,
 		&a.OrganizationID,
 		&a.VehicleID,
@@ -286,7 +287,12 @@ func (r *PostgresAlertRepository) GetList(ctx context.Context, filter model.Aler
 		resolved_by
 	FROM alerts
 	%s
-	ORDER BY created_at DESC`, whereClause)
+	ORDER BY created_at DESC, id DESC`, whereClause)
+
+	if filter.Limit > 0 {
+		query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args)+1, len(args)+2)
+		args = append(args, filter.Limit, filter.Offset)
+	}
 
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
@@ -368,4 +374,50 @@ func (r *PostgresAlertRepository) AcquireLock(ctx context.Context, vehicleID, ru
 	const query = `SELECT pg_advisory_xact_lock($1::int, $2::int)`
 	_, err := r.db.Exec(ctx, query, vehicleID, ruleID)
 	return err
+}
+
+// GetByID возвращает алерт организации по ID; чужой алерт неотличим от несуществующего
+func (r *PostgresAlertRepository) GetByID(ctx context.Context, id, organizationID int) (model.Alert, error) {
+	const query = `SELECT id, 
+		organization_id, 
+		vehicle_id, 
+		rule_id, 
+		type, 
+		severity, 
+		status, 
+		message, 
+		value, 
+		created_at, 
+		acknowledged_at, 
+		acknowledged_by, 
+		resolved_at, 
+		resolved_by
+		FROM alerts
+		WHERE id = $1 AND organization_id = $2`
+
+	var a model.Alert
+	err := r.db.QueryRow(ctx, query, id, organizationID).Scan(
+		&a.ID,
+		&a.OrganizationID,
+		&a.VehicleID,
+		&a.RuleID,
+		&a.Type,
+		&a.Severity,
+		&a.Status,
+		&a.Message,
+		&a.Value,
+		&a.CreatedAt,
+		&a.AcknowledgedAt,
+		&a.AcknowledgedBy,
+		&a.ResolvedAt,
+		&a.ResolvedBy,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return model.Alert{}, model.ErrNotFound
+		}
+		return model.Alert{}, err
+	}
+
+	return a, nil
 }

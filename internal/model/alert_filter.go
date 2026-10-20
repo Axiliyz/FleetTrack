@@ -13,4 +13,6 @@ type AlertFilter struct {
 	AcknowledgedBy *int           // Фильтр по ID оператора, подтвердившего алерт
 	ResolvedAt     *time.Time     // Фильтр по дате закрытия инцидента
 	ResolvedBy     *int           // Фильтр по ID пользователя, закрывшего инцидент
+	Limit          int            // Максимум записей; 0 — без ограничения
+	Offset         int            // Сколько записей пропустить
 }

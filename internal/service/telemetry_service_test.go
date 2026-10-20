@@ -436,3 +436,27 @@ func TestGetTelemetryList(t *testing.T) {
 }
 
 var testBatchConfig = TelemetryBatchConfig{BufferSize: 100, MaxSize: 10, MaxWait: 5 * time.Millisecond}
+
+// TestValidateTelemetry_DeviceClock проверяет границу для часов терминала
+func TestValidateTelemetry_DeviceClock(t *testing.T) {
+	base := model.Telemetry{DeviceID: 1, VehicleID: 1, Lat: 55.75, Lon: 37.61}
+	tests := []struct {
+		name string
+		ts   time.Time
+		want error
+	}{
+		{"не передано", time.Time{}, nil},
+		{"в прошлом — досланная из буфера точка", time.Now().Add(-6 * time.Hour), nil},
+		{"немного впереди — ускоренный генератор", time.Now().Add(48 * time.Hour), nil},
+		{"сброшенные часы", time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC), model.ErrInvalidTimestamp},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := base
+			p.DeviceTimestamp = tt.ts
+			if err := validateTelemetry(p); err != tt.want {
+				t.Errorf("err = %v, want %v", err, tt.want)
+			}
+		})
+	}
+}

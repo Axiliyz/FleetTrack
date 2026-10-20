@@ -77,15 +77,7 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	telemetryResponse := dto.TelemetryResponse{
-		TelemetryID: savedTelemetry.TelemetryID,
-		VehicleID:   savedTelemetry.VehicleID,
-		DeviceID:    savedTelemetry.DeviceID,
-		ReceivedAt:  savedTelemetry.ReceivedAt,
-		TripID:      savedTelemetry.TripID,
-		DistanceKm:  savedTelemetry.DistanceKm,
-		SpeedKmh:    savedTelemetry.SpeedKmh,
-	}
+	telemetryResponse := dto.NewTelemetryResponse(savedTelemetry)
 
 	respondCreated(w, r, "telemetry stored", h.logger, telemetryResponse)
 }
@@ -139,18 +131,7 @@ func (h *TelemetryHandler) HandleGetListTelemetry(w http.ResponseWriter, r *http
 		return
 	}
 
-	responses := make([]dto.TelemetryResponse, 0, len(telemetries))
-	for _, t := range telemetries {
-		responses = append(responses, dto.TelemetryResponse{
-			TelemetryID: t.TelemetryID,
-			VehicleID:   t.VehicleID,
-			DeviceID:    t.DeviceID,
-			ReceivedAt:  t.ReceivedAt,
-			TripID:      t.TripID,
-			DistanceKm:  t.DistanceKm,
-			SpeedKmh:    t.SpeedKmh,
-		})
-	}
+	responses := dto.NewTelemetryListResponse(telemetries)
 
 	respondSuccess(w, r, "telemetry list", h.logger, responses)
 }
@@ -190,15 +171,7 @@ func (h *TelemetryHandler) HandleGetTelemetryByID(w http.ResponseWriter, r *http
 		return
 	}
 
-	telemetryResponse := dto.TelemetryResponse{
-		TelemetryID: telemetry.TelemetryID,
-		VehicleID:   telemetry.VehicleID,
-		DeviceID:    telemetry.DeviceID,
-		ReceivedAt:  telemetry.ReceivedAt,
-		TripID:      telemetry.TripID,
-		DistanceKm:  telemetry.DistanceKm,
-		SpeedKmh:    telemetry.SpeedKmh,
-	}
+	telemetryResponse := dto.NewTelemetryResponse(telemetry)
 
 	respondSuccess(w, r, "telemetry found", h.logger, telemetryResponse)
 }
@@ -234,18 +207,7 @@ func (h *TelemetryHandler) HandleGetTelemetryByVehicle(w http.ResponseWriter, r 
 		return
 	}
 
-	responses := make([]dto.TelemetryResponse, 0, len(telemetries))
-	for _, t := range telemetries {
-		responses = append(responses, dto.TelemetryResponse{
-			TelemetryID: t.TelemetryID,
-			VehicleID:   t.VehicleID,
-			DeviceID:    t.DeviceID,
-			ReceivedAt:  t.ReceivedAt,
-			TripID:      t.TripID,
-			DistanceKm:  t.DistanceKm,
-			SpeedKmh:    t.SpeedKmh,
-		})
-	}
+	responses := dto.NewTelemetryListResponse(telemetries)
 
 	respondSuccess(w, r, "telemetry list", h.logger, responses)
 }
@@ -282,15 +244,7 @@ func (h *TelemetryHandler) HandleDeleteTelemetryByID(w http.ResponseWriter, r *h
 		return
 	}
 
-	telemetryResponse := dto.TelemetryResponse{
-		TelemetryID: deleted.TelemetryID,
-		VehicleID:   deleted.VehicleID,
-		DeviceID:    deleted.DeviceID,
-		ReceivedAt:  deleted.ReceivedAt,
-		TripID:      deleted.TripID,
-		DistanceKm:  deleted.DistanceKm,
-		SpeedKmh:    deleted.SpeedKmh,
-	}
+	telemetryResponse := dto.NewTelemetryResponse(deleted)
 
 	respondSuccess(w, r, "telemetry deleted", h.logger, telemetryResponse)
 }
@@ -326,18 +280,7 @@ func (h *TelemetryHandler) HandleDeleteTelemetryByVehicleID(w http.ResponseWrite
 		respondError(w, r, h.logger, err)
 		return
 	}
-	responses := make([]dto.TelemetryResponse, 0, len(telemetries))
-	for _, t := range telemetries {
-		responses = append(responses, dto.TelemetryResponse{
-			TelemetryID: t.TelemetryID,
-			VehicleID:   t.VehicleID,
-			DeviceID:    t.DeviceID,
-			ReceivedAt:  t.ReceivedAt,
-			TripID:      t.TripID,
-			DistanceKm:  t.DistanceKm,
-			SpeedKmh:    t.SpeedKmh,
-		})
-	}
+	responses := dto.NewTelemetryListResponse(telemetries)
 
 	respondSuccess(w, r, "vehicle telemetry deleted", h.logger, responses)
 }

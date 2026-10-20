@@ -240,8 +240,11 @@ type AlertRepository interface {
 	// либо указывает на userID при ручном закрытии оператором
 	Resolve(ctx context.Context, id int, resolvedBy *int) (model.Alert, error)
 
-	// AcknowledgeAlert переводит алерт в статус ACKNOWLEDGED, фиксируя время и ID оператора
-	AcknowledgeAlert(ctx context.Context, alertID, userID int) (model.Alert, error)
+	// AcknowledgeAlert переводит алерт из FIRED в ACKNOWLEDGED, фиксируя время и ID оператора.
+	// Проверка организации входит в сам UPDATE, поэтому чужой алерт не изменится даже на мгновение.
+	// Возвращает model.ErrNotFound, если алерта нет, он принадлежит другой организации
+	// или уже не в статусе FIRED (принят ранее или закрыт)
+	AcknowledgeAlert(ctx context.Context, alertID, userID, organizationID int) (model.Alert, error)
 
 	// GetList возвращает список алертов по фильтрам (организация, статус, даты, пагинация)
 	GetList(ctx context.Context, filter model.AlertFilter) ([]model.Alert, error)
@@ -251,6 +254,25 @@ type AlertRepository interface {
 
 	// AcquireLock блокирует критическую секцию, пока транзакция не закрыта
 	AcquireLock(ctx context.Context, vehicleID, ruleID int) error
+
+	// GetByID возвращает алерт организации по ID.
+	// Возвращает model.ErrNotFound, если алерта нет или он принадлежит другой организации
+	GetByID(ctx context.Context, id, organizationID int) (model.Alert, error)
+}
+
+// SnapshotRepository — выборки для снимка парка, которых нет среди обычных списков.
+// Каждый метод отдаёт данные одной организации и ограничен limit строками
+type SnapshotRepository interface {
+	// LatestPositions возвращает последнюю точку с координатами по каждой машине организации.
+	// Машины без телеметрии и удалённые машины в ответ не попадают
+	LatestPositions(ctx context.Context, organizationID, limit int) ([]model.Telemetry, error)
+
+	// ShiftTrips возвращает рейсы организации в статусе RUNNING, сколько бы они ни длились,
+	// и все рейсы, начатые не раньше since
+	ShiftTrips(ctx context.Context, organizationID int, since time.Time, limit int) ([]model.Trip, error)
+
+	// ShiftAlerts возвращает незакрытые алерты организации и все алерты, созданные не раньше since
+	ShiftAlerts(ctx context.Context, organizationID int, since time.Time, limit int) ([]model.Alert, error)
 }
 
 // NotificationChannelRepository определяет контракт управления каналами доставки уведомлений пользователей
@@ -268,8 +290,9 @@ type NotificationChannelRepository interface {
 	// Delete удаляет канал уведомлений по ID
 	Delete(ctx context.Context, id int) error
 
-	// GetUserIDByTelegramChatID находит ID пользователя по ID чата
-	GetUserIDByTelegramChatID(ctx context.Context, chatID int) (int, error)
+	// GetAuthContextByTelegramChatID находит пользователя по ID Telegram-чата вместе с организацией и ролью.
+	// Возвращает model.ErrNotFound, если чат не привязан или пользователь удалён
+	GetAuthContextByTelegramChatID(ctx context.Context, chatID int) (model.AuthContext, error)
 }
 
 // AlertNotificationRepository реализует transactional outbox паттерн для надёжной отправки уведомлений

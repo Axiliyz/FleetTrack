@@ -5,12 +5,14 @@ import (
 	"fleettrack/internal/logger"
 	"fleettrack/internal/model"
 	"fleettrack/internal/repository"
+	"fleettrack/internal/stream"
 	"fleettrack/internal/validator"
 	"fmt"
 )
 
 // TripService работает с рейсами
 type TripService struct {
+	eventSink
 	repository repository.TripRepository
 	logger     logger.Logger
 }
@@ -45,6 +47,7 @@ func (s *TripService) AssignTrip(ctx context.Context, driverID, vehicleID int, o
 		return model.Trip{}, err
 	}
 	s.logger.Info(fmt.Sprintf("Created trip: driver %d, vehicle %d", t.DriverID, t.VehicleID))
+	s.publishTrip(organizationID, t)
 	return t, nil
 }
 
@@ -62,6 +65,7 @@ func (s *TripService) UpdateTrip(ctx context.Context, id int, upd model.Trip, or
 		return model.Trip{}, err
 	}
 	s.logger.Info(fmt.Sprintf("Updated trip %d: status %s", t.ID, t.Status))
+	s.publishTrip(organizationID, t)
 	return t, nil
 }
 
@@ -123,6 +127,7 @@ func (s *TripService) DeleteTrip(ctx context.Context, id int, organizationID *in
 		return model.Trip{}, err
 	}
 	s.logger.Info(fmt.Sprintf("Cancelled trip %d", t.ID))
+	s.publishTrip(organizationID, t)
 	return t, nil
 }
 
@@ -138,4 +143,12 @@ func (s *TripService) GetTripByID(ctx context.Context, id int, organizationID *i
 	message := fmt.Sprintf("Got trip with id %d", id)
 	s.logger.Info(message)
 	return res, nil
+}
+
+// publishTrip отправляет рейс на карту. У рейса нет своей организации, её знает вызывающий:
+// хендлер всегда передаёт организацию из токена
+func (s *TripService) publishTrip(organizationID *int, t model.Trip) {
+	if organizationID != nil {
+		s.publish(*organizationID, stream.EventTrip, t)
+	}
 }

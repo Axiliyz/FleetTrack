@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"fleettrack/internal/logger"
 	"fleettrack/internal/middleware"
 	"fleettrack/internal/model"
@@ -336,5 +337,25 @@ func TestHandleGetTelemetryByVehicle(t *testing.T) {
 				t.Errorf("got %v expected %v", recorder.Code, tt.expectedStatus)
 			}
 		})
+	}
+}
+
+// TestHandleTelemetry_ResponseHasCoordinates проверяет, что ответ телеметрии несёт координаты и топливо для карты
+func TestHandleTelemetry_ResponseHasCoordinates(t *testing.T) {
+	h := NewTelemetryHandler(&mockTelemetryService{}, logger.NewStdLogger(logger.DebugLevel))
+	req := httptest.NewRequest(http.MethodPost, "/telemetry",
+		strings.NewReader(`{"device_id": 12, "vehicle_id": 1, "lat": 44.4, "lon": 44.4, "fuel": 0.5}`))
+	req = req.WithContext(middleware.ContextWithAuth(req.Context(), model.AuthContext{Role: model.UserRoleDriver, OrganizationID: 1}))
+	rec := httptest.NewRecorder()
+	h.HandleTelemetry(rec, req)
+
+	var body struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v, body: %s", err, rec.Body.String())
+	}
+	if body.Data["lat"] != 44.4 || body.Data["lon"] != 44.4 || body.Data["fuel"] != 0.5 {
+		t.Errorf("data = %v, want lat/lon 44.4 and fuel 0.5", body.Data)
 	}
 }

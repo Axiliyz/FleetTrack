@@ -7,7 +7,6 @@ import (
 	"fleettrack/internal/repository"
 	"fleettrack/internal/validator"
 	"fmt"
-	"strings"
 )
 
 // DriverService нужен для обработки водителей
@@ -81,7 +80,7 @@ func (s *DriverService) UpdateDriverByID(ctx context.Context, id int, upd model.
 	if upd.OrganizationID != nil && *upd.OrganizationID < 1 {
 		return model.Driver{}, model.ErrInvalidOrganizationID
 	}
-	if upd.Name != nil && (strings.TrimSpace(*upd.Name) == "" || len(*upd.Name) > 35) {
+	if upd.Name != nil && !validator.IsNameValid(*upd.Name) {
 		return model.Driver{}, model.ErrInvalidDriverName
 	}
 

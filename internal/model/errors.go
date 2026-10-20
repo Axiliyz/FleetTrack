@@ -86,4 +86,7 @@ var (
 	ErrInvalidChannelConfig   = errors.New("invalid notification channel config")
 	ErrUnsupportedChannelType = errors.New("unsupported notification channel type")
 	ErrDuplicateAlert         = errors.New("alert is already exist")
+	ErrAlertNotFired          = errors.New("alert not fired")
+	ErrInvalidAlertID         = errors.New("invalid alert id")
+	ErrInvalidSeverity        = errors.New("invalid severity")
 )

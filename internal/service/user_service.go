@@ -7,7 +7,6 @@ import (
 	"fleettrack/internal/repository"
 	"fleettrack/internal/validator"
 	"fmt"
-	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -61,7 +60,7 @@ func validateUser(u model.User) error {
 	if u.OrganizationID < 1 {
 		return model.ErrInvalidOrganizationID
 	}
-	if strings.TrimSpace(u.Name) == "" || len(u.Name) > 35 {
+	if !validator.IsNameValid(u.Name) {
 		return model.ErrInvalidName
 	}
 	if validator.IsRoleValid(u.Role) != nil {

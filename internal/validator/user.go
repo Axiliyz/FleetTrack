@@ -5,6 +5,7 @@ import (
 	"net/mail"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 const (
@@ -31,9 +32,11 @@ func ValidateEmail(email string) error {
 	return nil
 }
 
-// ValidatePassword проверяет корректность пароля (длина [8:72] и хотя бы 1 буква и цифра)
+// ValidatePassword проверяет корректность пароля: от 8 символов, не больше 72 байт, хотя бы 1 буква и цифра.
+// Минимум — в символах, как его понимает человек. Максимум — в байтах: bcrypt молча отбрасывает
+// всё после 72-го байта, и длинный кириллический пароль тихо укоротился бы
 func ValidatePassword(password string) error {
-	if len(password) < minPasswordLen || len(password) > maxPasswordLen {
+	if utf8.RuneCountInString(password) < minPasswordLen || len(password) > maxPasswordLen {
 		return model.ErrForbiddenPassword
 	}
 	var hasLetter, hasDigit bool

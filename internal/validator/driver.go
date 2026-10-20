@@ -1,9 +1,6 @@
 package validator
 
-import (
-	"fleettrack/internal/model"
-	"strings"
-)
+import "fleettrack/internal/model"
 
 // ValidateDriver валидирует водителя
 func ValidateDriver(d model.Driver) error {
@@ -11,7 +8,7 @@ func ValidateDriver(d model.Driver) error {
 		return model.ErrInvalidOrganizationID
 	}
 
-	if strings.TrimSpace(d.Name) == "" || len(d.Name) > 35 {
+	if !IsNameValid(d.Name) {
 		return model.ErrInvalidDriverName
 	}
 	return nil

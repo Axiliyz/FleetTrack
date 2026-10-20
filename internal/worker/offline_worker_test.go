@@ -63,7 +63,11 @@ func (m *mockOfflineAlertRepo) Resolve(ctx context.Context, id int, resolvedBy *
 	return model.Alert{}, nil
 }
 
-func (m *mockOfflineAlertRepo) AcknowledgeAlert(ctx context.Context, alertID, userID int) (model.Alert, error) {
+func (m *mockOfflineAlertRepo) AcknowledgeAlert(ctx context.Context, alertID, userID, organizationID int) (model.Alert, error) {
+	return model.Alert{}, nil
+}
+
+func (m *mockOfflineAlertRepo) GetByID(ctx context.Context, id, organizationID int) (model.Alert, error) {
 	return model.Alert{}, nil
 }
 

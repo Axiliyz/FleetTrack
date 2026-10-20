@@ -14,6 +14,7 @@ import (
 	"fleettrack/internal/repository/postgres"
 	"fleettrack/internal/router"
 	"fleettrack/internal/service"
+	"fleettrack/internal/stream"
 	"fleettrack/internal/transaction"
 	"fleettrack/internal/worker"
 	"net/http"
@@ -76,6 +77,7 @@ func New(ctx context.Context, cfg config.Config, log logger.Logger) (*App, error
 	channelRepo := postgres.NewUserNotificationChannelRepository(pool)
 	notificationRepo := postgres.NewPostgresAlertNotificationRepository(pool)
 	partitionRepo := postgres.NewPostgresPartitionRepository(pool)
+	snapshotRepo := postgres.NewPostgresSnapshotRepository(pool)
 
 	alertService := service.NewAlertService(
 		alertRepo, alertRuleRepo, channelRepo, notificationRepo,
@@ -102,6 +104,14 @@ func New(ctx context.Context, cfg config.Config, log logger.Logger) (*App, error
 	jwtService := service.NewJWTService(cfg.JWT.Secret, cfg.JWT.TTL)
 	authService := service.NewAuthService(userRepo, refreshTokenRepo, jwtService, cfg.JWT.RefreshTTL, log, txManager, repoFactory)
 	healthService := service.NewHealthService(pool)
+
+	// события для живой карты: сервисы публикуют после коммита, /stream раздаёт браузерам
+	eventHub := stream.NewHub()
+	for _, svc := range []interface{ SetEventPublisher(service.EventPublisher) }{
+		telemetryService, alertService, tripService, vehicleService,
+	} {
+		svc.SetEventPublisher(eventHub)
+	}
 
 	dispatcher := notifier.NewDispatcher(
 		notifier.NewTelegramSender(cfg.Telegram.BotToken, nil),
@@ -149,6 +159,9 @@ func New(ctx context.Context, cfg config.Config, log logger.Logger) (*App, error
 		handler.NewAuthHandler(authService, log),
 		jwtService,
 		handler.NewAlertRuleHandler(alertService, log),
+		handler.NewAlertHandler(alertService, log),
+		handler.NewFleetHandler(service.NewFleetService(vehicleRepo, driverRepo, alertRuleRepo, orgRepo, snapshotRepo), log),
+		handler.NewStreamHandler(eventHub, log),
 		handler.NewHealthHandler(healthService, log),
 		cfg.API.RequestTimeout,
 		log,
@@ -162,6 +175,9 @@ func New(ctx context.Context, cfg config.Config, log logger.Logger) (*App, error
 		WriteTimeout:      10 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
+	// Shutdown ждёт, пока закроются все соединения, а SSE-потоки сами не закрываются:
+	// закрываем их через Hub, как только сервер начал останавливаться
+	a.Server.RegisterOnShutdown(eventHub.Close)
 
 	metricsMux := http.NewServeMux()
 	metricsMux.Handle("/metrics", promhttp.Handler())

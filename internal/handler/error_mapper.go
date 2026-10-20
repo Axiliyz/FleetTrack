@@ -80,6 +80,9 @@ var errorMappings = []struct {
 	{model.ErrInvalidRuleID, http.StatusBadRequest, "invalid rule id"},
 	{model.ErrDuplicateAlert, http.StatusConflict, "alert is already exist"},
 	{model.ErrServiceUnavailable, http.StatusServiceUnavailable, "service is unavailable, try later"},
+	{model.ErrAlertNotFired, http.StatusConflict, "alert is already acknowledged or resolved"},
+	{model.ErrInvalidAlertID, http.StatusBadRequest, "invalid alert id"},
+	{model.ErrInvalidSeverity, http.StatusBadRequest, "invalid severity"},
 }
 
 // mapError преобразует внутреннюю ошибку приложения в HTTP ошибку с кодом статуса.

@@ -10,6 +10,7 @@ import (
 	"fleettrack/internal/model"
 	"fleettrack/internal/repository"
 	"fleettrack/internal/repository/factory"
+	"fleettrack/internal/stream"
 	"fleettrack/internal/transaction"
 	"fmt"
 	"sync"
@@ -18,6 +19,7 @@ import (
 
 // AlertService управляет жизненным циклом алертов, оценкой телеметрии и фоновой очередью
 type AlertService struct {
+	eventSink
 	alertRepo        repository.AlertRepository
 	ruleRepo         repository.AlertRuleRepository
 	channelRepo      repository.NotificationChannelRepository
@@ -75,11 +77,12 @@ func (s *AlertService) EvaluateTelemetry(ctx context.Context, t model.Telemetry)
 		}
 
 		if !triggered && hasActiveAlert {
-			_, err := s.alertRepo.Resolve(ctx, activeAlert.ID, nil)
+			resolved, err := s.alertRepo.Resolve(ctx, activeAlert.ID, nil)
 			if err != nil {
 				return err
 			}
 			s.logger.Info(fmt.Sprintf("alert %d resolved automatically for vehicle %d", activeAlert.ID, t.VehicleID))
+			s.publish(t.OrganizationID, stream.EventAlert, resolved)
 		}
 	}
 	return nil
@@ -122,6 +125,7 @@ func (s *AlertService) fireAlert(ctx context.Context, t model.Telemetry, r model
 	if err != nil {
 		return err
 	}
+	created := false
 	err = s.txManager.WithTx(ctx, func(tx database.DBTX) error {
 		repos := s.repoFactory.New(tx)
 		err := repos.Alert.AcquireLock(ctx, t.VehicleID, r.ID)
@@ -138,6 +142,7 @@ func (s *AlertService) fireAlert(ctx context.Context, t model.Telemetry, r model
 		if err := repos.Alert.Create(ctx, &alert); err != nil {
 			return err
 		}
+		created = true
 
 		if len(channels) == 0 {
 			return nil
@@ -157,7 +162,12 @@ func (s *AlertService) fireAlert(ctx context.Context, t model.Telemetry, r model
 	if err != nil {
 		return err
 	}
+	// дубликат, который уже открыл соседний воркер, не публикуем повторно
+	if !created {
+		return nil
+	}
 	s.logger.Info(fmt.Sprintf("alert fired: ID=%d, vehicle=%d, rule=%d, type=%s, severity=%s", alert.ID, alert.VehicleID, alert.RuleID, alert.Type, alert.Severity))
+	s.publish(alert.OrganizationID, stream.EventAlert, alert)
 	return nil
 }
 
@@ -273,14 +283,41 @@ func (s *AlertService) DeleteRuleByID(ctx context.Context, id int) (model.AlertR
 	return s.ruleRepo.DeleteByID(ctx, id)
 }
 
-// AcknowledgeAlert переводит статус алерта в ACKNOWLEDGED
-func (s *AlertService) AcknowledgeAlert(ctx context.Context, alertID, userID int) (model.Alert, error) {
-	alert, err := s.alertRepo.AcknowledgeAlert(ctx, alertID, userID)
-	if err != nil {
+// AcknowledgeAlert переводит алерт в ACKNOWLEDGED от имени actor.
+// Права проверяются здесь, а не в роутере: сюда сходятся и HTTP, и Telegram-воркер.
+// Ошибки: model.ErrForbidden — роль не может принимать алерты; model.ErrNotFound — алерта нет
+// или он чужой; model.ErrAlertNotFired — алерт свой, но уже принят или закрыт
+func (s *AlertService) AcknowledgeAlert(ctx context.Context, alertID int, actor model.AuthContext) (model.Alert, error) {
+	if !canManageAlerts(actor.Role) {
+		return model.Alert{}, fmt.Errorf("%w: role %s can't acknowledge alerts", model.ErrForbidden, actor.Role)
+	}
+
+	alert, err := s.alertRepo.AcknowledgeAlert(ctx, alertID, actor.UserID, actor.OrganizationID)
+	if err == nil {
+		s.logger.Info(fmt.Sprintf("alert %d acknowledged by user %d", alertID, actor.UserID))
+		s.publish(alert.OrganizationID, stream.EventAlert, alert)
+		return alert, nil
+	}
+	if !errors.Is(err, model.ErrNotFound) {
 		return model.Alert{}, err
 	}
-	s.logger.Info(fmt.Sprintf("alert %d acknowledged by user %d", alertID, userID))
-	return alert, nil
+
+	// UPDATE не нашёл строку: выясняем причину. Решение «не менять» уже принято атомарно,
+	// это чтение лишь выбирает ошибку, поэтому гонка с соседним диспетчером тут не страшна
+	if _, getErr := s.alertRepo.GetByID(ctx, alertID, actor.OrganizationID); getErr != nil {
+		return model.Alert{}, getErr
+	}
+	return model.Alert{}, model.ErrAlertNotFired
+}
+
+// GetAlertsList возвращает алерты по фильтру; organization_id в фильтре выставляет вызывающий
+func (s *AlertService) GetAlertsList(ctx context.Context, filter model.AlertFilter) ([]model.Alert, error) {
+	return s.alertRepo.GetList(ctx, filter)
+}
+
+// canManageAlerts — кто может принимать алерты в работу; совпадает с manageFleet в роутере
+func canManageAlerts(role model.UserRole) bool {
+	return role == model.UserRoleAdmin || role == model.UserRoleDispatcher
 }
 
 // FireOfflineAlert создаёт алерт о потере связи с устройством, если такого открытого алерта ещё нет

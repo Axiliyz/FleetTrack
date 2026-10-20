@@ -8,11 +8,11 @@ import (
 
 // ValidateVehicle валидирует автомобиль
 func ValidateVehicle(v model.Vehicle) error {
-	if len(v.VIN) != 17 || v.VIN != strings.ToUpper(v.VIN) {
+	if !IsVINValid(v.VIN) {
 		return model.ErrInvalidVIN
 	}
 
-	if len(v.NumberPlate) < 8 || len(v.NumberPlate) > 9 {
+	if !IsNumberPlateValid(v.NumberPlate) {
 		return model.ErrInvalidNumberPlate
 	}
 

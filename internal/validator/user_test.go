@@ -65,6 +65,11 @@ func TestValidatePassword(t *testing.T) {
 		{name: "at max length", password: "a1" + strings.Repeat("a", 70), wantErr: nil},
 		{name: "no digit", password: "passwordonly", wantErr: model.ErrForbiddenPassword},
 		{name: "no letter", password: "12345678", wantErr: model.ErrForbiddenPassword},
+		// минимум — в символах: 8 кириллических символов это 15 байт, но пароль всё ещё из 8 знаков
+		{name: "cyrillic 8 chars", password: "пароль12", wantErr: nil},
+		{name: "cyrillic 7 chars (14 bytes)", password: "пароль1", wantErr: model.ErrForbiddenPassword},
+		// максимум — в байтах: bcrypt отбрасывает всё после 72-го байта
+		{name: "cyrillic 37 chars is 73 bytes", password: "1" + strings.Repeat("ж", 36), wantErr: model.ErrForbiddenPassword},
 	}
 
 	for _, tt := range tests {

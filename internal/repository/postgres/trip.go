@@ -92,7 +92,8 @@ func (r *PostgresTripRepository) UpdateTrip(ctx context.Context, upd model.Trip,
 	FROM drivers d
 	WHERE t.id = $1 AND t.driver_id = d.id AND ($6::int IS NULL OR d.organization_id = $6)
 	  AND t.status NOT IN ($4, $5)
-	RETURNING t.id, t.driver_id, t.vehicle_id, t.started_at, t.ended_at, t.status, t.distance_km
+	RETURNING t.id, t.driver_id, t.vehicle_id, t.started_at, t.ended_at, t.status,
+		t.distance_km, t.avg_speed_kmh, t.max_speed_kmh, t.telemetry_count
 	`
 
 	var t model.Trip
@@ -102,7 +103,8 @@ func (r *PostgresTripRepository) UpdateTrip(ctx context.Context, upd model.Trip,
 		model.TripStatusCancelled, model.TripStatusSucceeded,
 		organizationID,
 	).Scan(
-		&t.ID, &t.DriverID, &t.VehicleID, &t.StartedAt, &t.EndedAt, &t.Status, &t.DistanceKm,
+		&t.ID, &t.DriverID, &t.VehicleID, &t.StartedAt, &t.EndedAt, &t.Status,
+		&t.DistanceKm, &t.AvgSpeedKmh, &t.MaxSpeedKmh, &t.TelemetryCount,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

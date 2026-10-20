@@ -196,22 +196,25 @@ func (r *PostgresUserNotificationChannelRepository) Delete(ctx context.Context, 
 	return nil
 }
 
-// GetUserIDByTelegramChatID находит пользователя, привязавшего указанный Telegram chat_id как канал уведомлений
-func (r *PostgresUserNotificationChannelRepository) GetUserIDByTelegramChatID(ctx context.Context, chatID int) (int, error) {
+// GetAuthContextByTelegramChatID находит пользователя, привязавшего указанный Telegram chat_id как канал уведомлений,
+// и возвращает его в том же виде, что JWT-мидлварь для HTTP: кто он, из какой организации и с какой ролью.
+// INNER JOIN отбрасывает каналы удалённых пользователей - для них вернётся model.ErrNotFound
+func (r *PostgresUserNotificationChannelRepository) GetAuthContextByTelegramChatID(ctx context.Context, chatID int) (model.AuthContext, error) {
 	const query = `
-	SELECT user_id
-	FROM user_notification_channels
-	WHERE type='TELEGRAM'
-	AND (config->>'chat_id')::bigint = $1
+	SELECT u.id, u.organization_id, u.driver_id, u.role
+	FROM user_notification_channels c
+	JOIN users u ON u.id = c.user_id
+	WHERE c.type = 'TELEGRAM'
+	AND (c.config->>'chat_id')::bigint = $1
 	LIMIT 1`
 
-	var userID int
-	err := r.db.QueryRow(ctx, query, chatID).Scan(&userID)
+	var a model.AuthContext
+	err := r.db.QueryRow(ctx, query, chatID).Scan(&a.UserID, &a.OrganizationID, &a.DriverID, &a.Role)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return 0, model.ErrNotFound
+			return model.AuthContext{}, model.ErrNotFound
 		}
-		return 0, err
+		return model.AuthContext{}, err
 	}
-	return userID, nil
+	return a, nil
 }

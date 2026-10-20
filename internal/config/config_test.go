@@ -21,6 +21,13 @@ func setRequiredEnv(t *testing.T) {
 
 func TestLoad_Defaults(t *testing.T) {
 	setRequiredEnv(t)
+	// make test экспортирует .env, поэтому опциональные переменные явно обнуляем
+	for _, k := range []string{
+		"METRICS_PORT", "DB_MAX_CONNS", "REQUEST_TIMEOUT", "SMTP_PORT", "LOG_LEVEL",
+		"ALERT_WORKERS", "ALERT_QUEUE_SIZE", "TELEMETRY_BATCH_SIZE", "TELEMETRY_BATCH_WAIT", "TELEMETRY_BUFFER_SIZE",
+	} {
+		t.Setenv(k, "")
+	}
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)

@@ -5,12 +5,14 @@ import (
 	"fleettrack/internal/logger"
 	"fleettrack/internal/model"
 	"fleettrack/internal/repository"
+	"fleettrack/internal/stream"
 	"fleettrack/internal/validator"
 	"fmt"
 )
 
 // VehicleService нужен для обработки автомобилей
 type VehicleService struct {
+	eventSink
 	repository repository.VehicleRepository
 	logger     logger.Logger
 }
@@ -34,6 +36,7 @@ func (s *VehicleService) CreateVehicle(ctx context.Context, v model.Vehicle) (mo
 	}
 
 	s.logger.Info(fmt.Sprintf("Vehicle %d created", v.ID))
+	s.publish(v.OrganizationID, stream.EventVehicle, v)
 
 	return v, nil
 }
@@ -43,11 +46,10 @@ func (s *VehicleService) GetVehicleList(ctx context.Context, filter model.Vehicl
 	if filter.OrganizationID != nil && *filter.OrganizationID < 1 {
 		return nil, model.ErrInvalidOrganizationID
 	}
-	if filter.VIN != nil && len(*filter.VIN) != 17 {
+	if filter.VIN != nil && !validator.IsVINValid(*filter.VIN) {
 		return nil, model.ErrInvalidVIN
 	}
-	if filter.NumberPlate != nil && (len(*filter.NumberPlate) < 8 ||
-		len(*filter.NumberPlate) > 9) {
+	if filter.NumberPlate != nil && !validator.IsNumberPlateValid(*filter.NumberPlate) {
 		return nil, model.ErrInvalidNumberPlate
 	}
 	if filter.Status != nil && !model.IsStatusValid(*filter.Status) {
@@ -83,6 +85,8 @@ func (s *VehicleService) DeleteVehicleByID(ctx context.Context, id int, organiza
 		return model.Vehicle{}, err
 	}
 	s.logger.Info(fmt.Sprintf("Vehicle %d deleted", v.ID))
+	// со статусом DELETED: карта по нему убирает машину
+	s.publish(v.OrganizationID, stream.EventVehicle, v)
 	return v, nil
 }
 
@@ -94,5 +98,6 @@ func (s *VehicleService) UpdateVehicleByID(ctx context.Context, id int, upd mode
 		return model.Vehicle{}, err
 	}
 	s.logger.Info(fmt.Sprintf("Vehicle %d was updated", v.ID))
+	s.publish(v.OrganizationID, stream.EventVehicle, v)
 	return v, nil
 }

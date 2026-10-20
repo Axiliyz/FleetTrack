@@ -96,6 +96,8 @@ type mockAlertRepo struct {
 	resolveErr    error
 	ackErr        error
 	listErr       error
+	getByIDErr    error
+	listFilter    model.AlertFilter
 	activeAlert   model.Alert
 	createdAlerts []model.Alert
 	resolvedIDs   []int
@@ -132,22 +134,26 @@ func (m *mockAlertRepo) Resolve(ctx context.Context, id int, resolvedBy *int) (m
 	return model.Alert{ID: id, Status: model.AlertStatusResolved}, nil
 }
 
-func (m *mockAlertRepo) AcknowledgeAlert(ctx context.Context, alertID, userID int) (model.Alert, error) {
+func (m *mockAlertRepo) AcknowledgeAlert(ctx context.Context, alertID, userID, organizationID int) (model.Alert, error) {
 	if m.ackErr != nil {
 		return model.Alert{}, m.ackErr
 	}
-	return model.Alert{ID: alertID, Status: model.AlertStatusAcknowledged}, nil
+	return model.Alert{ID: alertID, OrganizationID: organizationID, Status: model.AlertStatusAcknowledged}, nil
 }
 
 func (m *mockAlertRepo) GetList(ctx context.Context, filter model.AlertFilter) ([]model.Alert, error) {
 	if m.listErr != nil {
 		return nil, m.listErr
 	}
+	m.listFilter = filter
 	return nil, nil
 }
 
-func (m *mockAlertRepo) GetByID(ctx context.Context, id int) (model.Alert, error) {
-	return model.Alert{ID: id}, nil
+func (m *mockAlertRepo) GetByID(ctx context.Context, id, organizationID int) (model.Alert, error) {
+	if m.getByIDErr != nil {
+		return model.Alert{}, m.getByIDErr
+	}
+	return model.Alert{ID: id, OrganizationID: organizationID, Status: model.AlertStatusAcknowledged}, nil
 }
 
 func (m *mockAlertRepo) FindOfflineVehicles(ctx context.Context, thresholdMinutes float64) ([]model.OfflineVehicleInfo, error) {
@@ -157,8 +163,8 @@ func (m *mockAlertRepo) FindOfflineVehicles(ctx context.Context, thresholdMinute
 func (m *mockAlertRepo) AcquireLock(ctx context.Context, vehicleID, ruleID int) error {
 	return nil
 }
-func (m *mockChannelRepo) GetUserIDByTelegramChatID(ctx context.Context, chatID int) (int, error) {
-	return 1, nil
+func (m *mockChannelRepo) GetAuthContextByTelegramChatID(ctx context.Context, chatID int) (model.AuthContext, error) {
+	return model.AuthContext{UserID: 1, OrganizationID: 1, Role: model.UserRoleDispatcher}, nil
 }
 
 // mockChannelRepo имитирует NotificationChannelRepository для тестов
@@ -656,4 +662,42 @@ func TestAlertService_WorkerQueue(t *testing.T) {
 	}
 
 	svc.Stop()
+}
+
+// TestAlertService_AcknowledgeAlert проверяет права и различение причин, по которым алерт не принят
+func TestAlertService_AcknowledgeAlert(t *testing.T) {
+	dispatcher := model.AuthContext{UserID: 7, OrganizationID: 1, Role: model.UserRoleDispatcher}
+	errDB := errors.New("connection reset")
+
+	tests := []struct {
+		name       string
+		actor      model.AuthContext
+		ackErr     error
+		getByIDErr error
+		wantErr    error
+	}{
+		{name: "диспетчер принимает свой алерт", actor: dispatcher},
+		{name: "администратор принимает свой алерт", actor: model.AuthContext{UserID: 1, OrganizationID: 1, Role: model.UserRoleAdmin}},
+		{name: "водитель не может принимать алерты", actor: model.AuthContext{UserID: 9, OrganizationID: 1, Role: model.UserRoleDriver}, wantErr: model.ErrForbidden},
+		{name: "аналитик не может принимать алерты", actor: model.AuthContext{UserID: 9, OrganizationID: 1, Role: model.UserRoleAnalytic}, wantErr: model.ErrForbidden},
+		{name: "свой алерт уже принят или закрыт", actor: dispatcher, ackErr: model.ErrNotFound, wantErr: model.ErrAlertNotFired},
+		{name: "алерта нет или он чужой", actor: dispatcher, ackErr: model.ErrNotFound, getByIDErr: model.ErrNotFound, wantErr: model.ErrNotFound},
+		{name: "ошибка базы пробрасывается как есть", actor: dispatcher, ackErr: errDB, wantErr: errDB},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &mockAlertRepo{ackErr: tt.ackErr, getByIDErr: tt.getByIDErr}
+			svc := NewAlertService(repo, nil, nil, nil, nil, nil, logger.NewStdLogger(logger.DebugLevel), 100)
+
+			alert, err := svc.AcknowledgeAlert(context.Background(), 42, tt.actor)
+
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+			if tt.wantErr == nil && alert.Status != model.AlertStatusAcknowledged {
+				t.Errorf("status = %s, want ACKNOWLEDGED", alert.Status)
+			}
+		})
+	}
 }

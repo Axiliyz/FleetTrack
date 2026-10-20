@@ -22,3 +22,9 @@ func (rw *ResponseWriter) Write(data []byte) (int, error) {
 
 	return rw.ResponseWriter.Write(data)
 }
+
+// Unwrap отдаёт исходный ResponseWriter. Через него http.ResponseController находит Flush
+// и дедлайны соединения — без этого SSE за этой обёрткой не смог бы отправлять события сразу
+func (rw *ResponseWriter) Unwrap() http.ResponseWriter {
+	return rw.ResponseWriter
+}
