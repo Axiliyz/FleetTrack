@@ -35,6 +35,7 @@ var (
 	ErrDuplicatePlate     = errors.New("vehicle with this number plate already exists")
 	ErrInvalidNumberPlate = errors.New("invalid number plate")
 	ErrVehicleIsBusy      = errors.New("vehicle is busy")
+	ErrVehicleOnTrip      = errors.New("vehicle status is managed by its running trip")
 
 	// Devices errors
 	ErrDeviceAlreadyAssigned = errors.New("device is already assigned")
@@ -44,8 +45,7 @@ var (
 	ErrDuplicateSerialNumber = errors.New("device with this serial number already exists")
 
 	// Organization errors
-	ErrInvalidOrgName   = errors.New("invalid organization name")
-	ErrDuplicateOrgName = errors.New("organization with this name is already exists")
+	ErrInvalidOrgName = errors.New("invalid organization name")
 
 	// Trip errors
 	ErrTripAlreadyFinished = errors.New("trip is already finished")
@@ -71,6 +71,8 @@ var (
 	ErrInvalidUserRole     = errors.New("invalid user role")
 	ErrDuplicateEmail      = errors.New("user with this email already exists")
 	ErrDriverAlreadyLinked = errors.New("driver is already linked to another user")
+	ErrDeleteSelf          = errors.New("user can't delete himself")
+	ErrLastAdmin           = errors.New("organization must keep at least one admin")
 
 	// JWT errors
 	ErrInvalidSigningMethod = errors.New("invalid signing method")
@@ -79,6 +81,8 @@ var (
 	ErrInvalidCredentials   = errors.New("invalid credentials")
 	ErrForbidden            = errors.New("access denied")
 	ErrDriverNotLinked      = errors.New("user account has no linked driver")
+	ErrTokenReused          = errors.New("refresh token reused")
+	ErrTooManyStreams       = errors.New("too many open streams")
 
 	// Alerts and Notifications errors
 	ErrInvalidThreshold       = errors.New("invalid threshold")

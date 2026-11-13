@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fleettrack/internal/logger"
+	"fleettrack/internal/middleware"
 	"fleettrack/internal/model"
 	"net/http"
 	"net/http/httptest"
@@ -14,80 +15,80 @@ import (
 
 type mockOrgService struct {
 	returnError error
-}
-
-func (m *mockOrgService) CreateOrg(ctx context.Context, o model.Org) (model.Org, error) {
-	if m.returnError != nil {
-		return model.Org{}, m.returnError
-	}
-	return model.Org{
-		ID:   1,
-		Name: o.Name,
-	}, nil
+	lastOrgID   int
 }
 
 func (m *mockOrgService) GetOrgList(ctx context.Context, organizationID int) ([]model.Org, error) {
 	if m.returnError != nil {
 		return nil, m.returnError
 	}
-	return []model.Org{}, nil
+	m.lastOrgID = organizationID
+	return []model.Org{{ID: organizationID, Name: "Acme"}}, nil
 }
 
-func TestHandlePostOrg(t *testing.T) {
+// TestHandleGetListOrg проверяет, что пользователь получает только организацию из своего токена
+func TestHandleGetListOrg(t *testing.T) {
 	tests := []struct {
 		name           string
-		method         string
+		authCtx        *model.AuthContext
 		serviceError   error
-		requestBody    string
 		expectedStatus int
 	}{
 		{
-			name:           "success",
-			method:         "POST",
-			serviceError:   nil,
-			requestBody:    `{"name": "Acme"}`,
-			expectedStatus: http.StatusCreated,
+			name:           "своя организация",
+			authCtx:        &model.AuthContext{UserID: 1, OrganizationID: 7, Role: model.UserRoleAnalytic},
+			expectedStatus: http.StatusOK,
 		},
 		{
-			name:           "wrong method",
-			method:         "PATCH",
-			serviceError:   nil,
-			requestBody:    `{"name": "Acme"}`,
-			expectedStatus: http.StatusMethodNotAllowed,
+			name:           "без токена",
+			expectedStatus: http.StatusUnauthorized,
 		},
 		{
-			name:           "invalid name",
-			method:         "POST",
-			serviceError:   model.ErrInvalidOrgName,
-			requestBody:    `{"name": ""}`,
-			expectedStatus: http.StatusBadRequest,
-		},
-		{
-			name:           "invalid json",
-			method:         "POST",
-			serviceError:   nil,
-			requestBody:    ``,
-			expectedStatus: http.StatusBadRequest,
+			name:           "ошибка сервиса",
+			authCtx:        &model.AuthContext{UserID: 1, OrganizationID: 7, Role: model.UserRoleAdmin},
+			serviceError:   model.ErrServiceUnavailable,
+			expectedStatus: http.StatusServiceUnavailable,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			service := &mockOrgService{returnError: tt.serviceError}
-			logger := logger.NewStdLogger(logger.DebugLevel)
-			handler := NewOrgHandler(service, logger)
+			handler := NewOrgHandler(service, logger.NewStdLogger(logger.ErrorLevel))
 
 			r := chi.NewRouter()
-			r.Post("/organizations", handler.HandlePostOrg)
+			r.Get("/organizations", handler.HandleGetListOrg)
 
-			body := strings.NewReader(tt.requestBody)
-			request := httptest.NewRequest(tt.method, "/organizations", body)
-
+			request := httptest.NewRequest(http.MethodGet, "/organizations", nil)
+			if tt.authCtx != nil {
+				request = request.WithContext(middleware.ContextWithAuth(request.Context(), *tt.authCtx))
+			}
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, request)
+
 			if recorder.Code != tt.expectedStatus {
 				t.Errorf("got status %d, expected %d", recorder.Code, tt.expectedStatus)
 			}
+			if tt.expectedStatus == http.StatusOK && service.lastOrgID != tt.authCtx.OrganizationID {
+				t.Errorf("organization id = %d, want %d from token", service.lastOrgID, tt.authCtx.OrganizationID)
+			}
 		})
+	}
+}
+
+// TestPostOrganizationsRemoved проверяет, что создать пустую организацию без админа больше нельзя:
+// организация появляется только через /register
+func TestPostOrganizationsRemoved(t *testing.T) {
+	handler := NewOrgHandler(&mockOrgService{}, logger.NewStdLogger(logger.ErrorLevel))
+
+	r := chi.NewRouter()
+	r.Get("/organizations", handler.HandleGetListOrg)
+
+	request := httptest.NewRequest(http.MethodPost, "/organizations", strings.NewReader(`{"name":"Acme"}`))
+	recorder := httptest.NewRecorder()
+	r.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusMethodNotAllowed {
+		t.Errorf("got status %d, expected %d", recorder.Code, http.StatusMethodNotAllowed)
 	}
 }

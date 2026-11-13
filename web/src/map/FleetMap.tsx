@@ -1,22 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Map as MapLibreMap, Marker, setWorkerUrl } from 'maplibre-gl'
-import 'maplibre-gl/dist/maplibre-gl.css'
-import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
+import { Map as MapLibreMap, Marker } from 'maplibre-gl'
 import { MapboxOverlay } from '@deck.gl/mapbox'
 import { useFleet } from '../state/fleet'
 import { conditionsById, type Condition } from '../state/selectors'
+import { STYLE_URL } from './basemap'
 import { buildLayers, NEAR_ZOOM } from './layers'
 import { motion } from './motion'
 import { MOSCOW, NETWORK_BOUNDS } from './network'
 import { TruckMarker } from './TruckMarker'
-
-// тёмная подложка без подписей: города подписываем сами, по-русски
-const STYLE_URL = 'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json'
-
-// maplibre ищет воркер рядом со своим модулем, а Vite при сборке зависимостей переносит модуль —
-// поэтому путь к воркеру задаём явно
-setWorkerUrl(maplibreWorkerUrl)
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 

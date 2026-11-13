@@ -2,17 +2,17 @@ package dto
 
 import "fleettrack/internal/model"
 
-// CreateDeviceRequest описывает тело HTTP запроса на создание устройства
+// CreateDeviceRequest описывает тело HTTP запроса на создание устройства.
+// Организации в теле нет: устройство создаётся в организации из токена
 type CreateDeviceRequest struct {
-	SerialNumber   string `json:"serial_number"`
-	OrganizationID int    `json:"organization_id"`
+	SerialNumber string `json:"serial_number"`
 }
 
-// ToDomainModel конвертирует CreateDeviceRequest в domain-модель model.Device
-func (cr *CreateDeviceRequest) ToDomainModel() model.Device {
+// ToDomainModel конвертирует CreateDeviceRequest в domain-модель model.Device организации organizationID
+func (cr *CreateDeviceRequest) ToDomainModel(organizationID int) model.Device {
 	return model.Device{
 		SerialNumber:   cr.SerialNumber,
 		Status:         model.DeviceStatusActive,
-		OrganizationID: cr.OrganizationID,
+		OrganizationID: organizationID,
 	}
 }

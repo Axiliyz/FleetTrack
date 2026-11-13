@@ -163,6 +163,49 @@ func (r *PostgresAlertRepository) Resolve(ctx context.Context, id int, resolvedB
 	return a, nil
 }
 
+// ResolveByVehicle закрывает все незакрытые алерты машины. Нужен при удалении машины:
+// иначе её DEVICE_OFFLINE так и висел бы открытым, хотя машины уже нет
+func (r *PostgresAlertRepository) ResolveByVehicle(ctx context.Context, vehicleID int) ([]model.Alert, error) {
+	return r.resolveWhere(ctx, "vehicle_id = $1", vehicleID)
+}
+
+// ResolveByRule закрывает все незакрытые алерты правила. Нужен при удалении правила:
+// удалённое правило больше не проверяется, и закрыть его алерты по телеметрии некому
+func (r *PostgresAlertRepository) ResolveByRule(ctx context.Context, ruleID int) ([]model.Alert, error) {
+	return r.resolveWhere(ctx, "rule_id = $1", ruleID)
+}
+
+// resolveWhere закрывает системой (resolved_by = NULL) незакрытые алерты по условию cond с одним аргументом
+func (r *PostgresAlertRepository) resolveWhere(ctx context.Context, cond string, arg int) ([]model.Alert, error) {
+	query := `
+	UPDATE alerts
+	SET status = 'RESOLVED', resolved_at = NOW()
+	WHERE ` + cond + ` AND status != 'RESOLVED'
+	RETURNING
+		id, organization_id, vehicle_id, rule_id, type, severity, status, message, value,
+		created_at, acknowledged_at, acknowledged_by, resolved_at, resolved_by`
+
+	rows, err := r.db.Query(ctx, query, arg)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var alerts []model.Alert
+	for rows.Next() {
+		var a model.Alert
+		if err := rows.Scan(
+			&a.ID, &a.OrganizationID, &a.VehicleID, &a.RuleID, &a.Type, &a.Severity, &a.Status,
+			&a.Message, &a.Value, &a.CreatedAt, &a.AcknowledgedAt, &a.AcknowledgedBy,
+			&a.ResolvedAt, &a.ResolvedBy,
+		); err != nil {
+			return nil, err
+		}
+		alerts = append(alerts, a)
+	}
+	return alerts, rows.Err()
+}
+
 // AcknowledgeAlert переводит алерт из статуса FIRED в ACKNOWLEDGED оператором.
 // organization_id стоит в WHERE: доступ проверяется тем же запросом, что и меняет строку
 func (r *PostgresAlertRepository) AcknowledgeAlert(ctx context.Context, alertID, userID, organizationID int) (model.Alert, error) {
@@ -332,7 +375,8 @@ func (r *PostgresAlertRepository) GetList(ctx context.Context, filter model.Aler
 	return alerts, nil
 }
 
-// FindOfflineVehicles ищет автомобили с активными трекерами, не присылавшие телеметрию дольше thresholdMinutes
+// FindOfflineVehicles ищет автомобили с активными трекерами, не присылавшие телеметрию дольше thresholdMinutes.
+// Удалённые машины не ищутся, даже если их привязка трекера почему-то осталась открытой
 func (r *PostgresAlertRepository) FindOfflineVehicles(ctx context.Context, thresholdMinutes float64) ([]model.OfflineVehicleInfo, error) {
 	const query = `
 	SELECT 
@@ -344,6 +388,7 @@ func (r *PostgresAlertRepository) FindOfflineVehicles(ctx context.Context, thres
 	FROM device_assignments da
 	JOIN vehicles v ON v.id = da.vehicle_id
 	WHERE da.ended_at IS NULL
+	AND v.status <> 'DELETED'
 	AND EXTRACT(EPOCH FROM (NOW() - COALESCE(v.last_telemetry_at, da.started_at))) / 60 >= $1`
 
 	rows, err := r.db.Query(ctx, query, thresholdMinutes)

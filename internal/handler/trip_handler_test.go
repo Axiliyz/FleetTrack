@@ -49,7 +49,7 @@ func (m *mockTripService) GetTripByID(ctx context.Context, id int, organizationI
 	if m.returnError != nil {
 		return model.Trip{}, m.returnError
 	}
-	return model.Trip{ID: id}, nil
+	return model.Trip{ID: id, DriverID: 9}, nil
 }
 
 func TestHandleAssignTrip(t *testing.T) {
@@ -241,6 +241,38 @@ func TestHandleGetTripByID(t *testing.T) {
 
 			if recorder.Code != tt.expectedStatus {
 				t.Errorf("got status %d, expected %d", recorder.Code, tt.expectedStatus)
+			}
+		})
+	}
+}
+
+// TestHandleGetTripByID_DriverScope проверяет, что водитель получает только свой рейс,
+// а чужой рейс для него неотличим от несуществующего
+func TestHandleGetTripByID_DriverScope(t *testing.T) {
+	own, other := 9, 4
+	tests := []struct {
+		name           string
+		authCtx        model.AuthContext
+		expectedStatus int
+	}{
+		{"свой рейс водителя", model.AuthContext{Role: model.UserRoleDriver, OrganizationID: 1, DriverID: &own}, http.StatusOK},
+		{"чужой рейс водителя", model.AuthContext{Role: model.UserRoleDriver, OrganizationID: 1, DriverID: &other}, http.StatusNotFound},
+		{"водитель без привязки", model.AuthContext{Role: model.UserRoleDriver, OrganizationID: 1}, http.StatusForbidden},
+		{"диспетчер видит любой рейс", model.AuthContext{Role: model.UserRoleDispatcher, OrganizationID: 1}, http.StatusOK},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := NewTripHandler(&mockTripService{}, logger.NewStdLogger(logger.ErrorLevel))
+			r := chi.NewRouter()
+			r.Get("/trips/{id}", handler.HandleGetTripByID)
+
+			request := httptest.NewRequest(http.MethodGet, "/trips/1", nil)
+			request = request.WithContext(middleware.ContextWithAuth(request.Context(), tt.authCtx))
+			recorder := httptest.NewRecorder()
+			r.ServeHTTP(recorder, request)
+
+			if recorder.Code != tt.expectedStatus {
+				t.Errorf("status = %d, want %d", recorder.Code, tt.expectedStatus)
 			}
 		})
 	}

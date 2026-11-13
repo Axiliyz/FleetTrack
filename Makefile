@@ -127,6 +127,24 @@ web-check:
 web-build:
 	@cd web && npm run build
 
+# DEMO
+
+demo-up:
+	@docker compose --profile demo up -d --build
+	@echo "Демо-стенд: http://localhost:$${WEB_PORT:-8081}"
+
+demo-logs:
+	@docker compose --profile demo logs -f sim
+
+demo-reset:
+	@read -p "Удалить базу $(DB_NAME) и завести демо-парк заново? [y/n]: " ans; \
+	if [ "$$ans" != "y" ]; then echo "Сброс отменён"; exit 0; fi; \
+	docker compose --profile demo stop sim api; \
+	docker compose exec -T postgres dropdb -U $(DB_USER) --if-exists --force $(DB_NAME); \
+	docker compose exec -T postgres createdb -U $(DB_USER) $(DB_NAME); \
+	docker compose --profile demo up -d; \
+	echo "Демо-парк заводится заново: make demo-logs"
+
 # USEFUL
 
 help:
@@ -150,6 +168,9 @@ help:
 	@echo "make web-dev             (диспетчерская на http://localhost:5173)"
 	@echo "make web-check           (типы и тесты фронтенда)"
 	@echo "make web-build           (сборка фронтенда в web/dist)"
+	@echo "make demo-up             (стенд целиком: API, фронт, генератор демо-парка)"
+	@echo "make demo-logs           (журнал генератора демо-парка)"
+	@echo "make demo-reset          (удалить базу и завести демо-парк заново)"
 	@echo "make clean"
 
 clean:

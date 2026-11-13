@@ -37,6 +37,20 @@ func TestBuildWhereClause(t *testing.T) {
 			wantArgs:  []any{5, 7},
 		},
 		{
+			name:      "trip_id only",
+			filter:    model.TelemetryFilter{TripID: intPtr(12)},
+			wantWhere: "WHERE trip_id = $1",
+			wantArgs:  []any{12},
+		},
+		{
+			// у телеметрии нет driver_id: водитель известен через его рейсы.
+			// Фильтр обязан применяться — на нём держится scopeDriverID для роли DRIVER
+			name:      "driver_id через рейсы водителя",
+			filter:    model.TelemetryFilter{OrganizationID: intPtr(3), DriverID: intPtr(4)},
+			wantWhere: "WHERE organization_id = $1 AND trip_id IN (SELECT id FROM trips WHERE driver_id = $2)",
+			wantArgs:  []any{3, 4},
+		},
+		{
 			name:      "fuel range",
 			filter:    model.TelemetryFilter{FuelMin: float32Ptr(0.1), FuelMax: float32Ptr(0.9)},
 			wantWhere: "WHERE fuel >= $1 AND fuel <= $2",

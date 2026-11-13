@@ -23,16 +23,16 @@ func mapUniqueViolation(err error) error {
 		return err
 	}
 
+	// уникальность VIN, номера и серийника - в пределах организации (миграция 000021),
+	// поэтому конфликт возможен только со своей же записью и ничего чужого не выдаёт
 	switch pgErr.ConstraintName {
-	case "vehicles_vin_key":
+	case "uq_vehicles_org_vin":
 		return model.ErrDuplicateVIN
-	case "vehicles_number_plate_key":
+	case "uq_vehicles_org_plate":
 		return model.ErrDuplicatePlate
-	case "devices_serial_number_key":
+	case "uq_devices_org_serial":
 		return model.ErrDuplicateSerialNumber
-	case "organizations_name_key":
-		return model.ErrDuplicateOrgName
-	case "users_email_key":
+	case "uq_users_email":
 		return model.ErrDuplicateEmail
 	case "idx_users_driver_id":
 		return model.ErrDriverAlreadyLinked
@@ -186,12 +186,12 @@ func (r *PostgresVehicleRepository) GetList(ctx context.Context, filter model.Ve
 }
 
 // Delete для PostgresVehicleRepository мягко удаляет машину (status = DELETED).
-// Уже удалённая машина считается ненайденной.
+// Уже удалённая машина считается ненайденной, машина в рейсе не удаляется - model.ErrVehicleIsBusy.
 // organizationID != nil ограничивает удаление машинами этой организации; nil снимает ограничение.
 func (r *PostgresVehicleRepository) Delete(ctx context.Context, id int, organizationID *int) (model.Vehicle, error) {
 	query := `
 	UPDATE vehicles SET status = 'DELETED', updated_at = NOW()
-	WHERE id = $1 AND status <> 'DELETED'`
+	WHERE id = $1 AND status NOT IN ('DELETED', 'ON_TRIP')`
 	args := []any{id}
 	if organizationID != nil {
 		query += " AND organization_id = $2"
@@ -207,11 +207,28 @@ func (r *PostgresVehicleRepository) Delete(ctx context.Context, id int, organiza
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return model.Vehicle{}, model.ErrNotFound
+			return model.Vehicle{}, r.explainMiss(ctx, id, organizationID, model.ErrVehicleIsBusy)
 		}
 		return model.Vehicle{}, err
 	}
 	return v, nil
+}
+
+// explainMiss выясняет, почему UPDATE по машине не нашёл строку: машины нет (или она чужая/удалена) -
+// model.ErrNotFound, машина в рейсе - onTrip. Само решение «не менять» уже принято атомарно
+// в UPDATE, это чтение только выбирает ошибку для ответа
+func (r *PostgresVehicleRepository) explainMiss(ctx context.Context, id int, organizationID *int, onTrip error) error {
+	v, err := r.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if organizationID != nil && v.OrganizationID != *organizationID {
+		return model.ErrNotFound
+	}
+	if v.Status == model.VehicleStatusOnTrip {
+		return onTrip
+	}
+	return model.ErrNotFound
 }
 
 // buildVehicleSetClause берёт изменяемые поля и возвращает готовый кусок SET и срез аргументов
@@ -219,11 +236,6 @@ func buildVehicleSetClause(updater model.UpdateVehicle) (string, []any) {
 	var conditions []string
 	var args []any
 	argN := 1
-	if updater.OrganizationID != nil {
-		conditions = append(conditions, fmt.Sprintf("organization_id = $%d", argN))
-		args = append(args, *updater.OrganizationID)
-		argN++
-	}
 	if updater.NumberPlate != nil {
 		conditions = append(conditions, fmt.Sprintf("number_plate = $%d", argN))
 		args = append(args, *updater.NumberPlate)
@@ -241,14 +253,25 @@ func buildVehicleSetClause(updater model.UpdateVehicle) (string, []any) {
 
 // Update для PostgresVehicleRepository обновляет некоторые данные авто по ID.
 // Удалённые машины не изменяются и считаются ненайденными.
+// Статус машины в рейсе вручную не меняется - им управляет рейс, вернётся model.ErrVehicleOnTrip.
 // organizationID != nil ограничивает обновление машинами этой организации; nil снимает ограничение.
 func (r *PostgresVehicleRepository) Update(ctx context.Context, id int, upd model.UpdateVehicle, organizationID *int) (model.Vehicle, error) {
 	setClause, args := buildVehicleSetClause(upd)
 	if setClause == "" {
-		return r.GetByID(ctx, id)
+		v, err := r.GetByID(ctx, id)
+		if err != nil {
+			return model.Vehicle{}, err
+		}
+		if organizationID != nil && v.OrganizationID != *organizationID {
+			return model.Vehicle{}, model.ErrNotFound
+		}
+		return v, nil
 	}
 
 	where := fmt.Sprintf("id = $%d AND status <> 'DELETED'", len(args)+1)
+	if upd.Status != nil {
+		where += " AND status <> 'ON_TRIP'"
+	}
 	args = append(args, id)
 	if organizationID != nil {
 		where += fmt.Sprintf(" AND organization_id = $%d", len(args)+1)
@@ -263,6 +286,30 @@ func (r *PostgresVehicleRepository) Update(ctx context.Context, id int, upd mode
 
 	var v model.Vehicle
 	err := r.db.QueryRow(ctx, query, args...).Scan(
+		&v.ID, &v.OrganizationID, &v.VIN, &v.NumberPlate,
+		&v.Model, &v.Status, &v.CreatedAt, &v.UpdatedAt, &v.LastTelemetryAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return model.Vehicle{}, r.explainMiss(ctx, id, organizationID, model.ErrVehicleOnTrip)
+		}
+		return model.Vehicle{}, mapUniqueViolation(err)
+	}
+	return v, nil
+}
+
+// UpdateStatus переводит машину из статуса from в статус to. Условие на from стоит в самом UPDATE,
+// поэтому два рейса не займут одну машину одновременно: второй UPDATE строку уже не найдёт.
+// organizationID != nil ограничивает переход машинами этой организации.
+// Возвращает model.ErrNotFound, если машины нет, она чужая или сейчас не в статусе from
+func (r *PostgresVehicleRepository) UpdateStatus(ctx context.Context, id int, from, to model.VehicleStatus, organizationID *int) (model.Vehicle, error) {
+	const query = `
+	UPDATE vehicles SET status = $3, updated_at = NOW()
+	WHERE id = $1 AND status = $2 AND ($4::int IS NULL OR organization_id = $4)
+	RETURNING id, organization_id, vin, number_plate, model, status, created_at, updated_at, last_telemetry_at`
+
+	var v model.Vehicle
+	err := r.db.QueryRow(ctx, query, id, from, to, organizationID).Scan(
 		&v.ID, &v.OrganizationID, &v.VIN, &v.NumberPlate,
 		&v.Model, &v.Status, &v.CreatedAt, &v.UpdatedAt, &v.LastTelemetryAt,
 	)

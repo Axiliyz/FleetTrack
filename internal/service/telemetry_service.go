@@ -23,6 +23,12 @@ type TelemetryBatchConfig struct {
 	MaxWait    time.Duration
 }
 
+// AlertEnqueuer - очередь оценки алертов, в которую сервис телеметрии кладёт сохранённые точки.
+// Интерфейс, а не *AlertService: телеметрии нужна только очередь, и тесты подставляют свою
+type AlertEnqueuer interface {
+	Enqueue(ctx context.Context, t model.Telemetry)
+}
+
 // savedTelemetry — результат записи одной точки: сама точка и рейс, если его статистика обновилась
 type savedTelemetry struct {
 	telemetry model.Telemetry
@@ -37,14 +43,16 @@ type TelemetryService struct {
 	txManager     transaction.TransactionManager
 	repoFactory   factory.RepositoryFactory
 	motionService MotionService
-	alertService  *AlertService
+	alertService  AlertEnqueuer
 	batcher       *batcher[model.Telemetry, savedTelemetry]
 	batcherDone   chan struct{}
+	maxClockAhead time.Duration
 }
 
 // NewTelemetryService создаёт сервис телеметрии. Запись идёт пачками, поэтому
 // перед использованием нужно вызвать StartBatcher.
-func NewTelemetryService(r repository.TelemetryRepository, logger logger.Logger, tx transaction.TransactionManager, rf factory.RepositoryFactory, ms MotionService, as *AlertService, batchCfg TelemetryBatchConfig) *TelemetryService {
+// as может быть nil - тогда точки в очередь алертов не попадают.
+func NewTelemetryService(r repository.TelemetryRepository, logger logger.Logger, tx transaction.TransactionManager, rf factory.RepositoryFactory, ms MotionService, as AlertEnqueuer, batchCfg TelemetryBatchConfig) *TelemetryService {
 	s := &TelemetryService{
 		repository:    r,
 		logger:        logger,
@@ -53,6 +61,7 @@ func NewTelemetryService(r repository.TelemetryRepository, logger logger.Logger,
 		motionService: ms,
 		alertService:  as,
 		batcherDone:   make(chan struct{}),
+		maxClockAhead: DefaultMaxClockAhead,
 	}
 	s.batcher = newBatcher[model.Telemetry, savedTelemetry](batchCfg.BufferSize, batchCfg.MaxSize, batchCfg.MaxWait, s.flushBatch)
 	return s
@@ -72,9 +81,19 @@ func (s *TelemetryService) WaitBatcher() {
 	<-s.batcherDone
 }
 
-// maxDeviceClockAhead — насколько часы терминала могут убегать вперёд. Отсекает мусор
-// вроде сброшенных часов (2099 год), но не мешает генератору с ускоренным временем
-const maxDeviceClockAhead = 30 * 24 * time.Hour
+// DefaultMaxClockAhead — насколько часы терминала могут убегать вперёд.
+// Точка «из будущего» становится последней для GetLastByVehicle, и пока её время не наступит,
+// у всех следующих точек время меньше: скорость и пробег нулевые, SPEED_EXCEEDED молчит.
+// Поэтому допуск - минуты, на рассинхрон часов, а не дни
+const DefaultMaxClockAhead = 2 * time.Minute
+
+// SetMaxClockAhead меняет допуск часов терминала; d <= 0 оставляет DefaultMaxClockAhead.
+// Вызывается один раз при сборке приложения
+func (s *TelemetryService) SetMaxClockAhead(d time.Duration) {
+	if d > 0 {
+		s.maxClockAhead = d
+	}
+}
 
 // validateTelemetry проверяет входные данные телеметрии.
 //
@@ -84,8 +103,8 @@ const maxDeviceClockAhead = 30 * 24 * time.Hour
 // - Lat в диапазоне [-90, 90]
 // - Lon в диапазоне [-180, 180]
 // - Fuel в диапазоне [0, 100]
-// - DeviceTimestamp не дальше maxDeviceClockAhead в будущем
-func validateTelemetry(t model.Telemetry) error {
+// - DeviceTimestamp не дальше maxClockAhead в будущем
+func validateTelemetry(t model.Telemetry, maxClockAhead time.Duration) error {
 	if t.DeviceID < 1 {
 		return model.ErrInvalidDeviceID
 	}
@@ -98,7 +117,7 @@ func validateTelemetry(t model.Telemetry) error {
 	if t.Fuel != nil && (*t.Fuel < 0.0 || *t.Fuel > 100.0) {
 		return model.ErrInvalidFuel
 	}
-	if !t.DeviceTimestamp.IsZero() && t.DeviceTimestamp.After(time.Now().Add(maxDeviceClockAhead)) {
+	if !t.DeviceTimestamp.IsZero() && t.DeviceTimestamp.After(time.Now().Add(maxClockAhead)) {
 		return model.ErrInvalidTimestamp
 	}
 	return nil
@@ -144,7 +163,8 @@ func resolveLastTelemetry(ctx context.Context, repos factory.Repositories, vehic
 
 // applyMotion считает пройденное расстояние и скорость по предыдущей точке,
 // прибавляет расстояние к рейсу и возвращает рейс с новой статистикой.
-// Если предыдущей точки не было - ничего не делает и возвращает nil.
+// Если предыдущей точки не было или отрезок оказался скачком GPS - статистику рейса
+// не трогает и возвращает nil.
 func (s *TelemetryService) applyMotion(ctx context.Context, repos factory.Repositories, last *model.Telemetry, trip model.Trip, t *model.Telemetry) (*model.Trip, error) {
 	if last == nil {
 		return nil, nil
@@ -153,6 +173,10 @@ func (s *TelemetryService) applyMotion(ctx context.Context, repos factory.Reposi
 	if err != nil {
 		return nil, err
 	}
+	if motion.Outlier {
+		s.logOutlier(*t)
+		return nil, nil
+	}
 	t.DistanceKm = motion.DistanceKm
 	t.SpeedKmh = motion.SpeedKmh
 	updated, err := repos.Trip.UpdateTripStats(ctx, trip.ID, t.DistanceKm, t.SpeedKmh)
@@ -160,6 +184,13 @@ func (s *TelemetryService) applyMotion(ctx context.Context, repos factory.Reposi
 		return nil, err
 	}
 	return &updated, nil
+}
+
+// logOutlier пишет в лог скачок GPS: сама точка сохраняется, но в пробег и скорость не идёт
+func (s *TelemetryService) logOutlier(t model.Telemetry) {
+	metrics.RecordTelemetryOutlier()
+	s.logger.Warn(fmt.Sprintf("gps outlier ignored: vehicle=%d device=%d speed above %.0f km/h",
+		t.VehicleID, t.DeviceID, MaxPlausibleSpeedKmh))
 }
 
 // ProcessTelemetry валидирует телеметрию и сохраняет её в составе пачки.
@@ -171,7 +202,7 @@ func (s *TelemetryService) ProcessTelemetry(ctx context.Context, t model.Telemet
 	serviceStart := time.Now()
 	defer func() { metrics.RecordTelemetryStage("service_total", time.Since(serviceStart).Seconds()) }()
 
-	if err := validateTelemetry(t); err != nil {
+	if err := validateTelemetry(t, s.maxClockAhead); err != nil {
 		return model.Telemetry{}, err
 	}
 
@@ -202,29 +233,24 @@ func (s *TelemetryService) ProcessTelemetry(ctx context.Context, t model.Telemet
 	return saved, nil
 }
 
-// flushBatch пишет пачку одной транзакцией. Каждая запись выполняется под своим
-// SAVEPOINT: её ошибка откатывает только её изменения и возвращается только её
+// flushBatch пишет пачку одной транзакцией. Каждая запись выполняется под своей
+// точкой сохранения: её ошибка откатывает только её изменения и возвращается только её
 // отправителю. Ошибка всей пачки возвращается, лишь если сломалась сама транзакция.
 func (s *TelemetryService) flushBatch(ctx context.Context, batch []model.Telemetry) ([]itemResult[savedTelemetry], error) {
 	results := make([]itemResult[savedTelemetry], len(batch))
 	err := s.txManager.WithTx(ctx, func(tx database.DBTX) error {
 		repos := s.repoFactory.New(tx)
 		for i, t := range batch {
-			if _, err := tx.Exec(ctx, "SAVEPOINT telemetry_item"); err != nil {
+			var saved savedTelemetry
+			itemErr, txErr := transaction.WithSavepoint(ctx, tx, func() error {
+				var err error
+				saved, err = s.saveInTx(ctx, repos, t)
 				return err
+			})
+			if txErr != nil {
+				return txErr
 			}
-			saved, itemErr := s.saveInTx(ctx, repos, t)
-			if itemErr != nil {
-				if _, err := tx.Exec(ctx, "ROLLBACK TO SAVEPOINT telemetry_item"); err != nil {
-					return err
-				}
-				results[i] = itemResult[savedTelemetry]{err: itemErr}
-				continue
-			}
-			if _, err := tx.Exec(ctx, "RELEASE SAVEPOINT telemetry_item"); err != nil {
-				return err
-			}
-			results[i] = itemResult[savedTelemetry]{value: saved}
+			results[i] = itemResult[savedTelemetry]{value: saved, err: itemErr}
 		}
 		return nil
 	})
@@ -280,6 +306,9 @@ func (s *TelemetryService) saveInTx(ctx context.Context, repos factory.Repositor
 		}
 	} else if last != nil && s.motionService != nil {
 		if motion, err := s.motionService.Calculate(last, t); err == nil && motion != nil {
+			if motion.Outlier {
+				s.logOutlier(t)
+			}
 			t.DistanceKm = motion.DistanceKm
 			t.SpeedKmh = motion.SpeedKmh
 		}
@@ -345,31 +374,31 @@ func (s *TelemetryService) GetTelemetryList(ctx context.Context, filter model.Te
 	if err != nil {
 		return nil, err
 	}
-	s.logger.Info("Got all the filtered telemetry")
+	s.logger.Debug("got filtered telemetry")
 	return res, nil
 }
 
-// GetTelemetryByID используется в GET /telemetry/{id}
+// GetTelemetryByID используется в GET /telemetry/{id}.
+// driverID != nil оставляет только точки рейсов этого водителя
 // Возвращает запись по её ID, либо ошибку
-func (s *TelemetryService) GetTelemetryByID(ctx context.Context, id int) (model.Telemetry, error) {
-	res, err := s.repository.GetItemByID(ctx, id)
+func (s *TelemetryService) GetTelemetryByID(ctx context.Context, id int, driverID *int) (model.Telemetry, error) {
+	res, err := s.repository.GetItemByID(ctx, id, driverID)
 	if err != nil {
 		return model.Telemetry{}, err
 	}
-	message := fmt.Sprintf("Got telemetry with id %d", id)
-	s.logger.Info(message)
+	s.logger.Debug(fmt.Sprintf("got telemetry with id %d", id))
 	return res, nil
 }
 
-// GetTelemetryByVehicle используется в GET /telemetry/vehicle/{id}
+// GetTelemetryByVehicle используется в GET /telemetry/vehicles/{id}.
+// driverID != nil оставляет только точки рейсов этого водителя
 // Возвращает срез записей по машине по её ID, либо ошибку
-func (s *TelemetryService) GetTelemetryByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error) {
-	res, err := s.repository.GetListByVehicle(ctx, id, organizationID)
+func (s *TelemetryService) GetTelemetryByVehicle(ctx context.Context, id int, organizationID, driverID *int) ([]model.Telemetry, error) {
+	res, err := s.repository.GetListByVehicle(ctx, id, organizationID, driverID)
 	if err != nil {
 		return nil, err
 	}
-	message := fmt.Sprintf("Got telemetry for vehicle %d", id)
-	s.logger.Info(message)
+	s.logger.Debug(fmt.Sprintf("got telemetry for vehicle %d", id))
 	return res, nil
 }
 
@@ -380,19 +409,17 @@ func (s *TelemetryService) DeleteTelemetryByID(ctx context.Context, id int, orga
 	if err != nil {
 		return model.Telemetry{}, err
 	}
-	message := fmt.Sprintf("Telemetry with id %d was deleted", id)
-	s.logger.Info(message)
+	s.logger.Info(fmt.Sprintf("telemetry with id %d was deleted", id))
 	return res, nil
 }
 
-// DeleteTelemetryByVehicle используется в DELETE /telemetry/vehicle/{id}
-// Удаляет срез записей по машине по её ID, либо возвращает ошибку
-func (s *TelemetryService) DeleteTelemetryByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error) {
-	res, err := s.repository.DeleteListByVehicle(ctx, id, organizationID)
+// DeleteTelemetryByVehicle используется в DELETE /telemetry/vehicles/{id}
+// Удаляет все записи машины и возвращает их число, либо ошибку
+func (s *TelemetryService) DeleteTelemetryByVehicle(ctx context.Context, id int, organizationID *int) (int64, error) {
+	deleted, err := s.repository.DeleteListByVehicle(ctx, id, organizationID)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	message := fmt.Sprintf("Telemetry for vehicle %d was deleted", id)
-	s.logger.Info(message)
-	return res, nil
+	s.logger.Info(fmt.Sprintf("telemetry for vehicle %d was deleted: %d rows", id, deleted))
+	return deleted, nil
 }

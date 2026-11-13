@@ -30,11 +30,11 @@ func (m *mockRepository) GetList(ctx context.Context, filter model.TelemetryFilt
 	return []model.Telemetry{}, nil
 }
 
-func (m *mockRepository) GetItemByID(ctx context.Context, id int) (model.Telemetry, error) {
+func (m *mockRepository) GetItemByID(ctx context.Context, id int, driverID *int) (model.Telemetry, error) {
 	return model.Telemetry{}, nil
 }
 
-func (m *mockRepository) GetListByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error) {
+func (m *mockRepository) GetListByVehicle(ctx context.Context, id int, organizationID, driverID *int) ([]model.Telemetry, error) {
 	return []model.Telemetry{}, nil
 }
 
@@ -42,8 +42,8 @@ func (m *mockRepository) DeleteItemByID(ctx context.Context, id int, organizatio
 	return model.Telemetry{}, nil
 }
 
-func (m *mockRepository) DeleteListByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error) {
-	return []model.Telemetry{}, nil
+func (m *mockRepository) DeleteListByVehicle(ctx context.Context, id int, organizationID *int) (int64, error) {
+	return 0, nil
 }
 
 func (m *mockRepository) GetLastByVehicle(ctx context.Context, id int) (model.Telemetry, error) {
@@ -98,12 +98,19 @@ func (f *fakeAssignmentRepo) EndAssignment(ctx context.Context, deviceID int) er
 	return nil
 }
 
+func (f *fakeAssignmentRepo) EndAssignmentByVehicle(ctx context.Context, vehicleID int) error {
+	return nil
+}
+
 // fakeRepoFactory - подмена factory.RepositoryFactory: отдаёт заранее заданные моки репозиториев
 type fakeRepoFactory struct {
-	telemetry  repository.TelemetryRepository
-	trip       repository.TripRepository
-	vehicle    repository.VehicleRepository
-	assignment repository.AssignmentRepository
+	telemetry    repository.TelemetryRepository
+	trip         repository.TripRepository
+	vehicle      repository.VehicleRepository
+	assignment   repository.AssignmentRepository
+	alert        repository.AlertRepository
+	user         repository.UserRepository
+	refreshToken repository.RefreshTokenRepository
 }
 
 func (f *fakeRepoFactory) New(tx database.DBTX) factory.Repositories {
@@ -112,10 +119,13 @@ func (f *fakeRepoFactory) New(tx database.DBTX) factory.Repositories {
 		assignment = &fakeAssignmentRepo{}
 	}
 	return factory.Repositories{
-		Telemetry:  f.telemetry,
-		Trip:       f.trip,
-		Vehicle:    f.vehicle,
-		Assignment: assignment,
+		Telemetry:    f.telemetry,
+		Trip:         f.trip,
+		Vehicle:      f.vehicle,
+		Assignment:   assignment,
+		Alert:        f.alert,
+		User:         f.user,
+		RefreshToken: f.refreshToken,
 	}
 }
 
@@ -447,16 +457,43 @@ func TestValidateTelemetry_DeviceClock(t *testing.T) {
 	}{
 		{"не передано", time.Time{}, nil},
 		{"в прошлом — досланная из буфера точка", time.Now().Add(-6 * time.Hour), nil},
-		{"немного впереди — ускоренный генератор", time.Now().Add(48 * time.Hour), nil},
+		{"рассинхрон часов в пределах допуска", time.Now().Add(time.Minute), nil},
+		// точка «из будущего» на месяц стала бы последней и обнулила скорость всех следующих
+		{"двое суток вперёд", time.Now().Add(48 * time.Hour), model.ErrInvalidTimestamp},
+		{"чуть больше допуска", time.Now().Add(DefaultMaxClockAhead + time.Minute), model.ErrInvalidTimestamp},
 		{"сброшенные часы", time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC), model.ErrInvalidTimestamp},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := base
 			p.DeviceTimestamp = tt.ts
-			if err := validateTelemetry(p); err != tt.want {
+			if err := validateTelemetry(p, DefaultMaxClockAhead); err != tt.want {
 				t.Errorf("err = %v, want %v", err, tt.want)
 			}
 		})
+	}
+}
+
+// TestProcessTelemetry_OutlierNotInTripStats проверяет, что скачок GPS сохраняется как точка,
+// но не попадает ни в скорость точки, ни в статистику рейса
+func TestProcessTelemetry_OutlierNotInTripStats(t *testing.T) {
+	repo := &mockRepository{lastTelemetry: model.Telemetry{VehicleID: 1, Lat: 55.75, Lon: 37.61, DeviceTimestamp: time.Now().Add(-time.Second)}}
+	tripRepo := &mockTripRepository{trips: []model.Trip{{ID: 1, Status: model.TripStatusRunning}}}
+	repoFactory := &fakeRepoFactory{telemetry: repo, trip: tripRepo, vehicle: &mockVehicleRepository{}}
+	motion := &fakeMotionService{data: &model.MotionData{Outlier: true}}
+	service := NewTelemetryService(repo, logger.NewStdLogger(logger.ErrorLevel), &fakeTxManager{}, repoFactory, motion, nil, testBatchConfig)
+	batchCtx, batchCancel := context.WithCancel(context.Background())
+	t.Cleanup(batchCancel)
+	service.StartBatcher(batchCtx)
+
+	saved, err := service.ProcessTelemetry(context.Background(), model.Telemetry{DeviceID: 1, VehicleID: 1, Lat: 55.79, Lon: 37.61})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.SpeedKmh != 0 || saved.DistanceKm != 0 {
+		t.Errorf("outlier saved with speed %.1f and distance %.3f", saved.SpeedKmh, saved.DistanceKm)
+	}
+	if tripRepo.statsUpdates != 0 {
+		t.Errorf("trip stats updated %d times by an outlier", tripRepo.statsUpdates)
 	}
 }

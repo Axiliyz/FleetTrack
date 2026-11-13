@@ -105,6 +105,46 @@ export interface FleetSnapshot {
   rules: AlertRule[]
 }
 
+export type DeviceStatus = 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE'
+
+// Device — трекер, dto.DeviceResponse
+export interface Device {
+  id: number
+  serial_number: string
+  status: DeviceStatus
+  created_at: string
+  organization_id: number
+}
+
+// Assignment — привязка трекера к машине, dto.AssignmentResponse
+export interface Assignment {
+  id: number
+  device_id: number
+  vehicle_id: number
+  started_at: string
+  ended_at?: string
+}
+
+export type UserRole = 'ADMIN' | 'DISPATCHER' | 'ANALYTIC' | 'DRIVER'
+
+// User — dto.UserResponse
+export interface User {
+  id: number
+  organization_id: number
+  name: string
+  email: string
+  role: UserRole
+}
+
+// Claims — полезная нагрузка access-токена, model.JWTClaims
+export interface Claims {
+  user_id: number
+  organization_id: number
+  driver_id: number | null
+  role: UserRole
+  exp: number
+}
+
 // FleetEvent — сообщение из потока SSE GET /stream; data — тот же JSON, что в REST-ответах
 export type FleetEvent =
   | { type: 'telemetry'; data: TelemetryEvent }

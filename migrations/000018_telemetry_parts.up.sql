@@ -1,9 +1,7 @@
 DROP INDEX IF EXISTS idx_telemetry_device_time;
-DROP INDEX IF EXISTS idx_telemetry_vehicle_created;
 DROP INDEX IF EXISTS idx_telemetry_vehicle_device_timestamp;
 DROP INDEX IF EXISTS idx_telemetry_trip_id;
 DROP INDEX IF EXISTS idx_telemetry_vehicle_time;
-DROP INDEX IF EXISTS idx_telemetry_vehicle;
 
 ALTER TABLE telemetry RENAME TO telemetry_old;
 
@@ -18,7 +16,7 @@ CREATE TABLE telemetry (
 
     received_at TIMESTAMPTZ NOT NULL,
     device_timestamp TIMESTAMPTZ NOT NULL,
-    trip_id BIGINT NOT NULL REFERENCES trips(id),
+    trip_id BIGINT REFERENCES trips(id),
     distance_km NUMERIC(10, 3) NOT NULL DEFAULT 0,
     speed_kmh NUMERIC(6, 2) NOT NULL DEFAULT 0,
     PRIMARY KEY (id, received_at)

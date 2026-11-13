@@ -1,7 +1,10 @@
 // Package stream раздаёт события парка открытым SSE-соединениям внутри одного процесса
 package stream
 
-import "sync"
+import (
+	"errors"
+	"sync"
+)
 
 // subscriberBuffer — сколько событий подписчик может не успеть прочитать, прежде чем считаться медленным
 const subscriberBuffer = 64
@@ -14,6 +17,13 @@ const (
 	EventVehicle   = "vehicle"
 )
 
+// ErrTooManySubscriptions - у пользователя уже открыто максимум потоков
+var ErrTooManySubscriptions = errors.New("too many subscriptions")
+
+// DefaultMaxPerUser - сколько потоков может держать один пользователь: несколько вкладок
+// и мониторов диспетчерской, но не тысячи соединений с одного украденного токена
+const DefaultMaxPerUser = 5
+
 // Event — одно событие для карты: организация-получатель, тип и данные для JSON
 type Event struct {
 	OrganizationID int
@@ -23,28 +33,42 @@ type Event struct {
 
 // Hub хранит подписчиков по организациям: у каждого открытого браузера свой канал событий
 type Hub struct {
-	channels map[int]map[chan Event]struct{}
-	mu       sync.Mutex
-	closed   bool
+	channels   map[int]map[chan Event]struct{}
+	perUser    map[int]int
+	maxPerUser int
+	mu         sync.Mutex
+	closed     bool
 }
 
-// NewHub создаёт пустой Hub
-func NewHub() *Hub {
+// NewHub создаёт пустой Hub; maxPerUser <= 0 означает DefaultMaxPerUser
+func NewHub(maxPerUser int) *Hub {
+	if maxPerUser <= 0 {
+		maxPerUser = DefaultMaxPerUser
+	}
 	return &Hub{
-		channels: make(map[int]map[chan Event]struct{}),
+		channels:   make(map[int]map[chan Event]struct{}),
+		perUser:    make(map[int]int),
+		maxPerUser: maxPerUser,
 	}
 }
 
-// Subscribe выдаёт канал событий организации orgID и функцию отписки.
-func (h *Hub) Subscribe(orgID int) (<-chan Event, func()) {
+// Subscribe выдаёт пользователю userID канал событий организации orgID и функцию отписки.
+// Если у пользователя уже открыто maxPerUser потоков, возвращает ErrTooManySubscriptions.
+// Счётчик пользователя уменьшается только функцией отписки - даже если канал закрыл сам Hub
+func (h *Hub) Subscribe(orgID, userID int) (<-chan Event, func(), error) {
 	ch := make(chan Event, subscriberBuffer)
 
 	h.mu.Lock()
 	if h.closed {
 		h.mu.Unlock()
 		close(ch)
-		return ch, func() {}
+		return ch, func() {}, nil
 	}
+	if h.perUser[userID] >= h.maxPerUser {
+		h.mu.Unlock()
+		return nil, nil, ErrTooManySubscriptions
+	}
+	h.perUser[userID]++
 	if h.channels[orgID] == nil {
 		h.channels[orgID] = make(map[chan Event]struct{})
 	}
@@ -53,8 +77,22 @@ func (h *Hub) Subscribe(orgID int) (<-chan Event, func()) {
 
 	var once sync.Once
 	return ch, func() {
-		once.Do(func() { h.remove(orgID, ch) })
+		once.Do(func() {
+			h.remove(orgID, ch)
+			h.release(userID)
+		})
+	}, nil
+}
+
+// release возвращает пользователю одно место под поток
+func (h *Hub) release(userID int) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.perUser[userID] <= 1 {
+		delete(h.perUser, userID)
+		return
 	}
+	h.perUser[userID]--
 }
 
 // remove убирает канал из набора организации и закрывает его.

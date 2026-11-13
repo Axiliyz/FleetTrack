@@ -1,5 +1,11 @@
 ALTER TABLE telemetry RENAME TO telemetry_partitioned;
 
+-- имена индексов заняты партиционированной таблицей, освобождаем их до создания новых
+DROP INDEX IF EXISTS idx_telemetry_device_time;
+DROP INDEX IF EXISTS idx_telemetry_vehicle_created;
+DROP INDEX IF EXISTS idx_telemetry_vehicle_device_timestamp;
+DROP INDEX IF EXISTS idx_telemetry_trip_id;
+
 CREATE TABLE telemetry (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     organization_id BIGINT NOT NULL REFERENCES organizations(id),
@@ -8,23 +14,22 @@ CREATE TABLE telemetry (
     latitude NUMERIC(9, 4),
     longitude NUMERIC(9, 4),
     fuel NUMERIC(5, 2),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     received_at TIMESTAMPTZ NOT NULL,
     device_timestamp TIMESTAMPTZ NOT NULL,
-    trip_id BIGINT NOT NULL REFERENCES trips(id),
+    trip_id BIGINT REFERENCES trips(id),
     distance_km NUMERIC(10, 3) NOT NULL DEFAULT 0,
     speed_kmh NUMERIC(6, 2) NOT NULL DEFAULT 0
 );
 
 INSERT INTO telemetry (
     organization_id, device_id, vehicle_id,
-    latitude, longitude, fuel, created_at,
+    latitude, longitude, fuel,
     received_at, device_timestamp, trip_id,
     distance_km, speed_kmh
 )
 SELECT
     organization_id, device_id, vehicle_id,
-    latitude, longitude, fuel, created_at,
+    latitude, longitude, fuel,
     received_at, device_timestamp, trip_id,
     distance_km, speed_kmh
 FROM telemetry_partitioned;

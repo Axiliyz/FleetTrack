@@ -26,12 +26,15 @@ func NewRouter(
 	alertRuleHandler *handler.AlertRuleHandler, alertHandler *handler.AlertHandler,
 	fleetHandler *handler.FleetHandler, streamHandler *handler.StreamHandler,
 	healthHandler *handler.HealthHandler,
-	requestTimeout time.Duration, logger logger.Logger) http.Handler {
+	requestTimeout time.Duration, swaggerEnabled bool, logger logger.Logger) http.Handler {
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(middleware.Metrics)
 	router.Use(middleware.Recovery(logger))
 	router.Use(middleware.LogQuery(logger))
+	// одна граница на всё API: самые большие тела - сотни байт, а /login и /register
+	// без авторизации иначе приняли бы JSON любого размера
+	router.Use(middleware.BodyLimit(middleware.DefaultMaxBodyBytes))
 
 	router.MethodNotAllowed((func(w http.ResponseWriter, r *http.Request) {
 		logger.Error(model.ErrInvalidMethod.Error())
@@ -40,6 +43,8 @@ func NewRouter(
 
 	// водителю обзор всего парка не положен: снимок и поток только для тех, кто смотрит весь парк
 	viewFleet := middleware.RequireRole(logger, model.UserRoleAdmin, model.UserRoleDispatcher, model.UserRoleAnalytic)
+	// список сотрудников с почтами водителю не нужен; свою карточку он берёт через /users/{id}
+	viewTeam := viewFleet
 
 	// Обычные запросы ограничены по времени. Поток событий живёт, пока открыта вкладка,
 	// поэтому он в отдельной группе ниже — без TimeoutMiddleware
@@ -53,7 +58,9 @@ func NewRouter(
 		api.Post("/refresh", authHandler.HandleRefresh)
 		api.Post("/logout", authHandler.HandleLogout)
 
-		api.Get("/swagger/*", httpSwagger.WrapHandler)
+		if swaggerEnabled {
+			api.Get("/swagger/*", httpSwagger.WrapHandler)
+		}
 
 		api.Get("/health", healthHandler.HandleHealthCheck)
 		api.Get("/readyz", healthHandler.HandleReadinessCheck)
@@ -84,7 +91,6 @@ func NewRouter(
 			r.With(manageFleet).Delete("/devices/{id}", deviceHandler.HandleDeleteDeviceByID)
 
 			r.Get("/organizations", orgHandler.HandleGetListOrg)
-			r.With(middleware.RequireRole(logger, model.UserRoleAdmin)).Post("/organizations", orgHandler.HandlePostOrg)
 
 			r.Get("/trips", tripHandler.HandleGetListTrips)
 			r.Get("/trips/{id}", tripHandler.HandleGetTripByID)
@@ -98,7 +104,7 @@ func NewRouter(
 			r.With(manageFleet).Delete("/drivers/{id}", driverHandler.HandleDeleteDriver)
 			r.With(manageFleet).Patch("/drivers/{id}", driverHandler.HandlePatchDriver)
 
-			r.Get("/users", userHandler.HandleGetListUsers)
+			r.With(viewTeam).Get("/users", userHandler.HandleGetListUsers)
 			r.Get("/users/{id}", userHandler.HandleGetUserByID)
 
 			r.With(middleware.RequireRole(logger, model.UserRoleAdmin)).Post("/users", userHandler.HandleCreateUser)

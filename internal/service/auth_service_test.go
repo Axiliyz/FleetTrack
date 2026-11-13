@@ -19,6 +19,11 @@ type mockRefreshTokenRepository struct {
 	getActiveToken *model.RefreshToken
 	revokeErr      error
 	revokedIDs     []int
+	// byHash - токен в любом состоянии, который вернёт GetByHash
+	byHash          *model.RefreshToken
+	revokedFamilies []string
+	revokedUsers    []int
+	created         []model.RefreshToken
 }
 
 func (m *mockRefreshTokenRepository) Create(ctx context.Context, t *model.RefreshToken) error {
@@ -26,7 +31,32 @@ func (m *mockRefreshTokenRepository) Create(ctx context.Context, t *model.Refres
 		return m.createErr
 	}
 	t.ID = 1
+	if t.FamilyID == "" {
+		t.FamilyID = "new-family"
+	}
+	m.created = append(m.created, *t)
 	return nil
+}
+
+func (m *mockRefreshTokenRepository) GetByHash(ctx context.Context, hash string) (model.RefreshToken, error) {
+	if m.byHash != nil {
+		return *m.byHash, nil
+	}
+	return model.RefreshToken{}, model.ErrNotFound
+}
+
+func (m *mockRefreshTokenRepository) RevokeFamily(ctx context.Context, familyID string) error {
+	m.revokedFamilies = append(m.revokedFamilies, familyID)
+	return nil
+}
+
+func (m *mockRefreshTokenRepository) RevokeAllForUser(ctx context.Context, userID int) error {
+	m.revokedUsers = append(m.revokedUsers, userID)
+	return nil
+}
+
+func (m *mockRefreshTokenRepository) DeleteExpired(ctx context.Context, before time.Time) (int64, error) {
+	return 0, nil
 }
 
 func (m *mockRefreshTokenRepository) GetActiveByHash(ctx context.Context, hash string) (model.RefreshToken, error) {
@@ -240,5 +270,98 @@ func TestAuthService_Logout_UnknownTokenIsIdempotent(t *testing.T) {
 
 	if err := svc.Logout(context.Background(), "unknown-token"); err != nil {
 		t.Errorf("logout of unknown token should not error, got %v", err)
+	}
+}
+
+// TestAuthService_Refresh_KeepsFamily проверяет, что ротация продолжает семью токена, а не начинает новую
+func TestAuthService_Refresh_KeepsFamily(t *testing.T) {
+	refreshRepo := &mockRefreshTokenRepository{getActiveToken: &model.RefreshToken{ID: 42, UserID: 7, FamilyID: "fam-1"}}
+	svc := NewAuthService(&mockUserRepository{}, refreshRepo, NewJWTService("test-secret", time.Minute), testRefreshTTL, logger.NewStdLogger(logger.ErrorLevel), &mockTxManager{}, &mockRepoFactory{})
+
+	if _, err := svc.Refresh(context.Background(), "token"); err != nil {
+		t.Fatal(err)
+	}
+	if len(refreshRepo.created) != 1 || refreshRepo.created[0].FamilyID != "fam-1" {
+		t.Errorf("new token family = %+v, want fam-1", refreshRepo.created)
+	}
+}
+
+// TestAuthService_Refresh_ReuseRevokesFamily проверяет детект повторного использования:
+// отозванный, но не истёкший токен пришёл снова - значит, его украли, и отзывается вся семья
+func TestAuthService_Refresh_ReuseRevokesFamily(t *testing.T) {
+	revokedAt := time.Now().Add(-time.Minute)
+	refreshRepo := &mockRefreshTokenRepository{byHash: &model.RefreshToken{
+		ID: 42, UserID: 7, FamilyID: "fam-1", RevokedAt: &revokedAt, ExpiresAt: time.Now().Add(time.Hour),
+	}}
+	svc := NewAuthService(&mockUserRepository{}, refreshRepo, NewJWTService("test-secret", time.Minute), testRefreshTTL, logger.NewStdLogger(logger.ErrorLevel), &mockTxManager{}, &mockRepoFactory{})
+
+	_, err := svc.Refresh(context.Background(), "stolen-token")
+	if err != model.ErrInvalidToken {
+		t.Errorf("got %v, want %v", err, model.ErrInvalidToken)
+	}
+	if len(refreshRepo.revokedFamilies) != 1 || refreshRepo.revokedFamilies[0] != "fam-1" {
+		t.Errorf("family not revoked: %v", refreshRepo.revokedFamilies)
+	}
+	if len(refreshRepo.created) != 0 {
+		t.Error("по украденному токену не должны выдаваться новые")
+	}
+}
+
+// TestAuthService_Refresh_ExpiredIsNotReuse проверяет, что истёкший токен - просто недействителен,
+// семью он не трогает: его мог предъявить и сам владелец после долгого перерыва
+func TestAuthService_Refresh_ExpiredIsNotReuse(t *testing.T) {
+	revokedAt := time.Now().Add(-48 * time.Hour)
+	refreshRepo := &mockRefreshTokenRepository{byHash: &model.RefreshToken{
+		ID: 42, FamilyID: "fam-1", RevokedAt: &revokedAt, ExpiresAt: time.Now().Add(-time.Hour),
+	}}
+	svc := NewAuthService(&mockUserRepository{}, refreshRepo, NewJWTService("test-secret", time.Minute), testRefreshTTL, logger.NewStdLogger(logger.ErrorLevel), &mockTxManager{}, &mockRepoFactory{})
+
+	if _, err := svc.Refresh(context.Background(), "old-token"); err != model.ErrInvalidToken {
+		t.Errorf("got %v, want %v", err, model.ErrInvalidToken)
+	}
+	if len(refreshRepo.revokedFamilies) != 0 {
+		t.Errorf("family revoked for an expired token: %v", refreshRepo.revokedFamilies)
+	}
+}
+
+// TestAuthService_Refresh_DeletedUser проверяет, что токен удалённого пользователя не обновляется
+func TestAuthService_Refresh_DeletedUser(t *testing.T) {
+	refreshRepo := &mockRefreshTokenRepository{getActiveToken: &model.RefreshToken{ID: 42, UserID: 7}}
+	userRepo := &mockUserRepository{getByIDErr: model.ErrNotFound}
+	svc := NewAuthService(userRepo, refreshRepo, NewJWTService("test-secret", time.Minute), testRefreshTTL, logger.NewStdLogger(logger.ErrorLevel), &mockTxManager{}, &mockRepoFactory{})
+
+	if _, err := svc.Refresh(context.Background(), "token"); err != model.ErrInvalidToken {
+		t.Errorf("got %v, want %v", err, model.ErrInvalidToken)
+	}
+}
+
+// TestAuthService_Login_NormalizesEmail проверяет, что вход не зависит от регистра почты
+func TestAuthService_Login_NormalizesEmail(t *testing.T) {
+	userRepo := &mockUserRepository{getByEmailErr: model.ErrNotFound}
+	svc := NewAuthService(userRepo, &mockRefreshTokenRepository{}, NewJWTService("test-secret", time.Minute), testRefreshTTL, logger.NewStdLogger(logger.ErrorLevel), &mockTxManager{}, &mockRepoFactory{})
+
+	_, _ = svc.Login(context.Background(), " Ivan@Example.COM ", "whatever")
+	if userRepo.lastEmail != "ivan@example.com" {
+		t.Errorf("looked up %q, want ivan@example.com", userRepo.lastEmail)
+	}
+}
+
+// TestAuthService_Login_UnknownEmailSpendsBcrypt проверяет, что неизвестная почта отвечает не мгновенно:
+// без сравнения с фиктивным хешем по времени ответа видно, какие почты зарегистрированы.
+// Нижняя граница с большим запасом: bcrypt с DefaultCost занимает десятки миллисекунд
+func TestAuthService_Login_UnknownEmailSpendsBcrypt(t *testing.T) {
+	userRepo := &mockUserRepository{getByEmailErr: model.ErrNotFound}
+	svc := NewAuthService(userRepo, &mockRefreshTokenRepository{}, NewJWTService("test-secret", time.Minute), testRefreshTTL, logger.NewStdLogger(logger.ErrorLevel), &mockTxManager{}, &mockRepoFactory{})
+	dummyPasswordHash() // хеш считается один раз при первом входе, в замер это не должно попасть
+
+	start := time.Now()
+	_, err := svc.Login(context.Background(), "nobody@example.com", "whatever")
+	elapsed := time.Since(start)
+
+	if err != model.ErrInvalidCredentials {
+		t.Errorf("got %v, want %v", err, model.ErrInvalidCredentials)
+	}
+	if elapsed < 5*time.Millisecond {
+		t.Errorf("unknown email answered in %s - bcrypt не выполнялся", elapsed)
 	}
 }

@@ -58,7 +58,11 @@ func (s *AlertService) EvaluateTelemetry(ctx context.Context, t model.Telemetry)
 		return err
 	}
 	for _, r := range activeRules {
-		triggered, val, msg := checkRuleCondition(r, t)
+		triggered, known, val, msg := checkRuleCondition(r, t)
+		if !known {
+			// в точке нет данных для правила: ни открывать, ни закрывать алерт по ней нельзя
+			continue
+		}
 
 		stageStart = time.Now()
 		activeAlert, err := s.alertRepo.GetActiveAlert(ctx, t.VehicleID, r.ID)
@@ -88,24 +92,27 @@ func (s *AlertService) EvaluateTelemetry(ctx context.Context, t model.Telemetry)
 	return nil
 }
 
-// checkRuleCondition проверяет выполнение условия правила для точки телеметрии
-func checkRuleCondition(r model.AlertRule, t model.Telemetry) (triggered bool, val float64, msg string) {
+// checkRuleCondition проверяет выполнение условия правила для точки телеметрии.
+// known = false значит, что в точке нет данных для этого правила: многие трекеры шлют топливо
+// не в каждой точке, и «нет данных» - это не «норма», закрывать по такой точке LOW_FUEL нельзя.
+// DEVICE_OFFLINE по телеметрии не проверяется вовсе, его ведёт OfflineWorker
+func checkRuleCondition(r model.AlertRule, t model.Telemetry) (triggered, known bool, val float64, msg string) {
 	switch r.Type {
 	case model.AlertRuleSpeedExceed:
 		if t.SpeedKmh >= r.Threshold {
-			return true, t.SpeedKmh, fmt.Sprintf("Превышена скорость: %.1f км/ч (порог %.1f)", t.SpeedKmh, r.Threshold)
+			return true, true, t.SpeedKmh, fmt.Sprintf("Превышена скорость: %.1f км/ч (порог %.1f)", t.SpeedKmh, r.Threshold)
 		}
-		return false, t.SpeedKmh, ""
+		return false, true, t.SpeedKmh, ""
 	case model.AlertRuleLowFuel:
-		if t.Fuel != nil && float64(*t.Fuel) <= r.Threshold {
-			return true, float64(*t.Fuel), fmt.Sprintf("Низкий уровень топлива: %.1f%% (порог %.1f%%)", *t.Fuel, r.Threshold)
+		if t.Fuel == nil {
+			return false, false, 0, ""
 		}
-		if t.Fuel != nil {
-			return false, float64(*t.Fuel), ""
+		if float64(*t.Fuel) <= r.Threshold {
+			return true, true, float64(*t.Fuel), fmt.Sprintf("Низкий уровень топлива: %.1f%% (порог %.1f%%)", *t.Fuel, r.Threshold)
 		}
-		return false, 0, ""
+		return false, true, float64(*t.Fuel), ""
 	}
-	return false, 0, ""
+	return false, false, 0, ""
 }
 
 // fireAlert атомарно в транзакции сохраняет алерт и формирует задачи в Outbox
@@ -278,9 +285,30 @@ func (s *AlertService) GetRulesList(ctx context.Context, filter model.AlertRuleF
 	return s.ruleRepo.GetList(ctx, filter)
 }
 
-// DeleteRuleByID удаляет правило алертов по его идентификатору
+// DeleteRuleByID мягко удаляет правило алертов и в той же транзакции закрывает его открытые алерты:
+// удалённое правило больше не проверяется, и закрыть их по телеметрии было бы некому
 func (s *AlertService) DeleteRuleByID(ctx context.Context, id int) (model.AlertRule, error) {
-	return s.ruleRepo.DeleteByID(ctx, id)
+	var (
+		deleted  model.AlertRule
+		resolved []model.Alert
+	)
+	err := s.txManager.WithTx(ctx, func(tx database.DBTX) error {
+		repos := s.repoFactory.New(tx)
+		var err error
+		if deleted, err = repos.AlertRule.DeleteByID(ctx, id); err != nil {
+			return err
+		}
+		resolved, err = repos.Alert.ResolveByRule(ctx, id)
+		return err
+	})
+	if err != nil {
+		return model.AlertRule{}, err
+	}
+	s.logger.Info(fmt.Sprintf("rule %d deleted, %d alerts resolved", id, len(resolved)))
+	for _, a := range resolved {
+		s.publish(a.OrganizationID, stream.EventAlert, a)
+	}
+	return deleted, nil
 }
 
 // AcknowledgeAlert переводит алерт в ACKNOWLEDGED от имени actor.

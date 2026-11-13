@@ -8,6 +8,7 @@ import (
 )
 
 type mockAssignmentRepository struct {
+	endedVehicles    []int
 	activeAssignment model.DeviceAssignment
 	getActiveErr     error
 	endErr           error
@@ -23,6 +24,11 @@ func (m *mockAssignmentRepository) GetActiveAssignment(ctx context.Context, devi
 }
 
 func (m *mockAssignmentRepository) CreateAssignment(ctx context.Context, a *model.DeviceAssignment) error {
+	return nil
+}
+
+func (m *mockAssignmentRepository) EndAssignmentByVehicle(ctx context.Context, vehicleID int) error {
+	m.endedVehicles = append(m.endedVehicles, vehicleID)
 	return nil
 }
 

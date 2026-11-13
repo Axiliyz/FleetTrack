@@ -14,7 +14,10 @@ type mockVehicleRepository struct {
 	listErr   error
 	deleteErr error
 	updateErr error
+	statusErr error
 	vehicle   *model.Vehicle
+	// transitions - переходы статуса, сделанные через UpdateStatus, в формате "FROM->TO"
+	transitions []string
 }
 
 func (m *mockVehicleRepository) Create(ctx context.Context, v *model.Vehicle) error {
@@ -60,6 +63,32 @@ func (m *mockVehicleRepository) UpdateLastTelemetryAt(ctx context.Context, id in
 	return nil
 }
 
+func (m *mockVehicleRepository) UpdateStatus(ctx context.Context, id int, from, to model.VehicleStatus, organizationID *int) (model.Vehicle, error) {
+	if m.statusErr != nil {
+		return model.Vehicle{}, m.statusErr
+	}
+	m.transitions = append(m.transitions, string(from)+"->"+string(to))
+	v := model.Vehicle{ID: id, Status: to}
+	if organizationID != nil {
+		v.OrganizationID = *organizationID
+	}
+	return v, nil
+}
+
+// newTestVehicleService собирает VehicleService, у которого транзакция работает с тем же моком машин
+func newTestVehicleService(repo *mockVehicleRepository, log logger.Logger) *VehicleService {
+	svc, _, _ := newTestVehicleServiceWith(repo, log)
+	return svc
+}
+
+// newTestVehicleServiceWith - то же, но отдаёт моки привязок и алертов, чтобы проверить, что с ними сделала транзакция
+func newTestVehicleServiceWith(repo *mockVehicleRepository, log logger.Logger) (*VehicleService, *mockAssignmentRepository, *mockAlertRepo) {
+	assignments := &mockAssignmentRepository{}
+	alerts := &mockAlertRepo{}
+	rf := &fakeRepoFactory{vehicle: repo, assignment: assignments, alert: alerts}
+	return NewVehicleService(repo, log, &fakeTxManager{}, rf), assignments, alerts
+}
+
 func vehicleFixture() model.Vehicle {
 	return model.Vehicle{
 		OrganizationID: 1,
@@ -84,7 +113,7 @@ func TestProcessVehicle(t *testing.T) {
 
 	repo := &mockVehicleRepository{}
 	log := logger.NewStdLogger(logger.DebugLevel)
-	svc := NewVehicleService(repo, log)
+	svc := newTestVehicleService(repo, log)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -101,7 +130,7 @@ func TestProcessVehicle(t *testing.T) {
 func TestProcessVehicle_RepositoryError(t *testing.T) {
 	repo := &mockVehicleRepository{createErr: model.ErrDuplicateVIN}
 	log := logger.NewStdLogger(logger.DebugLevel)
-	svc := NewVehicleService(repo, log)
+	svc := newTestVehicleService(repo, log)
 
 	_, err := svc.CreateVehicle(context.Background(), vehicleFixture())
 	if err != model.ErrDuplicateVIN {
@@ -138,7 +167,7 @@ func TestGetVehicleList(t *testing.T) {
 
 	repo := &mockVehicleRepository{}
 	log := logger.NewStdLogger(logger.DebugLevel)
-	svc := NewVehicleService(repo, log)
+	svc := newTestVehicleService(repo, log)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -153,7 +182,7 @@ func TestGetVehicleList(t *testing.T) {
 func TestGetVehicleByID(t *testing.T) {
 	repo := &mockVehicleRepository{}
 	log := logger.NewStdLogger(logger.DebugLevel)
-	svc := NewVehicleService(repo, log)
+	svc := newTestVehicleService(repo, log)
 
 	v, err := svc.GetVehicleByID(context.Background(), 5)
 	if err != nil {
@@ -173,7 +202,7 @@ func TestGetVehicleByID(t *testing.T) {
 func TestDeleteVehicleByID(t *testing.T) {
 	repo := &mockVehicleRepository{}
 	log := logger.NewStdLogger(logger.DebugLevel)
-	svc := NewVehicleService(repo, log)
+	svc := newTestVehicleService(repo, log)
 
 	v, err := svc.DeleteVehicleByID(context.Background(), 5, nil)
 	if err != nil {
@@ -193,7 +222,7 @@ func TestDeleteVehicleByID(t *testing.T) {
 func TestUpdateVehicleByID(t *testing.T) {
 	repo := &mockVehicleRepository{}
 	log := logger.NewStdLogger(logger.DebugLevel)
-	svc := NewVehicleService(repo, log)
+	svc := newTestVehicleService(repo, log)
 
 	upd := model.UpdateVehicle{NumberPlate: strPtr("B999XY77")}
 	v, err := svc.UpdateVehicleByID(context.Background(), 5, upd, nil)
@@ -208,5 +237,53 @@ func TestUpdateVehicleByID(t *testing.T) {
 	_, err = svc.UpdateVehicleByID(context.Background(), 999, upd, nil)
 	if err != model.ErrNotFound {
 		t.Errorf("got %v, want %v", err, model.ErrNotFound)
+	}
+}
+
+// TestDeleteVehicleByID_ReleasesTracker проверяет, что удалённая машина не оставляет открытой
+// привязку трекера: иначе OfflineWorker вечно поднимал бы DEVICE_OFFLINE по несуществующей машине
+func TestDeleteVehicleByID_ReleasesTracker(t *testing.T) {
+	repo := &mockVehicleRepository{}
+	svc, assignments, _ := newTestVehicleServiceWith(repo, logger.NewStdLogger(logger.ErrorLevel))
+
+	if _, err := svc.DeleteVehicleByID(context.Background(), 5, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(assignments.endedVehicles) != 1 || assignments.endedVehicles[0] != 5 {
+		t.Errorf("assignment of vehicle 5 not ended: %v", assignments.endedVehicles)
+	}
+
+	repo.deleteErr = model.ErrVehicleIsBusy
+	if _, err := svc.DeleteVehicleByID(context.Background(), 6, nil); err != model.ErrVehicleIsBusy {
+		t.Errorf("vehicle on trip: got %v, want ErrVehicleIsBusy", err)
+	}
+}
+
+// TestUpdateVehicleByID_Status проверяет, что вручную ставятся только IDLE и IN_SERVICE:
+// ON_TRIP ведёт рейс, а DELETED - только DELETE
+func TestUpdateVehicleByID_Status(t *testing.T) {
+	svc := newTestVehicleService(&mockVehicleRepository{}, logger.NewStdLogger(logger.ErrorLevel))
+	tests := []struct {
+		status  model.VehicleStatus
+		wantErr error
+	}{
+		{model.VehicleStatusIdle, nil},
+		{model.VehicleStatusInService, nil},
+		{model.VehicleStatusOnTrip, model.ErrInvalidStatus},
+		{model.VehicleStatusDeleted, model.ErrInvalidStatus},
+		{"FLYING", model.ErrInvalidStatus},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.status), func(t *testing.T) {
+			status := tt.status
+			_, err := svc.UpdateVehicleByID(context.Background(), 5, model.UpdateVehicle{Status: &status}, nil)
+			if err != tt.wantErr {
+				t.Errorf("got %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+
+	if _, err := svc.UpdateVehicleByID(context.Background(), 5, model.UpdateVehicle{NumberPlate: strPtr("bad plate!")}, nil); err != model.ErrInvalidNumberPlate {
+		t.Errorf("invalid plate: got %v", err)
 	}
 }

@@ -18,6 +18,59 @@ jobs:
       - run: go vet -tags integration ./...
       - run: go test ./... -race -cover
 
+  vulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.3"
+      - run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+      - run: govulncheck ./...
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DB_URL: postgres://ci:ci@localhost:5432/ci?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.3"
+      - run: go install -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
+      # вверх, до конца вниз и снова вверх: ловит down-миграции, которые не откатывают то, что накатил up
+      - run: migrate -path migrations -database "$DB_URL" up
+      - run: migrate -path migrations -database "$DB_URL" down -all
+      - run: migrate -path migrations -database "$DB_URL" up
+
   lint:
     runs-on: ubuntu-latest
     steps:

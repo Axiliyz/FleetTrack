@@ -145,6 +145,7 @@ func (r *PostgresUserNotificationChannelRepository) GetChannelsForAlert(
 	FROM user_notification_channels unc
 	JOIN users u ON u.id = unc.user_id
 	WHERE u.organization_id = $1 
+	  AND u.deleted_at IS NULL
 	  AND unc.enabled = true
 	  AND unc.min_severity = ANY($2)`
 
@@ -198,13 +199,14 @@ func (r *PostgresUserNotificationChannelRepository) Delete(ctx context.Context, 
 
 // GetAuthContextByTelegramChatID находит пользователя, привязавшего указанный Telegram chat_id как канал уведомлений,
 // и возвращает его в том же виде, что JWT-мидлварь для HTTP: кто он, из какой организации и с какой ролью.
-// INNER JOIN отбрасывает каналы удалённых пользователей - для них вернётся model.ErrNotFound
+// Каналы удалённых пользователей (deleted_at) не учитываются - для них вернётся model.ErrNotFound
 func (r *PostgresUserNotificationChannelRepository) GetAuthContextByTelegramChatID(ctx context.Context, chatID int) (model.AuthContext, error) {
 	const query = `
 	SELECT u.id, u.organization_id, u.driver_id, u.role
 	FROM user_notification_channels c
 	JOIN users u ON u.id = c.user_id
 	WHERE c.type = 'TELEGRAM'
+	AND u.deleted_at IS NULL
 	AND (c.config->>'chat_id')::bigint = $1
 	LIMIT 1`
 

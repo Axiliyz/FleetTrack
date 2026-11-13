@@ -23,7 +23,7 @@ const streamRetryMs = 3000
 
 // StreamSubscriber — то, что нужно хендлеру от stream.Hub
 type StreamSubscriber interface {
-	Subscribe(orgID int) (<-chan stream.Event, func())
+	Subscribe(orgID, userID int) (<-chan stream.Event, func(), error)
 }
 
 // StreamHandler отдаёт события парка в реальном времени по Server-Sent Events
@@ -43,11 +43,13 @@ func NewStreamHandler(hub StreamSubscriber, l logger.Logger) *StreamHandler {
 // @Description Соединение не закрывается: сервер пишет события в формате text/event-stream.
 // @Description Типы событий: telemetry, alert, trip, vehicle; data — тот же JSON, что в REST-ответах.
 // @Description Если клиент не успевает читать, сервер закрывает поток — клиент переподключается и заново берёт /fleet/snapshot.
+// @Description Поток закрывается и когда истекает access-токен: переподключаться нужно уже со свежим.
 // @Tags fleet
 // @Produce text/event-stream
 // @Success 200 {string} string "поток событий"
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse
+// @Failure 429 {object} dto.ErrorResponse "у пользователя уже открыто максимум потоков"
 // @Router /stream [get]
 // @Security BearerAuth
 func (h *StreamHandler) HandleStream(w http.ResponseWriter, r *http.Request) {
@@ -55,6 +57,25 @@ func (h *StreamHandler) HandleStream(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		respondError(w, r, h.logger, model.ErrMissingToken)
 		return
+	}
+
+	// подписываемся до заголовков: при превышении лимита ещё можно ответить обычной ошибкой 429
+	events, unsubscribe, err := h.hub.Subscribe(authCtx.OrganizationID, authCtx.UserID)
+	if errors.Is(err, stream.ErrTooManySubscriptions) {
+		respondError(w, r, h.logger, model.ErrTooManyStreams)
+		return
+	}
+	if err != nil {
+		respondError(w, r, h.logger, err)
+		return
+	}
+	defer unsubscribe()
+
+	// токен проверяется один раз при подключении. Чтобы удалённый или разжалованный
+	// пользователь не смотрел карту, пока не закроет вкладку, поток живёт не дольше токена
+	expired := tokenExpiry(authCtx.ExpiresAt)
+	if expired != nil {
+		defer expired.Stop()
 	}
 
 	// сервер ставит общие ReadTimeout/WriteTimeout на соединение; для бесконечного потока их снимаем.
@@ -82,15 +103,16 @@ func (h *StreamHandler) HandleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	events, unsubscribe := h.hub.Subscribe(authCtx.OrganizationID)
-	defer unsubscribe()
-
 	heartbeat := time.NewTicker(h.heartbeat)
 	defer heartbeat.Stop()
 
 	for {
 		select {
 		case <-r.Context().Done():
+			return
+		case <-timerC(expired):
+			_, _ = io.WriteString(w, "event: token_expired\ndata: {}\n\n")
+			_ = rc.Flush()
 			return
 		case ev, open := <-events:
 			if !open {
@@ -110,6 +132,22 @@ func (h *StreamHandler) HandleStream(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+}
+
+// tokenExpiry заводит таймер до истечения токена; без срока (нулевое время) таймера нет
+func tokenExpiry(expiresAt time.Time) *time.Timer {
+	if expiresAt.IsZero() {
+		return nil
+	}
+	return time.NewTimer(time.Until(expiresAt))
+}
+
+// timerC отдаёт канал таймера; у nil-таймера - nil-канал, из которого select никогда не читает
+func timerC(t *time.Timer) <-chan time.Time {
+	if t == nil {
+		return nil
+	}
+	return t.C
 }
 
 // writeStreamEvent пишет одно событие в формате SSE: строка event и одна строка data с JSON

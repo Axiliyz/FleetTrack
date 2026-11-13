@@ -62,7 +62,7 @@ func TestHandlePostVehicle(t *testing.T) {
 	}{
 		{
 			name:           "success",
-			requestBody:    `{"organization_id": 1, "vin": "1HGCM82633A123456", "number_plate": "A123BC77", "model": "Camry"}`,
+			requestBody:    `{"vin": "1HGCM82633A123456", "number_plate": "A123BC77", "model": "Camry"}`,
 			expectedStatus: http.StatusCreated,
 		},
 		{
@@ -73,13 +73,13 @@ func TestHandlePostVehicle(t *testing.T) {
 		{
 			name:           "invalid vin",
 			serviceError:   model.ErrInvalidVIN,
-			requestBody:    `{"organization_id": 1, "vin": "SHORT", "number_plate": "A123BC77", "model": "Camry"}`,
+			requestBody:    `{"vin": "SHORT", "number_plate": "A123BC77", "model": "Camry"}`,
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			name:           "duplicate vin",
 			serviceError:   model.ErrDuplicateVIN,
-			requestBody:    `{"organization_id": 1, "vin": "1HGCM82633A123456", "number_plate": "A123BC77", "model": "Camry"}`,
+			requestBody:    `{"vin": "1HGCM82633A123456", "number_plate": "A123BC77", "model": "Camry"}`,
 			expectedStatus: http.StatusConflict,
 		},
 	}
@@ -239,6 +239,38 @@ func TestHandlePatchVehicle(t *testing.T) {
 
 			if recorder.Code != tt.expectedStatus {
 				t.Errorf("got %v expected %v", recorder.Code, tt.expectedStatus)
+			}
+		})
+	}
+}
+
+// TestHandlePatchVehicle_RejectsUnknownFields проверяет, что машину нельзя перенести в другую организацию:
+// поля organization_id в запросе нет, а неизвестное поле - 400, а не тихий пропуск
+func TestHandlePatchVehicle_RejectsUnknownFields(t *testing.T) {
+	tests := []struct {
+		name           string
+		body           string
+		serviceError   error
+		expectedStatus int
+	}{
+		{"смена номера", `{"number_plate": "A123BC77"}`, nil, http.StatusOK},
+		{"попытка сменить организацию", `{"organization_id": 2}`, nil, http.StatusBadRequest},
+		{"статус машины в рейсе", `{"status": "IDLE"}`, model.ErrVehicleOnTrip, http.StatusConflict},
+		{"статус ON_TRIP вручную", `{"status": "ON_TRIP"}`, model.ErrInvalidStatus, http.StatusBadRequest},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := NewVehicleHandler(&mockVehicleService{returnError: tt.serviceError}, logger.NewStdLogger(logger.ErrorLevel))
+			r := chi.NewRouter()
+			r.Patch("/vehicles/{id}", handler.HandlePatchVehicle)
+
+			request := httptest.NewRequest(http.MethodPatch, "/vehicles/1", strings.NewReader(tt.body))
+			request = request.WithContext(middleware.ContextWithAuth(request.Context(), model.AuthContext{Role: model.UserRoleDispatcher, OrganizationID: 1}))
+			recorder := httptest.NewRecorder()
+			r.ServeHTTP(recorder, request)
+
+			if recorder.Code != tt.expectedStatus {
+				t.Errorf("status = %d, want %d", recorder.Code, tt.expectedStatus)
 			}
 		})
 	}

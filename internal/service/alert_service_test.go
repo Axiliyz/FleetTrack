@@ -101,6 +101,7 @@ type mockAlertRepo struct {
 	activeAlert   model.Alert
 	createdAlerts []model.Alert
 	resolvedIDs   []int
+	resolvedRules []int
 	mu            sync.Mutex
 }
 
@@ -162,6 +163,20 @@ func (m *mockAlertRepo) FindOfflineVehicles(ctx context.Context, thresholdMinute
 
 func (m *mockAlertRepo) AcquireLock(ctx context.Context, vehicleID, ruleID int) error {
 	return nil
+}
+
+func (m *mockAlertRepo) ResolveByVehicle(ctx context.Context, vehicleID int) ([]model.Alert, error) {
+	return nil, m.resolveErr
+}
+
+func (m *mockAlertRepo) ResolveByRule(ctx context.Context, ruleID int) ([]model.Alert, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.resolveErr != nil {
+		return nil, m.resolveErr
+	}
+	m.resolvedRules = append(m.resolvedRules, ruleID)
+	return []model.Alert{{ID: 77, OrganizationID: 1, RuleID: ruleID, Status: model.AlertStatusResolved}}, nil
 }
 func (m *mockChannelRepo) GetAuthContextByTelegramChatID(ctx context.Context, chatID int) (model.AuthContext, error) {
 	return model.AuthContext{UserID: 1, OrganizationID: 1, Role: model.UserRoleDispatcher}, nil
@@ -236,12 +251,14 @@ func (m *alertTestTxManager) WithTx(ctx context.Context, fn func(tx database.DBT
 // alertTestRepoFactory имитирует фабрику репозиториев
 type alertTestRepoFactory struct {
 	alertRepo        repository.AlertRepository
+	ruleRepo         repository.AlertRuleRepository
 	notificationRepo repository.AlertNotificationRepository
 }
 
 func (f *alertTestRepoFactory) New(tx database.DBTX) factory.Repositories {
 	return factory.Repositories{
 		Alert:             f.alertRepo,
+		AlertRule:         f.ruleRepo,
 		AlertNotification: f.notificationRepo,
 	}
 }
@@ -256,6 +273,7 @@ func TestCheckRuleCondition(t *testing.T) {
 		rule          model.AlertRule
 		telemetry     model.Telemetry
 		wantTriggered bool
+		wantKnown     bool
 		wantVal       float64
 	}{
 		{
@@ -263,6 +281,7 @@ func TestCheckRuleCondition(t *testing.T) {
 			rule:          model.AlertRule{Type: model.AlertRuleSpeedExceed, Threshold: 80},
 			telemetry:     model.Telemetry{SpeedKmh: 95.5},
 			wantTriggered: true,
+			wantKnown:     true,
 			wantVal:       95.5,
 		},
 		{
@@ -270,6 +289,7 @@ func TestCheckRuleCondition(t *testing.T) {
 			rule:          model.AlertRule{Type: model.AlertRuleSpeedExceed, Threshold: 80},
 			telemetry:     model.Telemetry{SpeedKmh: 80.0},
 			wantTriggered: true,
+			wantKnown:     true,
 			wantVal:       80.0,
 		},
 		{
@@ -277,6 +297,7 @@ func TestCheckRuleCondition(t *testing.T) {
 			rule:          model.AlertRule{Type: model.AlertRuleSpeedExceed, Threshold: 80},
 			telemetry:     model.Telemetry{SpeedKmh: 75.0},
 			wantTriggered: false,
+			wantKnown:     true,
 			wantVal:       75.0,
 		},
 		{
@@ -284,6 +305,7 @@ func TestCheckRuleCondition(t *testing.T) {
 			rule:          model.AlertRule{Type: model.AlertRuleLowFuel, Threshold: 15},
 			telemetry:     model.Telemetry{Fuel: &fuelLow},
 			wantTriggered: true,
+			wantKnown:     true,
 			wantVal:       10.0,
 		},
 		{
@@ -291,10 +313,12 @@ func TestCheckRuleCondition(t *testing.T) {
 			rule:          model.AlertRule{Type: model.AlertRuleLowFuel, Threshold: 15},
 			telemetry:     model.Telemetry{Fuel: &fuelHigh},
 			wantTriggered: false,
+			wantKnown:     true,
 			wantVal:       50.0,
 		},
 		{
-			name:          "топливо nil не триггерит правило",
+			// трекер не прислал топливо: это «нет данных», а не «норма» - правило пропускается
+			name:          "топливо nil - данных для правила нет",
 			rule:          model.AlertRule{Type: model.AlertRuleLowFuel, Threshold: 15},
 			telemetry:     model.Telemetry{Fuel: nil},
 			wantTriggered: false,
@@ -311,9 +335,12 @@ func TestCheckRuleCondition(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			triggered, val, msg := checkRuleCondition(tt.rule, tt.telemetry)
+			triggered, known, val, msg := checkRuleCondition(tt.rule, tt.telemetry)
 			if triggered != tt.wantTriggered {
 				t.Errorf("got triggered=%v, want %v", triggered, tt.wantTriggered)
+			}
+			if known != tt.wantKnown {
+				t.Errorf("got known=%v, want %v", known, tt.wantKnown)
 			}
 			if val != tt.wantVal {
 				t.Errorf("got val=%f, want %f", val, tt.wantVal)
@@ -428,7 +455,9 @@ func TestAlertService_RuleCRUD(t *testing.T) {
 			{ID: 5, OrganizationID: 1},
 		},
 	}
-	svc := NewAlertService(nil, ruleRepo, nil, nil, nil, nil, log, 100)
+	alertRepo := &mockAlertRepo{}
+	repoFactory := &alertTestRepoFactory{alertRepo: alertRepo, ruleRepo: ruleRepo}
+	svc := NewAlertService(alertRepo, ruleRepo, nil, nil, &alertTestTxManager{}, repoFactory, log, 100)
 
 	// GetRuleByID
 	rule, err := svc.GetRuleByID(context.Background(), 5)
@@ -442,10 +471,41 @@ func TestAlertService_RuleCRUD(t *testing.T) {
 		t.Fatalf("ошибка GetRulesList: %v", err)
 	}
 
-	// DeleteRuleByID
+	// DeleteRuleByID: правило удаляется мягко, его открытые алерты закрываются в той же транзакции
 	deleted, err := svc.DeleteRuleByID(context.Background(), 5)
 	if err != nil || deleted.ID != 5 {
 		t.Fatalf("ошибка DeleteRuleByID: %v", err)
+	}
+	if len(alertRepo.resolvedRules) != 1 || alertRepo.resolvedRules[0] != 5 {
+		t.Errorf("алерты удалённого правила не закрыты: %v", alertRepo.resolvedRules)
+	}
+}
+
+// TestAlertService_EvaluateTelemetry_LowFuelWithoutFuel проверяет, что точка без топлива не закрывает
+// открытый LOW_FUEL: многие трекеры шлют топливо не в каждой точке, и алерт «моргал» бы на каждой
+func TestAlertService_EvaluateTelemetry_LowFuelWithoutFuel(t *testing.T) {
+	ruleRepo := &mockAlertRuleRepo{
+		activeRules: []model.AlertRule{
+			{ID: 3, OrganizationID: 1, Type: model.AlertRuleLowFuel, Threshold: 15, Severity: model.SeverityLevelMedium},
+		},
+	}
+	alertRepo := &mockAlertRepo{activeAlert: model.Alert{ID: 55, Status: model.AlertStatusFired}}
+	repoFactory := &alertTestRepoFactory{alertRepo: alertRepo, notificationRepo: &mockNotificationRepo{}}
+	svc := NewAlertService(alertRepo, ruleRepo, &mockChannelRepo{}, &mockNotificationRepo{}, &alertTestTxManager{}, repoFactory, logger.NewStdLogger(logger.ErrorLevel), 100)
+
+	if err := svc.EvaluateTelemetry(context.Background(), model.Telemetry{OrganizationID: 1, VehicleID: 42, SpeedKmh: 60}); err != nil {
+		t.Fatal(err)
+	}
+	if len(alertRepo.resolvedIDs) != 0 {
+		t.Errorf("LOW_FUEL закрыт точкой без топлива: %v", alertRepo.resolvedIDs)
+	}
+
+	fuel := float32(40)
+	if err := svc.EvaluateTelemetry(context.Background(), model.Telemetry{OrganizationID: 1, VehicleID: 42, Fuel: &fuel}); err != nil {
+		t.Fatal(err)
+	}
+	if len(alertRepo.resolvedIDs) != 1 || alertRepo.resolvedIDs[0] != 55 {
+		t.Errorf("LOW_FUEL должен закрыться по точке с нормальным топливом: %v", alertRepo.resolvedIDs)
 	}
 }
 

@@ -75,11 +75,8 @@ func (s *DriverService) DeleteDriverByID(ctx context.Context, id int, organizati
 }
 
 // UpdateDriverByID обновляет некоторые данные водителя по ID
-// Можно поменять: organization_id, name
+// Можно поменять: name
 func (s *DriverService) UpdateDriverByID(ctx context.Context, id int, upd model.UpdateDriver, organizationID *int) (model.Driver, error) {
-	if upd.OrganizationID != nil && *upd.OrganizationID < 1 {
-		return model.Driver{}, model.ErrInvalidOrganizationID
-	}
 	if upd.Name != nil && !validator.IsNameValid(*upd.Name) {
 		return model.Driver{}, model.ErrInvalidDriverName
 	}

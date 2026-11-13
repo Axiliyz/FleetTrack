@@ -249,3 +249,30 @@ func TestCalculateDistance(t *testing.T) {
 		t.Errorf("got distance %f, want approximately %f", d, want)
 	}
 }
+
+// TestMotionServiceCalculate_GPSJump проверяет фильтр выбросов: скачок на 3 км за секунду - это
+// 10 800 км/ч, такая скорость не идёт ни в пробег, ни в скорость (и не ломает NUMERIC(6,2))
+func TestMotionServiceCalculate_GPSJump(t *testing.T) {
+	s := NewMotionServiceImpl()
+	start := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	last := &model.Telemetry{Lat: 55.75, Lon: 37.61, DeviceTimestamp: start}
+
+	jump := model.Telemetry{Lat: 55.777, Lon: 37.61, DeviceTimestamp: start.Add(time.Second)}
+	res, err := s.Calculate(last, jump)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Outlier || res.DistanceKm != 0 || res.SpeedKmh != 0 {
+		t.Errorf("jump = %+v, want outlier with zero distance and speed", res)
+	}
+
+	// те же 3 км за 3 минуты - 60 км/ч, обычная езда
+	drive := model.Telemetry{Lat: 55.777, Lon: 37.61, DeviceTimestamp: start.Add(3 * time.Minute)}
+	res, err = s.Calculate(last, drive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Outlier || res.SpeedKmh < 55 || res.SpeedKmh > 65 {
+		t.Errorf("drive = %+v, want ~60 km/h", res)
+	}
+}

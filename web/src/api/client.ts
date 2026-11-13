@@ -1,5 +1,6 @@
 // Клиент API FleetTrack: снимает обёртку {status, message, data}, держит токены и обновляет их.
-// Запросы идут на /api — в dev-режиме Vite проксирует их на Go-сервис, поэтому CORS не нужен.
+// Запросы идут на /api — в dev-режиме их проксирует Vite, в контейнере nginx, поэтому CORS не нужен.
+import type { Claims } from '../types'
 
 export const API_BASE = '/api'
 
@@ -68,10 +69,41 @@ async function unwrap<T>(res: Response): Promise<T> {
   return body.data
 }
 
+// decodeClaims читает полезную нагрузку JWT без проверки подписи: подпись проверяет бэк,
+// а фронту роль нужна только чтобы не показывать кнопки, на которые придёт 403
+export function decodeClaims(token: string): Claims | null {
+  const payload = token.split('.')[1]
+  if (!payload) return null
+  try {
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const bytes = Uint8Array.from(atob(base64), (ch) => ch.charCodeAt(0))
+    return JSON.parse(new TextDecoder().decode(bytes)) as Claims
+  } catch {
+    return null
+  }
+}
+
+export interface Registration {
+  organization_name: string
+  admin_name: string
+  admin_email: string
+  admin_password: string
+}
+
 let refreshing: Promise<boolean> | null = null
+// claims кешируются по токену: useSyncExternalStore требует стабильный снимок между рендерами
+let claimsCache: { token: string; claims: Claims | null } | null = null
 
 export const auth = {
   current: (): Session | null => session,
+
+  claims(): Claims | null {
+    if (!session) return null
+    if (claimsCache?.token !== session.accessToken) {
+      claimsCache = { token: session.accessToken, claims: decodeClaims(session.accessToken) }
+    }
+    return claimsCache.claims
+  },
 
   onChange(fn: (s: Session | null) => void): () => void {
     listeners.add(fn)
@@ -88,6 +120,18 @@ export const auth = {
     if (res.status === 429) throw new ApiError(429, 'Слишком много попыток. Подождите минуту и попробуйте снова')
     const tokens = await unwrap<TokenPair>(res)
     setSession({ email, accessToken: tokens.access_token, refreshToken: tokens.refresh_token })
+  },
+
+  // register заводит организацию с первым администратором и сразу входит под ним
+  async register(form: Registration): Promise<void> {
+    const res = await fetch(`${API_BASE}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
+    })
+    if (res.status === 429) throw new ApiError(429, 'Слишком много попыток. Подождите минуту и попробуйте снова')
+    const tokens = await unwrap<TokenPair>(res)
+    setSession({ email: form.admin_email, accessToken: tokens.access_token, refreshToken: tokens.refresh_token })
   },
 
   async logout(): Promise<void> {

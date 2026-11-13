@@ -61,7 +61,6 @@ var errorMappings = []struct {
 	{model.ErrNoActiveTrip, http.StatusConflict, "no active trip"},
 	{model.ErrInvalidSpeed, http.StatusBadRequest, "invalid speed"},
 	{model.ErrInvalidDistance, http.StatusBadRequest, "invalid distance"},
-	{model.ErrDuplicateOrgName, http.StatusConflict, "organization with this name already exists"},
 	{model.ErrInvalidName, http.StatusBadRequest, "invalid user name"},
 	{model.ErrInvalidEmail, http.StatusBadRequest, "invalid email"},
 	{model.ErrDuplicateEmail, http.StatusConflict, "user with this email already exists"},
@@ -83,6 +82,10 @@ var errorMappings = []struct {
 	{model.ErrAlertNotFired, http.StatusConflict, "alert is already acknowledged or resolved"},
 	{model.ErrInvalidAlertID, http.StatusBadRequest, "invalid alert id"},
 	{model.ErrInvalidSeverity, http.StatusBadRequest, "invalid severity"},
+	{model.ErrVehicleOnTrip, http.StatusConflict, "vehicle status is managed by its running trip"},
+	{model.ErrDeleteSelf, http.StatusConflict, "you can't delete yourself"},
+	{model.ErrLastAdmin, http.StatusConflict, "organization must keep at least one admin"},
+	{model.ErrTooManyStreams, http.StatusTooManyRequests, "too many open streams"},
 }
 
 // mapError преобразует внутреннюю ошибку приложения в HTTP ошибку с кодом статуса.

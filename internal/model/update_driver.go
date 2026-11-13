@@ -1,7 +1,7 @@
 package model
 
-// UpdateDriver указывает изменяемые поля водителя
+// UpdateDriver указывает изменяемые поля водителя.
+// Организацию водителя поменять нельзя: такого поля здесь нет намеренно
 type UpdateDriver struct {
-	OrganizationID *int
-	Name           *string
+	Name *string
 }

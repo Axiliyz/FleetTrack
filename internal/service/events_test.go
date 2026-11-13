@@ -118,7 +118,7 @@ func TestTelemetryService_NothingPublishedOnError(t *testing.T) {
 func TestTripService_Publishes(t *testing.T) {
 	org := 5
 	pub := &recordingPublisher{}
-	svc := NewTripService(&mockTripRepository{}, logger.NewStdLogger(logger.ErrorLevel))
+	svc := newTestTripService(&mockTripRepository{}, &mockVehicleRepository{}, logger.NewStdLogger(logger.ErrorLevel))
 	svc.SetEventPublisher(pub)
 
 	if _, err := svc.AssignTrip(context.Background(), 1, 1, &org); err != nil {
@@ -131,9 +131,10 @@ func TestTripService_Publishes(t *testing.T) {
 	if _, err := svc.AssignTrip(context.Background(), 1, 1, nil); err != nil {
 		t.Fatalf("AssignTrip without org: %v", err)
 	}
-	assertEvents(t, pub, []string{stream.EventTrip, stream.EventTrip}, 5)
+	// вместе с рейсом карта узнаёт и о статусе машины: ON_TRIP при старте, IDLE при завершении
+	assertEvents(t, pub, []string{stream.EventTrip, stream.EventVehicle, stream.EventTrip, stream.EventVehicle}, 5)
 
-	failing := NewTripService(&mockTripRepository{createErr: model.ErrInvalidVehicleID}, logger.NewStdLogger(logger.ErrorLevel))
+	failing := newTestTripService(&mockTripRepository{createErr: model.ErrInvalidVehicleID}, &mockVehicleRepository{}, logger.NewStdLogger(logger.ErrorLevel))
 	failPub := &recordingPublisher{}
 	failing.SetEventPublisher(failPub)
 	_, _ = failing.AssignTrip(context.Background(), 1, 1, &org)
@@ -145,7 +146,7 @@ func TestVehicleService_PublishesCreate(t *testing.T) {
 	v := model.Vehicle{OrganizationID: 5, VIN: "XTA21099012345678", NumberPlate: "A123BC77", Model: "КАМАЗ 54901", Status: model.VehicleStatusIdle}
 
 	pub := &recordingPublisher{}
-	svc := NewVehicleService(&mockVehicleRepository{}, logger.NewStdLogger(logger.ErrorLevel))
+	svc := newTestVehicleService(&mockVehicleRepository{}, logger.NewStdLogger(logger.ErrorLevel))
 	svc.SetEventPublisher(pub)
 	if _, err := svc.CreateVehicle(context.Background(), v); err != nil {
 		t.Fatalf("CreateVehicle: %v", err)
@@ -153,7 +154,7 @@ func TestVehicleService_PublishesCreate(t *testing.T) {
 	assertEvents(t, pub, []string{stream.EventVehicle}, 5)
 
 	failPub := &recordingPublisher{}
-	failing := NewVehicleService(&mockVehicleRepository{createErr: model.ErrDuplicateVIN}, logger.NewStdLogger(logger.ErrorLevel))
+	failing := newTestVehicleService(&mockVehicleRepository{createErr: model.ErrDuplicateVIN}, logger.NewStdLogger(logger.ErrorLevel))
 	failing.SetEventPublisher(failPub)
 	_, _ = failing.CreateVehicle(context.Background(), v)
 	assertEvents(t, failPub, nil, 0)

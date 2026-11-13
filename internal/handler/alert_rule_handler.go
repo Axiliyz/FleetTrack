@@ -59,10 +59,10 @@ func (h *AlertRuleHandler) HandlePostRule(w http.ResponseWriter, r *http.Request
 		respondError(w, r, h.logger, model.ErrMissingToken)
 		return
 	}
-	if authCtx.Role != model.UserRoleAdmin {
-		ruleData.OrganizationID = authCtx.OrganizationID
-	}
-	newRule := ruleData.ToDomainModel()
+	// организация - только из токена, для любой роли: ADMIN здесь админ своей организации,
+	// а не платформы. Раньше ADMIN мог передать чужой organization_id и завести правило
+	// чужой организации, а зарегистрироваться админом может кто угодно через /register
+	newRule := ruleData.ToDomainModel(authCtx.OrganizationID)
 	rule, err := h.alertRuleService.CreateRule(r.Context(), newRule)
 	if err != nil {
 		respondError(w, r, h.logger, err)

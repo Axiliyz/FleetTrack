@@ -13,4 +13,4 @@ ADD CONSTRAINT users_role_check
     ));
 
 ALTER TABLE devices
-ADD COLUMN api_key_hash CHAR(64) UNIQUE NOT NULL;
+ADD COLUMN api_key_hash CHAR(64) UNIQUE;

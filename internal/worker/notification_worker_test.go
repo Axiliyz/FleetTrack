@@ -4,6 +4,7 @@ package worker
 import (
 	"context"
 	"errors"
+	"fleettrack/internal/logger"
 	"fleettrack/internal/model"
 	"fleettrack/internal/notifier"
 	"sync"
@@ -64,9 +65,11 @@ func (s *mockSender) Send(ctx context.Context, ch model.UserNotificationChannel,
 type mockLogger struct{}
 
 func (m *mockLogger) Debug(msg string) {}
-func (m *mockLogger) Info(msg string)  {}
-func (m *mockLogger) Warn(msg string)  {}
-func (m *mockLogger) Error(msg string) {}
+
+func (m *mockLogger) Log(context.Context, logger.Level, string, ...any) {}
+func (m *mockLogger) Info(msg string)                                   {}
+func (m *mockLogger) Warn(msg string)                                   {}
+func (m *mockLogger) Error(msg string)                                  {}
 
 // TestCalculateNextRetry проверяет экспоненциальный расчёт задержки повторных попыток
 func TestCalculateNextRetry(t *testing.T) {

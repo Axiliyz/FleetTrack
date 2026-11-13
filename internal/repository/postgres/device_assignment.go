@@ -63,3 +63,13 @@ func (r *PostgresAssignmentRepository) EndAssignment(ctx context.Context, device
 	}
 	return nil
 }
+
+// EndAssignmentByVehicle завершает активную связь трекера с машиной, если она есть
+func (r *PostgresAssignmentRepository) EndAssignmentByVehicle(ctx context.Context, vehicleID int) error {
+	const query = `
+	UPDATE device_assignments
+	SET ended_at = NOW()
+	WHERE vehicle_id = $1 AND ended_at IS NULL`
+	_, err := r.db.Exec(ctx, query, vehicleID)
+	return err
+}

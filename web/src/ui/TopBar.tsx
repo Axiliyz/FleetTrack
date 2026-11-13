@@ -1,6 +1,4 @@
 import { useMemo } from 'react'
-import { auth } from '../api/client'
-import { LIVE } from '../config'
 import { formatDate, formatTime } from '../lib/format'
 import { setTimeScale } from '../state/connect'
 import { useFleet } from '../state/fleet'
@@ -104,12 +102,6 @@ export function TopBar() {
       <button type="button" className="sound" aria-pressed={!muted} onClick={toggleMuted}>
         {muted ? 'Звук выкл.' : 'Звук вкл.'}
       </button>
-
-      {LIVE && (
-        <button type="button" className="sound" onClick={() => void auth.logout()}>
-          Выйти
-        </button>
-      )}
     </header>
   )
 }

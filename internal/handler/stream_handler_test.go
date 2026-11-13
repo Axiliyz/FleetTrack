@@ -22,8 +22,11 @@ type countingHub struct {
 	active atomic.Int32
 }
 
-func (c *countingHub) Subscribe(orgID int) (<-chan stream.Event, func()) {
-	ch, unsub := c.Hub.Subscribe(orgID)
+func (c *countingHub) Subscribe(orgID, userID int) (<-chan stream.Event, func(), error) {
+	ch, unsub, err := c.Hub.Subscribe(orgID, userID)
+	if err != nil {
+		return nil, nil, err
+	}
 	c.active.Add(1)
 	var done atomic.Bool
 	return ch, func() {
@@ -31,7 +34,7 @@ func (c *countingHub) Subscribe(orgID int) (<-chan stream.Event, func()) {
 			c.active.Add(-1)
 		}
 		unsub()
-	}
+	}, nil
 }
 
 // waitFor ждёт условия до таймаута — подписка и отписка происходят в горутине сервера
@@ -132,7 +135,7 @@ func nextEvent(t *testing.T, msgs <-chan sseMessage) sseMessage {
 // TestStream_DeliversEventsPastServerTimeouts — событие доходит, хотя поток живёт дольше ReadTimeout/WriteTimeout,
 // а между хендлером и соединением стоят обёртки Metrics и LogQuery
 func TestStream_DeliversEventsPastServerTimeouts(t *testing.T) {
-	hub := &countingHub{Hub: stream.NewHub()}
+	hub := &countingHub{Hub: stream.NewHub(0)}
 	srv := startStreamServer(t, hub, time.Hour, model.AuthContext{UserID: 1, OrganizationID: 5, Role: model.UserRoleDispatcher})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -173,7 +176,7 @@ func TestStream_DeliversEventsPastServerTimeouts(t *testing.T) {
 
 // TestStream_Heartbeat проверяет, что молчащий поток регулярно получает комментарий-пинг
 func TestStream_Heartbeat(t *testing.T) {
-	hub := &countingHub{Hub: stream.NewHub()}
+	hub := &countingHub{Hub: stream.NewHub(0)}
 	srv := startStreamServer(t, hub, 30*time.Millisecond, model.AuthContext{UserID: 1, OrganizationID: 5, Role: model.UserRoleAdmin})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -199,7 +202,7 @@ func TestStream_Heartbeat(t *testing.T) {
 
 // TestStream_ClientDisconnectUnsubscribes проверяет, что закрытая вкладка не оставляет подписку в Hub
 func TestStream_ClientDisconnectUnsubscribes(t *testing.T) {
-	hub := &countingHub{Hub: stream.NewHub()}
+	hub := &countingHub{Hub: stream.NewHub(0)}
 	srv := startStreamServer(t, hub, time.Hour, model.AuthContext{UserID: 1, OrganizationID: 5, Role: model.UserRoleAdmin})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -212,7 +215,7 @@ func TestStream_ClientDisconnectUnsubscribes(t *testing.T) {
 
 // TestStream_HubCloseEndsStream проверяет, что остановка сервера (Hub.Close) завершает поток у клиента
 func TestStream_HubCloseEndsStream(t *testing.T) {
-	hub := &countingHub{Hub: stream.NewHub()}
+	hub := &countingHub{Hub: stream.NewHub(0)}
 	srv := startStreamServer(t, hub, time.Hour, model.AuthContext{UserID: 1, OrganizationID: 5, Role: model.UserRoleAdmin})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -237,7 +240,7 @@ func TestStream_HubCloseEndsStream(t *testing.T) {
 
 // TestStream_RequiresAuth проверяет ответ без аутентификации
 func TestStream_RequiresAuth(t *testing.T) {
-	h := NewStreamHandler(&countingHub{Hub: stream.NewHub()}, logger.NewStdLogger(logger.ErrorLevel))
+	h := NewStreamHandler(&countingHub{Hub: stream.NewHub(0)}, logger.NewStdLogger(logger.ErrorLevel))
 	rec := httptest.NewRecorder()
 	h.HandleStream(rec, httptest.NewRequest(http.MethodGet, "/stream", nil))
 	if rec.Code != http.StatusUnauthorized {
@@ -269,5 +272,55 @@ func TestStreamPayload(t *testing.T) {
 				t.Errorf("%s: key %q missing in %s", tt.name, tt.key, raw)
 			}
 		})
+	}
+}
+
+// TestStream_ClosesWhenTokenExpires проверяет, что поток живёт не дольше access-токена:
+// токен проверяется только при подключении, и без этого удалённый пользователь
+// смотрел бы карту, пока не закроет вкладку
+func TestStream_ClosesWhenTokenExpires(t *testing.T) {
+	hub := &countingHub{Hub: stream.NewHub(0)}
+	authCtx := model.AuthContext{
+		UserID: 1, OrganizationID: 5, Role: model.UserRoleAdmin,
+		ExpiresAt: time.Now().Add(300 * time.Millisecond),
+	}
+	srv := startStreamServer(t, hub, time.Hour, authCtx)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	msgs, _ := readSSE(ctx, t, srv.URL)
+
+	if m := nextEvent(t, msgs); m.event != "token_expired" {
+		t.Fatalf("event = %q, want token_expired", m.event)
+	}
+	select {
+	case _, ok := <-msgs:
+		if ok {
+			t.Fatal("stream must be closed after token_expired")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("stream still open after token expiry")
+	}
+	waitFor(t, "unsubscribe", func() bool { return hub.active.Load() == 0 })
+}
+
+// TestStream_TooManyStreams проверяет, что сверх лимита на пользователя поток не открывается, а отвечает 429
+func TestStream_TooManyStreams(t *testing.T) {
+	hub := &countingHub{Hub: stream.NewHub(1)}
+	authCtx := model.AuthContext{UserID: 3, OrganizationID: 5, Role: model.UserRoleAdmin}
+	srv := startStreamServer(t, hub, time.Hour, authCtx)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	readSSE(ctx, t, srv.URL)
+	waitFor(t, "first subscription", func() bool { return hub.active.Load() == 1 })
+
+	resp, err := http.Get(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("second stream status = %d, want 429", resp.StatusCode)
 	}
 }

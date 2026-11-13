@@ -8,7 +8,6 @@ import (
 	"fleettrack/internal/logger"
 	"fleettrack/internal/model"
 	"fleettrack/internal/repository"
-	"fleettrack/internal/service"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,10 +17,15 @@ import (
 	"time"
 )
 
+// AlertAcknowledger принимает алерт в работу от имени пользователя; реализует *service.AlertService
+type AlertAcknowledger interface {
+	AcknowledgeAlert(ctx context.Context, alertID int, actor model.AuthContext) (model.Alert, error)
+}
+
 // TelegramWorker опрашивает Telegram Bot API методом long polling и обрабатывает callback-запросы от inline-кнопок
 type TelegramWorker struct {
 	botToken     string
-	alertService *service.AlertService
+	alertService AlertAcknowledger
 	channelRepo  repository.NotificationChannelRepository
 	httpClient   *http.Client
 	logger       logger.Logger
@@ -32,7 +36,7 @@ type TelegramWorker struct {
 // NewTelegramWorker создаёт экземпляр фонового воркера для обработки callback-запросов Telegram
 func NewTelegramWorker(
 	token string,
-	as *service.AlertService,
+	as AlertAcknowledger,
 	channelRepo repository.NotificationChannelRepository,
 	client *http.Client,
 	l logger.Logger,

@@ -1,86 +1,92 @@
-import { useEffect, useSyncExternalStore } from 'react'
-import { auth } from './api/client'
+import { lazy, Suspense, type ReactNode } from 'react'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { createBrowserRouter, Link, Navigate, Outlet, RouterProvider, useLocation } from 'react-router'
+import { queryClient } from './api/queryClient'
 import { LIVE } from './config'
-import { unlockAudio } from './lib/sound'
-import { FleetMap } from './map/FleetMap'
-import { ApiFleetSource } from './source/api/ApiFleetSource'
-import { MockFleetSource } from './source/mock/MockFleetSource'
-import { connect, togglePause } from './state/connect'
-import { useFleet } from './state/fleet'
-import { AlertToast } from './ui/AlertToast'
-import { EventLog } from './ui/EventLog'
+import { AlertsPage } from './sections/alerts/AlertsPage'
+import { RulesPage } from './sections/alerts/RulesPage'
+import { DevicesPage } from './sections/devices/DevicesPage'
+import { DriverPage } from './sections/drivers/DriverPage'
+import { DriversPage } from './sections/drivers/DriversPage'
+import { TeamPage } from './sections/team/TeamPage'
+import { TripPage } from './sections/trips/TripPage'
+import { TripsPage } from './sections/trips/TripsPage'
+import { VehiclePage } from './sections/vehicles/VehiclePage'
+import { VehiclesPage } from './sections/vehicles/VehiclesPage'
+import { useSession } from './state/session'
 import { LoginScreen } from './ui/LoginScreen'
-import { Roster } from './ui/Roster'
-import { TopBar } from './ui/TopBar'
-import { UnitCard } from './ui/UnitCard'
+import { Page } from './ui/Page'
+import { RegisterScreen } from './ui/RegisterScreen'
+import { SideNav } from './ui/SideNav'
 
+// карта с deck.gl — самая тяжёлая часть фронта: грузится, только когда её открыли
+const MapPage = lazy(() => import('./ui/Dispatch').then((m) => ({ default: m.MapPage })))
 
-const useSession = () => useSyncExternalStore(auth.onChange, auth.current)
+const router = createBrowserRouter([
+  { path: '/login', element: <PublicOnly><LoginScreen /></PublicOnly> },
+  { path: '/register', element: <PublicOnly><RegisterScreen /></PublicOnly> },
+  {
+    element: <Shell />,
+    children: [
+      { index: true, element: <MapPage /> },
+      { path: 'vehicles', element: <VehiclesPage /> },
+      { path: 'vehicles/:id', element: <VehiclePage /> },
+      { path: 'drivers', element: <DriversPage /> },
+      { path: 'drivers/:id', element: <DriverPage /> },
+      { path: 'devices', element: <DevicesPage /> },
+      { path: 'trips', element: <TripsPage /> },
+      { path: 'trips/:id', element: <TripPage /> },
+      { path: 'alerts', element: <AlertsPage /> },
+      { path: 'alerts/rules', element: <RulesPage /> },
+      { path: 'team', element: <TeamPage /> },
+      { path: '*', element: <NotFound /> },
+    ],
+  },
+])
 
 export function App() {
-  const session = useSession()
-  if (LIVE && !session) return <LoginScreen />
-  // key: новая сессия — новое подключение и чистый стор
-  return <Dispatch key={session?.email ?? 'mock'} />
+  return (
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
+  )
 }
 
-function Dispatch() {
-  const status = useFleet((s) => s.status)
-  const error = useFleet((s) => s.error)
-
-  useEffect(() => {
-    useFleet.getState().reset()
-    return connect(LIVE ? new ApiFleetSource() : new MockFleetSource())
-  }, [])
-  useHotkeys()
-
+// Shell — рабочее место после входа: разделы слева, раздел справа.
+// Без сессии отправляет на вход и запоминает, куда человек шёл
+function Shell() {
+  const session = useSession()
+  const location = useLocation()
+  if (LIVE && !session) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />
   return (
-    <div className="app" onPointerDown={unlockAudio}>
-      <TopBar />
-      <Roster />
-      <main className="board">
-        <FleetMap />
-        <EventLog />
-        <UnitCard />
-        <AlertToast />
-        {status !== 'ready' && (
-          <div className="overlay" role="status">
-            {status === 'loading' ? 'Подключаюсь к парку…' : `Не удалось загрузить парк: ${error}`}
-          </div>
-        )}
-      </main>
+    <div className="shell">
+      <SideNav />
+      <div className="shell-main">
+        <Suspense fallback={<p className="overlay">Загружаю…</p>}>
+          <Outlet />
+        </Suspense>
+      </div>
     </div>
   )
 }
 
-function useHotkeys() {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null
-      if (e.altKey || e.ctrlKey || e.metaKey || target?.closest('input, textarea, select')) return
-      const store = useFleet.getState()
+// PublicOnly — вход и регистрация; кто уже вошёл (или работает с симулятором), идёт дальше
+function PublicOnly({ children }: { children: ReactNode }) {
+  const session = useSession()
+  const location = useLocation()
+  if (!LIVE || session) {
+    const from = (location.state as { from?: string } | null)?.from
+    return <Navigate to={from ?? '/'} replace />
+  }
+  return <>{children}</>
+}
 
-      // пробел на кнопке нажимает её, поэтому там пауза только по P
-      if (e.code === 'KeyP' || (e.code === 'Space' && !target?.closest('button'))) {
-        e.preventDefault()
-        togglePause()
-      } else if (e.key === 'Escape') {
-        store.select(null)
-        store.setRosterOpen(false)
-      } else if (e.code === 'KeyF' && store.selectedId !== null) {
-        store.setFollow(store.followId === store.selectedId ? null : store.selectedId)
-      } else if (e.code === 'BracketLeft' || e.code === 'BracketRight') {
-        const ids = Object.keys(store.vehicles)
-          .map(Number)
-          .sort((a, b) => a - b)
-        if (ids.length === 0) return
-        const at = store.selectedId === null ? -1 : ids.indexOf(store.selectedId)
-        const step = e.code === 'BracketRight' ? 1 : -1
-        const next = ids[(at + step + ids.length) % ids.length]
-        store.select(next, { fly: true })
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
+function NotFound() {
+  return (
+    <Page title="Нет такой страницы" needsApi={false}>
+      <p className="empty">
+        Адрес устарел или набран с ошибкой. <Link to="/">На главную</Link>
+      </p>
+    </Page>
+  )
 }

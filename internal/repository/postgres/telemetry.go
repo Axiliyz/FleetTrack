@@ -71,6 +71,18 @@ func buildWhereClause(filter model.TelemetryFilter) (string, []any) {
 		args = append(args, *filter.DeviceID)
 		argN++ //nolint:ineffassign
 	}
+	if filter.TripID != nil {
+		conditions = append(conditions, fmt.Sprintf("trip_id = $%d", argN))
+		args = append(args, *filter.TripID)
+		argN++ //nolint:ineffassign
+	}
+	// у телеметрии нет driver_id: точки водителя — это точки его рейсов.
+	// На этом фильтре держится scopeDriverID: без него DRIVER видел бы телеметрию всего парка
+	if filter.DriverID != nil {
+		conditions = append(conditions, fmt.Sprintf("trip_id IN (SELECT id FROM trips WHERE driver_id = $%d)", argN))
+		args = append(args, *filter.DriverID)
+		argN++ //nolint:ineffassign
+	}
 	if filter.FuelMin != nil {
 		conditions = append(conditions, fmt.Sprintf("fuel >= $%d", argN))
 		args = append(args, *filter.FuelMin)
@@ -143,12 +155,18 @@ func (r *PostgresTelemetryRepository) GetList(ctx context.Context, filter model.
 	return telemetries, rows.Err()
 }
 
-// GetItemByID для PostgresTelemetryRepository возвращает конкретную запись телеметрии по её ID
-func (r *PostgresTelemetryRepository) GetItemByID(ctx context.Context, id int) (model.Telemetry, error) {
-	query := `SELECT id, organization_id, device_id, vehicle_id, latitude, longitude, fuel, received_at, device_timestamp, trip_id, distance_km, speed_kmh FROM telemetry WHERE id = $1`
+// driverTripsCond - условие «точка из рейса водителя $N»; при NULL условие снимается.
+// У телеметрии нет driver_id, точки водителя - это точки его рейсов
+const driverTripsCond = `($%d::int IS NULL OR trip_id IN (SELECT id FROM trips WHERE driver_id = $%d))`
+
+// GetItemByID для PostgresTelemetryRepository возвращает конкретную запись телеметрии по её ID.
+// driverID != nil оставляет только точки рейсов этого водителя
+func (r *PostgresTelemetryRepository) GetItemByID(ctx context.Context, id int, driverID *int) (model.Telemetry, error) {
+	query := `SELECT id, organization_id, device_id, vehicle_id, latitude, longitude, fuel, received_at, device_timestamp, trip_id, distance_km, speed_kmh
+	FROM telemetry WHERE id = $1 AND ` + fmt.Sprintf(driverTripsCond, 2, 2)
 	var t model.Telemetry
 	var tripID *int
-	err := r.db.QueryRow(ctx, query, id).Scan(
+	err := r.db.QueryRow(ctx, query, id, driverID).Scan(
 		&t.TelemetryID, &t.OrganizationID, &t.DeviceID,
 		&t.VehicleID, &t.Lat, &t.Lon, &t.Fuel,
 		&t.ReceivedAt, &t.DeviceTimestamp,
@@ -166,15 +184,17 @@ func (r *PostgresTelemetryRepository) GetItemByID(ctx context.Context, id int) (
 	return t, nil
 }
 
-// GetListByVehicle для PostgresTelemetryRepository возвращает всю телеметрию для конкретной машины
-func (r *PostgresTelemetryRepository) GetListByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error) {
+// GetListByVehicle для PostgresTelemetryRepository возвращает последние 100 точек конкретной машины.
+// driverID != nil оставляет только точки рейсов этого водителя
+func (r *PostgresTelemetryRepository) GetListByVehicle(ctx context.Context, id int, organizationID, driverID *int) ([]model.Telemetry, error) {
 	query := `SELECT id, organization_id, vehicle_id, device_id, latitude, longitude, fuel, received_at, device_timestamp, trip_id, distance_km, speed_kmh 
         FROM telemetry 
         WHERE vehicle_id = $1
           AND ($2::int IS NULL OR organization_id = $2)
+          AND ` + fmt.Sprintf(driverTripsCond, 3, 3) + `
         ORDER BY received_at DESC
         LIMIT 100`
-	rows, err := r.db.Query(ctx, query, id, organizationID)
+	rows, err := r.db.Query(ctx, query, id, organizationID, driverID)
 	if err != nil {
 		return nil, err
 	}
@@ -203,50 +223,20 @@ func (r *PostgresTelemetryRepository) GetListByVehicle(ctx context.Context, id i
 	return telemetries, rows.Err()
 }
 
-// DeleteListByVehicle для PostgresTelemetryRepository удаляет всю телеметрию для конкретной машины
-func (r *PostgresTelemetryRepository) DeleteListByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error) {
-	query := `DELETE FROM telemetry 
+// DeleteListByVehicle для PostgresTelemetryRepository удаляет всю телеметрию конкретной машины
+// и возвращает число удалённых строк. Сами строки не возвращаются: за месяцы их миллионы
+func (r *PostgresTelemetryRepository) DeleteListByVehicle(ctx context.Context, id int, organizationID *int) (int64, error) {
+	const query = `DELETE FROM telemetry 
 		WHERE vehicle_id = $1
-		AND ($2::int IS NULL OR organization_id = $2)
-		RETURNING id, 
-		organization_id, 
-		vehicle_id, 
-		device_id, 
-		latitude, 
-		longitude, 
-		fuel, 
-		received_at, 
-		device_timestamp, 
-		trip_id, 
-		distance_km, 
-		speed_kmh`
-	rows, err := r.db.Query(ctx, query, id, organizationID)
+		AND ($2::int IS NULL OR organization_id = $2)`
+	tag, err := r.db.Exec(ctx, query, id, organizationID)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	defer rows.Close()
-	var telemetries []model.Telemetry
-	for rows.Next() {
-		var t model.Telemetry
-		var tripID *int
-		err = rows.Scan(
-			&t.TelemetryID, &t.OrganizationID, &t.VehicleID, &t.DeviceID,
-			&t.Lat, &t.Lon, &t.Fuel,
-			&t.ReceivedAt, &t.DeviceTimestamp,
-			&tripID, &t.DistanceKm, &t.SpeedKmh,
-		)
-		if err != nil {
-			return nil, err
-		}
-		if tripID != nil {
-			t.TripID = *tripID
-		}
-		telemetries = append(telemetries, t)
+	if tag.RowsAffected() == 0 {
+		return 0, model.ErrNotFound
 	}
-	if len(telemetries) == 0 {
-		return nil, model.ErrNotFound
-	}
-	return telemetries, rows.Err()
+	return tag.RowsAffected(), nil
 }
 
 // DeleteItemByID для PostgresTelemetryRepository удаляет телеметрию по её ID

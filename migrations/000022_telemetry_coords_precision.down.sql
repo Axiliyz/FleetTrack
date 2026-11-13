@@ -1,0 +1,3 @@
+ALTER TABLE telemetry
+    ALTER COLUMN latitude TYPE NUMERIC(9, 4),
+    ALTER COLUMN longitude TYPE NUMERIC(9, 4);

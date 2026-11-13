@@ -6,8 +6,11 @@ services:
     environment:
       DB_HOST: postgres
       DB_PORT: "5432"
+    # Наружу смотрит только web (nginx): API, база и мониторинг слушают 127.0.0.1 - их видно
+    # с самой машины для разработки, но не из интернета. Иначе API доступен в обход nginx,
+    # а Postgres и Prometheus - всем, кто найдёт порт
     ports:
-      - "${API_PORT}:8080"
+      - "127.0.0.1:${API_PORT}:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -30,7 +33,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
     ports:
-    - "${DB_PORT}:5432"
+    - "127.0.0.1:${DB_PORT}:5432"
     volumes:
     - postgres_data:/var/lib/postgresql/data
 
@@ -55,7 +58,7 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     ports:
-      - "${PROMETHEUS_PORT}:9090"
+      - "127.0.0.1:${PROMETHEUS_PORT}:9090"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/ready"]
       interval: 10s
@@ -64,7 +67,7 @@ services:
     restart: unless-stopped
 
   grafana:
-    image: grafana/grafana:10.0.1
+    image: grafana/grafana:13.1.0
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USER}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
@@ -73,7 +76,7 @@ services:
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     ports:
-      - "${GRAFANA_PORT}:3000"
+      - "127.0.0.1:${GRAFANA_PORT}:3000"
     depends_on:
       prometheus:
         condition: service_healthy
@@ -90,6 +93,40 @@ services:
       api:
         condition: service_healthy
     command: ["run", "/loadtest/telemetry_ingest.js"]
+
+  # фронт: nginx отдаёт сборку и проксирует /api на api — фронт и API с одного адреса
+  web:
+    build:
+      context: ./web
+      target: web
+      args:
+        VITE_DEMO_EMAIL: ${FLEET_DEMO_EMAIL:-}
+        VITE_DEMO_PASSWORD: ${FLEET_DEMO_PASSWORD:-}
+    ports:
+      - "${WEB_PORT:-8081}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # генератор парка для демо-стенда: заводит демо-организацию и гонит телеметрию.
+  # Запускается только с профилем: docker compose --profile demo up -d
+  sim:
+    build:
+      context: ./web
+      target: sim
+    profiles: ["demo"]
+    environment:
+      FLEET_API: http://api:8080
+      FLEET_DEMO_EMAIL: ${FLEET_DEMO_EMAIL:-}
+      FLEET_DEMO_PASSWORD: ${FLEET_DEMO_PASSWORD:-}
+      FLEET_DEMO_ROLE: ${FLEET_DEMO_ROLE:-DISPATCHER}
+      FLEET_SCALE: ${FLEET_SCALE:-60}
+    depends_on:
+      api:
+        condition: service_healthy
+    # демо-организация заводится один раз: перезапуск на той же базе упал бы на занятой почте
+    restart: "no"
 
   fleettrack-postgres-migrate:
     image: migrate/migrate:v4.19.1

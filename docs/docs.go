@@ -1071,19 +1071,13 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "также если в теле неизвестное поле, например organization_id",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "также возвращается, если в теле передан organization_id",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -1312,78 +1306,6 @@ const docTemplate = `{
                         }
                     }
                 }
-            },
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "organization"
-                ],
-                "summary": "Создать организацию",
-                "parameters": [
-                    {
-                        "description": "Название организации",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.OrgRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/dto.OrgResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
             }
         },
         "/readyz": {
@@ -1539,7 +1461,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Соединение не закрывается: сервер пишет события в формате text/event-stream.\nТипы событий: telemetry, alert, trip, vehicle; data — тот же JSON, что в REST-ответах.\nЕсли клиент не успевает читать, сервер закрывает поток — клиент переподключается и заново берёт /fleet/snapshot.",
+                "description": "Соединение не закрывается: сервер пишет события в формате text/event-stream.\nТипы событий: telemetry, alert, trip, vehicle; data — тот же JSON, что в REST-ответах.\nЕсли клиент не успевает читать, сервер закрывает поток — клиент переподключается и заново берёт /fleet/snapshot.\nПоток закрывается и когда истекает access-токен: переподключаться нужно уже со свежим.",
                 "produces": [
                     "text/event-stream"
                 ],
@@ -1562,6 +1484,12 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "у пользователя уже открыто максимум потоков",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -1791,7 +1719,7 @@ const docTemplate = `{
                 "tags": [
                     "telemetry"
                 ],
-                "summary": "Вся телеметрия по автомобилю",
+                "summary": "Последние 100 точек автомобиля",
                 "parameters": [
                     {
                         "type": "integer",
@@ -1871,10 +1799,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/dto.TelemetryResponse"
-                                            }
+                                            "$ref": "#/definitions/dto.DeletedCountResponse"
                                         }
                                     }
                                 }
@@ -2237,6 +2162,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
+                    },
+                    "409": {
+                        "description": "машина не простаивает: уже в рейсе или на обслуживании",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
                     }
                 }
             }
@@ -2529,6 +2460,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
+                    },
+                    "403": {
+                        "description": "роль DRIVER",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
                     }
                 }
             },
@@ -2728,6 +2665,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "удаление себя или последнего админа",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -3034,6 +2977,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
+                    },
+                    "409": {
+                        "description": "машина в рейсе",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
                     }
                 }
             },
@@ -3091,7 +3040,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "также если в теле неизвестное поле, например organization_id, или статус ON_TRIP/DELETED",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -3103,13 +3052,19 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "также возвращается, если в теле передан organization_id",
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "машина в рейсе: её статусом управляет рейс",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -3242,9 +3197,6 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
-                "organization_id": {
-                    "type": "integer"
-                },
                 "severity": {
                     "$ref": "#/definitions/model.SeverityLevel"
                 },
@@ -3270,9 +3222,6 @@ const docTemplate = `{
         "dto.CreateDeviceRequest": {
             "type": "object",
             "properties": {
-                "organization_id": {
-                    "type": "integer"
-                },
                 "serial_number": {
                     "type": "string"
                 }
@@ -3283,23 +3232,21 @@ const docTemplate = `{
             "properties": {
                 "name": {
                     "type": "string"
-                },
-                "organization_id": {
-                    "type": "integer"
                 }
             }
         },
         "dto.CreateUserRequest": {
             "type": "object",
             "properties": {
+                "driver_id": {
+                    "description": "DriverID - водитель, к которому привязан аккаунт. Обязателен для роли DRIVER\nи запрещён для остальных; водитель должен быть из той же организации",
+                    "type": "integer"
+                },
                 "email": {
                     "type": "string"
                 },
                 "name": {
                     "type": "string"
-                },
-                "organization_id": {
-                    "type": "integer"
                 },
                 "password": {
                     "type": "string"
@@ -3318,11 +3265,16 @@ const docTemplate = `{
                 "number_plate": {
                     "type": "string"
                 },
-                "organization_id": {
-                    "type": "integer"
-                },
                 "vin": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.DeletedCountResponse": {
+            "type": "object",
+            "properties": {
+                "deleted": {
+                    "type": "integer"
                 }
             }
         },
@@ -3435,14 +3387,6 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.OrgRequest": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
         "dto.OrgResponse": {
             "type": "object",
             "properties": {
@@ -3494,6 +3438,7 @@ const docTemplate = `{
                     "type": "number"
                 },
                 "lat": {
+                    "description": "Lat и Lon - указатели, чтобы отличить «не прислали» от нуля: без координат точка\nсохранялась бы как (0, 0), это Гвинейский залив",
                     "type": "number"
                 },
                 "lon": {
@@ -3571,9 +3516,6 @@ const docTemplate = `{
             "properties": {
                 "name": {
                     "type": "string"
-                },
-                "organization_id": {
-                    "type": "integer"
                 }
             }
         },
@@ -3590,9 +3532,6 @@ const docTemplate = `{
             "properties": {
                 "number_plate": {
                     "type": "string"
-                },
-                "organization_id": {
-                    "type": "integer"
                 },
                 "status": {
                     "$ref": "#/definitions/model.VehicleStatus"

@@ -1,10 +1,24 @@
 package stream
 
 import (
+	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
+
+// nextUserID выдаёт каждой подписке в тестах своего пользователя, чтобы не упираться в лимит на пользователя
+var nextUserID atomic.Int64
+
+// subscribe подписывает нового пользователя на организацию orgID
+func subscribe(h *Hub, orgID int) (<-chan Event, func()) {
+	ch, unsub, err := h.Subscribe(orgID, int(nextUserID.Add(1)))
+	if err != nil {
+		panic(err)
+	}
+	return ch, unsub
+}
 
 // within падает, если fn не завершилась за отведённое время — так зависание Publish видно как ошибка, а не как вечный тест
 func within(t *testing.T, d time.Duration, fn func()) {
@@ -35,10 +49,10 @@ func drain(t *testing.T, ch <-chan Event) int {
 
 // TestHub_PublishReachesOnlyOwnOrganization проверяет, что событие получает только своя организация
 func TestHub_PublishReachesOnlyOwnOrganization(t *testing.T) {
-	h := NewHub()
-	own1, unsub1 := h.Subscribe(1)
-	own2, unsub2 := h.Subscribe(1)
-	foreign, unsub3 := h.Subscribe(2)
+	h := NewHub(0)
+	own1, unsub1 := subscribe(h, 1)
+	own2, unsub2 := subscribe(h, 1)
+	foreign, unsub3 := subscribe(h, 2)
 	defer unsub1()
 	defer unsub2()
 	defer unsub3()
@@ -64,9 +78,9 @@ func TestHub_PublishReachesOnlyOwnOrganization(t *testing.T) {
 
 // TestHub_SlowSubscriberIsDropped проверяет, что переполненный подписчик отключается, а Publish не ждёт его
 func TestHub_SlowSubscriberIsDropped(t *testing.T) {
-	h := NewHub()
+	h := NewHub(0)
 	// без defer: если Publish зависнет с замком, отложенная отписка тоже встанет на замке и тест не упадёт, а повиснет
-	slow, unsubSlow := h.Subscribe(1)
+	slow, unsubSlow := subscribe(h, 1)
 
 	within(t, time.Second, func() {
 		for i := 0; i < subscriberBuffer+1; i++ {
@@ -91,9 +105,9 @@ func TestHub_SlowSubscriberIsDropped(t *testing.T) {
 
 // TestHub_SlowSubscriberDoesNotHurtOthers проверяет, что отключение медленного не мешает остальным
 func TestHub_SlowSubscriberDoesNotHurtOthers(t *testing.T) {
-	h := NewHub()
-	slow, unsubSlow := h.Subscribe(1)
-	fast, unsubFast := h.Subscribe(1)
+	h := NewHub(0)
+	slow, unsubSlow := subscribe(h, 1)
+	fast, unsubFast := subscribe(h, 1)
 
 	received := 0
 	within(t, time.Second, func() {
@@ -120,16 +134,16 @@ func TestHub_SlowSubscriberDoesNotHurtOthers(t *testing.T) {
 
 // TestHub_UnsubscribeIsIdempotent проверяет, что повторная отписка и отписка после вытеснения не паникуют
 func TestHub_UnsubscribeIsIdempotent(t *testing.T) {
-	h := NewHub()
+	h := NewHub(0)
 
-	ch, unsub := h.Subscribe(1)
+	ch, unsub := subscribe(h, 1)
 	unsub()
 	unsub()
 	if _, ok := <-ch; ok {
 		t.Error("channel must be closed after unsubscribe")
 	}
 
-	dropped, unsubDropped := h.Subscribe(1)
+	dropped, unsubDropped := subscribe(h, 1)
 	for i := 0; i < subscriberBuffer+1; i++ {
 		h.Publish(Event{OrganizationID: 1})
 	}
@@ -139,9 +153,9 @@ func TestHub_UnsubscribeIsIdempotent(t *testing.T) {
 
 // TestHub_UnsubscribeKeepsOthers проверяет, что отписка удаляет ровно одного подписчика
 func TestHub_UnsubscribeKeepsOthers(t *testing.T) {
-	h := NewHub()
-	_, unsubA := h.Subscribe(1)
-	b, unsubB := h.Subscribe(1)
+	h := NewHub(0)
+	_, unsubA := subscribe(h, 1)
+	b, unsubB := subscribe(h, 1)
 	defer unsubB()
 
 	unsubA()
@@ -158,7 +172,7 @@ func TestHub_UnsubscribeKeepsOthers(t *testing.T) {
 
 // TestHub_PublishWithoutSubscribers проверяет, что публикация в пустую организацию ничего не создаёт
 func TestHub_PublishWithoutSubscribers(t *testing.T) {
-	h := NewHub()
+	h := NewHub(0)
 	h.Publish(Event{OrganizationID: 7})
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -169,7 +183,7 @@ func TestHub_PublishWithoutSubscribers(t *testing.T) {
 
 // TestHub_ConcurrentUse — нагрузка из многих горутин; смысл теста раскрывается под go test -race
 func TestHub_ConcurrentUse(t *testing.T) {
-	h := NewHub()
+	h := NewHub(0)
 	var wg sync.WaitGroup
 
 	for org := 1; org <= 4; org++ {
@@ -177,7 +191,7 @@ func TestHub_ConcurrentUse(t *testing.T) {
 			wg.Add(1)
 			go func(org int) {
 				defer wg.Done()
-				ch, unsub := h.Subscribe(org)
+				ch, unsub := subscribe(h, org)
 				for i := 0; i < 20; i++ {
 					select {
 					case <-ch:
@@ -206,9 +220,9 @@ func TestHub_ConcurrentUse(t *testing.T) {
 
 // TestHub_Close проверяет, что остановка закрывает все потоки и не даёт подписаться заново
 func TestHub_Close(t *testing.T) {
-	h := NewHub()
-	a, unsubA := h.Subscribe(1)
-	b, unsubB := h.Subscribe(2)
+	h := NewHub(0)
+	a, unsubA := subscribe(h, 1)
+	b, unsubB := subscribe(h, 2)
 
 	h.Close()
 	h.Close() // повторная остановка безопасна
@@ -221,10 +235,68 @@ func TestHub_Close(t *testing.T) {
 	unsubA() // отписка после Close не должна паниковать на закрытом канале
 	unsubB()
 
-	late, unsubLate := h.Subscribe(1)
+	late, unsubLate := subscribe(h, 1)
 	if _, ok := <-late; ok {
 		t.Error("subscription after Close must return a closed channel")
 	}
 	unsubLate()
 	h.Publish(Event{OrganizationID: 1}) // публикация после Close — молча никуда
+}
+
+// TestHub_LimitPerUser проверяет лимит потоков одного пользователя и что отписка освобождает место
+func TestHub_LimitPerUser(t *testing.T) {
+	h := NewHub(2)
+	const user = 7
+
+	_, unsubA, err := h.Subscribe(1, user)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, unsubB, err := h.Subscribe(1, user)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := h.Subscribe(1, user); !errors.Is(err, ErrTooManySubscriptions) {
+		t.Fatalf("third subscription err = %v, want ErrTooManySubscriptions", err)
+	}
+	// другой пользователь той же организации лимитом первого не ограничен
+	_, unsubOther, err := h.Subscribe(1, user+1)
+	if err != nil {
+		t.Fatalf("other user: %v", err)
+	}
+	defer unsubOther()
+
+	unsubA()
+	unsubA() // повторная отписка не должна освобождать второе место
+	_, unsubC, err := h.Subscribe(1, user)
+	if err != nil {
+		t.Fatalf("after unsubscribe: %v", err)
+	}
+	if _, _, err := h.Subscribe(1, user); !errors.Is(err, ErrTooManySubscriptions) {
+		t.Fatalf("double unsubscribe freed extra slot: err = %v", err)
+	}
+	unsubB()
+	unsubC()
+}
+
+// TestHub_SlowSubscriberStillHoldsSlot проверяет, что канал, закрытый Hub за медленность,
+// держит место пользователя до отписки: иначе поток, который ещё не вышел из цикла, обходил бы лимит
+func TestHub_SlowSubscriberStillHoldsSlot(t *testing.T) {
+	h := NewHub(1)
+	ch, unsub, err := h.Subscribe(1, 9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i <= subscriberBuffer; i++ {
+		h.Publish(Event{OrganizationID: 1, Data: i})
+	}
+	drain(t, ch)
+
+	if _, _, err := h.Subscribe(1, 9); !errors.Is(err, ErrTooManySubscriptions) {
+		t.Fatalf("err = %v, место должно освобождаться только отпиской", err)
+	}
+	unsub()
+	if _, _, err := h.Subscribe(1, 9); err != nil {
+		t.Fatalf("after unsubscribe: %v", err)
+	}
 }

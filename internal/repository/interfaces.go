@@ -20,6 +20,10 @@ type AssignmentRepository interface {
 	// EndAssignment завершает активную связь устройства с автомобилем
 	// Возвращает ошибку, если завершить связь не удалось
 	EndAssignment(ctx context.Context, deviceID int) error
+
+	// EndAssignmentByVehicle завершает активную связь трекера с машиной, если она есть.
+	// Отсутствие связи ошибкой не считается: нужен при удалении машины
+	EndAssignmentByVehicle(ctx context.Context, vehicleID int) error
 }
 
 // TelemetryRepository определяет контракт сохранения телеметрии
@@ -32,21 +36,23 @@ type TelemetryRepository interface {
 	// Возвращает ошибку, если не может найти
 	GetList(ctx context.Context, filter model.TelemetryFilter) ([]model.Telemetry, error)
 
-	// GetItemByID возвращает запись телеметрии по её ID
+	// GetItemByID возвращает запись телеметрии по её ID.
+	// driverID != nil оставляет только точки рейсов этого водителя
 	// Возвращает ошибку, если не может найти
-	GetItemByID(ctx context.Context, id int) (model.Telemetry, error)
+	GetItemByID(ctx context.Context, id int, driverID *int) (model.Telemetry, error)
 
-	// GetListByVehicle возвращает срез телеметрий по ID машины
+	// GetListByVehicle возвращает срез телеметрий по ID машины.
+	// driverID != nil оставляет только точки рейсов этого водителя
 	// Возвращает ошибку, если не может найти
-	GetListByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error)
+	GetListByVehicle(ctx context.Context, id int, organizationID, driverID *int) ([]model.Telemetry, error)
 
 	// DeleteItemByID удаляет запись по её ID с ограничением по организации
 	// Возвращает ошибку, если не удалось удалить
 	DeleteItemByID(ctx context.Context, id int, organizationID *int) (model.Telemetry, error)
 
-	// DeleteListByVehicle удаляет список записей по ID машины с ограничением по организации
-	// Возвращает ошибку, если не удалось удалить
-	DeleteListByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error)
+	// DeleteListByVehicle удаляет все записи машины с ограничением по организации.
+	// Возвращает только число удалённых строк: за месяцы их миллионы, отдавать их в ответе нельзя
+	DeleteListByVehicle(ctx context.Context, id int, organizationID *int) (int64, error)
 
 	// GetLastByVehicle получает последнюю телеметрию по ID машины
 	// Возвращает model.ErrNotFound, если у машины ещё не было телеметрии - это
@@ -68,14 +74,19 @@ type VehicleRepository interface {
 	// Или ошибку
 	GetList(ctx context.Context, filter model.VehicleFilter) ([]model.Vehicle, error)
 
-	// Delete удаляет машину по ID. organizationID != nil ограничивает удаление машинами
+	// Delete мягко удаляет машину по ID. organizationID != nil ограничивает удаление машинами
 	// этой организации; nil снимает ограничение.
-	// Возвращает удалённую машину, и ошибку, если не удалось
+	// Возвращает удалённую машину; model.ErrVehicleIsBusy - машина в рейсе
 	Delete(ctx context.Context, id int, organizationID *int) (model.Vehicle, error)
 
 	// Update обновляет некоторые поля по авто. organizationID != nil ограничивает обновление
 	// машинами этой организации; nil снимает ограничение.
+	// Статус машины в рейсе не меняется - model.ErrVehicleOnTrip
 	Update(ctx context.Context, id int, upd model.UpdateVehicle, organizationID *int) (model.Vehicle, error)
+
+	// UpdateStatus переводит машину из статуса from в to одним UPDATE с условием на from.
+	// Возвращает model.ErrNotFound, если машины нет, она чужая или не в статусе from
+	UpdateStatus(ctx context.Context, id int, from, to model.VehicleStatus, organizationID *int) (model.Vehicle, error)
 
 	// UpdateLastTelemetryAt устанавливает поле last_telemetry_at, нужно для партиций
 	UpdateLastTelemetryAt(ctx context.Context, vehicleID int, at time.Time) error
@@ -162,7 +173,7 @@ type TripRepository interface {
 
 // UserRepository задаёт контракт хранения пользователей
 type UserRepository interface {
-	// GetByEmail получает юзера по почте
+	// GetByEmail получает юзера по почте без учёта регистра; удалённые не находятся
 	// Возвращает model.ErrNotFound если не нашёл
 	GetByEmail(ctx context.Context, email string) (model.User, error)
 
@@ -174,10 +185,15 @@ type UserRepository interface {
 	// Возвращает объект юзера или ошибку
 	Create(ctx context.Context, u *model.User) error
 
-	// DeleteByID удаляет юзера по ID. organizationID != nil ограничивает удаление юзерами
+	// DeleteByID мягко удаляет юзера по ID. organizationID != nil ограничивает удаление юзерами
 	// этой организации; nil - без ограничения.
 	// Возвращает удалённого юзера или ошибку
 	DeleteByID(ctx context.Context, id int, organizationID *int) (model.User, error)
+
+	// LockActiveAdmins блокирует строки действующих админов организации до конца транзакции
+	// и возвращает их ID. Без блокировки два админа, удаляющие друг друга одновременно,
+	// оба увидели бы «админов двое» и оставили организацию без админа
+	LockActiveAdmins(ctx context.Context, organizationID int) ([]int, error)
 
 	// GetList получает список юзеров с фильтрами
 	// Возвращает слайс юзеров или ошибку
@@ -186,9 +202,23 @@ type UserRepository interface {
 
 // RefreshTokenRepository задаёт контракт хранения refresh-токенов
 type RefreshTokenRepository interface {
-	// Create сохраняет новый refresh-токен, заполняя ID и CreatedAt
+	// Create сохраняет новый refresh-токен, заполняя ID и CreatedAt.
+	// Пустой FamilyID начинает новую семью, её ID тоже заполняется
 	// Возвращает ошибку если не удалось
 	Create(ctx context.Context, t *model.RefreshToken) error
+
+	// GetByHash возвращает токен по хешу в любом состоянии, в том числе отозванный
+	// Возвращает model.ErrNotFound, если такого токена не выдавали
+	GetByHash(ctx context.Context, hash string) (model.RefreshToken, error)
+
+	// RevokeFamily отзывает все ещё активные токены семьи
+	RevokeFamily(ctx context.Context, familyID string) error
+
+	// RevokeAllForUser отзывает все активные токены пользователя
+	RevokeAllForUser(ctx context.Context, userID int) error
+
+	// DeleteExpired удаляет токены, истёкшие раньше before, и возвращает их число
+	DeleteExpired(ctx context.Context, before time.Time) (int64, error)
 
 	// GetActiveByHash возвращает токен по его хешу, если он не отозван и не истёк
 	// Возвращает model.ErrNotFound, если такого валидного токена нет
@@ -222,7 +252,7 @@ type AlertRuleRepository interface {
 	// Используется Alert Engine для проверки входящей телеметрии
 	GetActiveRulesByOrg(ctx context.Context, orgID int) ([]model.AlertRule, error)
 
-	// DeleteByID удаляет правило по его ID
+	// DeleteByID мягко удаляет правило по его ID: на правило ссылаются его алерты
 	DeleteByID(ctx context.Context, id int) (model.AlertRule, error)
 }
 
@@ -239,6 +269,12 @@ type AlertRepository interface {
 	// resolvedBy передаётся как nil при автоматическом закрытии системой,
 	// либо указывает на userID при ручном закрытии оператором
 	Resolve(ctx context.Context, id int, resolvedBy *int) (model.Alert, error)
+
+	// ResolveByVehicle закрывает все незакрытые алерты машины и возвращает их
+	ResolveByVehicle(ctx context.Context, vehicleID int) ([]model.Alert, error)
+
+	// ResolveByRule закрывает все незакрытые алерты правила и возвращает их
+	ResolveByRule(ctx context.Context, ruleID int) ([]model.Alert, error)
 
 	// AcknowledgeAlert переводит алерт из FIRED в ACKNOWLEDGED, фиксируя время и ID оператора.
 	// Проверка организации входит в сам UPDATE, поэтому чужой алерт не изменится даже на мгновение.

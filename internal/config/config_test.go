@@ -25,6 +25,7 @@ func TestLoad_Defaults(t *testing.T) {
 	for _, k := range []string{
 		"METRICS_PORT", "DB_MAX_CONNS", "REQUEST_TIMEOUT", "SMTP_PORT", "LOG_LEVEL",
 		"ALERT_WORKERS", "ALERT_QUEUE_SIZE", "TELEMETRY_BATCH_SIZE", "TELEMETRY_BATCH_WAIT", "TELEMETRY_BUFFER_SIZE",
+		"LOG_FORMAT", "SWAGGER_ENABLED", "STREAMS_PER_USER", "TELEMETRY_MAX_CLOCK_AHEAD",
 	} {
 		t.Setenv(k, "")
 	}
@@ -44,6 +45,12 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.Workers.TelemetryBatchWait != 20*time.Millisecond || cfg.Workers.AlertWorkers != 16 {
 		t.Errorf("workers defaults = %+v", cfg.Workers)
 	}
+	if cfg.Workers.TelemetryMaxClockAhead != 2*time.Minute {
+		t.Errorf("clock ahead default = %v, want 2m: дни вперёд отравляют расчёт скорости", cfg.Workers.TelemetryMaxClockAhead)
+	}
+	if cfg.Log.Format != logger.FormatJSON || cfg.API.SwaggerEnabled || cfg.API.StreamsPerUser != 5 {
+		t.Errorf("format=%q swagger=%v streams=%d", cfg.Log.Format, cfg.API.SwaggerEnabled, cfg.API.StreamsPerUser)
+	}
 }
 
 func TestLoad_ReportsEveryInvalidVariable(t *testing.T) {
@@ -52,12 +59,14 @@ func TestLoad_ReportsEveryInvalidVariable(t *testing.T) {
 	t.Setenv("SMTP_PORT", "abc")
 	t.Setenv("LOG_LEVEL", "loud")
 	t.Setenv("JWT_ACCESS_TTL", "-1")
+	t.Setenv("SWAGGER_ENABLED", "maybe")
+	t.Setenv("LOG_FORMAT", "xml")
 
 	_, err := Load()
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	for _, name := range []string{"DB_HOST", "SMTP_PORT", "LOG_LEVEL", "JWT_ACCESS_TTL"} {
+	for _, name := range []string{"DB_HOST", "SMTP_PORT", "LOG_LEVEL", "JWT_ACCESS_TTL", "SWAGGER_ENABLED", "LOG_FORMAT"} {
 		if !strings.Contains(err.Error(), name) {
 			t.Errorf("error does not mention %s: %v", name, err)
 		}

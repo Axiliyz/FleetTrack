@@ -2,27 +2,41 @@ package service
 
 import (
 	"context"
+	"fleettrack/internal/database"
 	"fleettrack/internal/logger"
 	"fleettrack/internal/model"
 	"fleettrack/internal/repository"
+	"fleettrack/internal/repository/factory"
+	"fleettrack/internal/transaction"
 	"fleettrack/internal/validator"
 	"fmt"
+	"slices"
+	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
 // UserService содержит бизнес-логику пользователей
 type UserService struct {
-	repository repository.UserRepository
-	logger     logger.Logger
+	repository  repository.UserRepository
+	logger      logger.Logger
+	txManager   transaction.TransactionManager
+	repoFactory factory.RepositoryFactory
 }
 
 // NewUserService - конструктор сервиса юзеров
-func NewUserService(r repository.UserRepository, l logger.Logger) *UserService {
+func NewUserService(r repository.UserRepository, l logger.Logger, tx transaction.TransactionManager, rf factory.RepositoryFactory) *UserService {
 	return &UserService{
-		repository: r,
-		logger:     l,
+		repository:  r,
+		logger:      l,
+		txManager:   tx,
+		repoFactory: rf,
 	}
+}
+
+// normalizeEmail приводит почту к одному виду: Sanya@Mail.ru и sanya@mail.ru - один адрес
+func normalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
 }
 
 // GetUserByEmail находит юзера по почте
@@ -31,12 +45,11 @@ func (s *UserService) GetUserByEmail(ctx context.Context, email string) (model.U
 	if len(email) < 1 {
 		return model.User{}, model.ErrInvalidEmail
 	}
-	user, err := s.repository.GetByEmail(ctx, email)
+	user, err := s.repository.GetByEmail(ctx, normalizeEmail(email))
 	if err != nil {
 		return model.User{}, err
 	}
-	message := fmt.Sprintf("user with email %s found:", email)
-	s.logger.Info(message)
+	s.logger.Debug(fmt.Sprintf("user %d found by email", user.ID))
 	return user, nil
 }
 
@@ -50,8 +63,7 @@ func (s *UserService) GetUserByID(ctx context.Context, id int) (model.User, erro
 	if err != nil {
 		return model.User{}, err
 	}
-	message := fmt.Sprintf("User with id %d:", id)
-	s.logger.Info(message)
+	s.logger.Debug(fmt.Sprintf("got user with id %d", id))
 	return user, nil
 }
 
@@ -69,12 +81,21 @@ func validateUser(u model.User) error {
 	if validator.ValidateEmail(u.Email) != nil {
 		return model.ErrInvalidEmail
 	}
+	// роль DRIVER без водителя бесполезна: все её выборки ограничены своим driver_id.
+	// И наоборот, водитель у диспетчера ничего бы не значил
+	if (u.Role == model.UserRoleDriver) != (u.DriverID != nil) {
+		return model.ErrInvalidDriverID
+	}
+	if u.DriverID != nil && *u.DriverID < 1 {
+		return model.ErrInvalidDriverID
+	}
 	return nil
 }
 
 // CreateUser создаёт пользователя
 // Возвращает ошибку при неудаче
 func (s *UserService) CreateUser(ctx context.Context, u model.User, password string) (model.User, error) {
+	u.Email = normalizeEmail(u.Email)
 	if err := validateUser(u); err != nil {
 		return model.User{}, err
 	}
@@ -98,20 +119,42 @@ func (s *UserService) CreateUser(ctx context.Context, u model.User, password str
 	return u, nil
 }
 
-// DeleteUserByID удаляет пользователя по его ID
-// Возвращает удалённого юзера или ошибку
-func (s *UserService) DeleteUserByID(ctx context.Context, id int, organizationID *int) (model.User, error) {
+// DeleteUserByID мягко удаляет пользователя организации actor и отзывает все его refresh-токены.
+// Себя удалить нельзя (model.ErrDeleteSelf), последнего админа - тоже (model.ErrLastAdmin):
+// организация без админа никого больше не заведёт.
+// Чужой пользователь неотличим от несуществующего - model.ErrNotFound
+func (s *UserService) DeleteUserByID(ctx context.Context, id int, actor model.AuthContext) (model.User, error) {
 	if id <= 0 {
 		return model.User{}, model.ErrInvalidUserID
 	}
+	if id == actor.UserID {
+		return model.User{}, model.ErrDeleteSelf
+	}
 
-	user, err := s.repository.DeleteByID(ctx, id, organizationID)
+	var deleted model.User
+	err := s.txManager.WithTx(ctx, func(tx database.DBTX) error {
+		repos := s.repoFactory.New(tx)
+
+		// блокировка админов идёт первой: так удаление одного админа ждёт удаления другого
+		admins, err := repos.User.LockActiveAdmins(ctx, actor.OrganizationID)
+		if err != nil {
+			return err
+		}
+		if len(admins) == 1 && slices.Contains(admins, id) {
+			return model.ErrLastAdmin
+		}
+
+		orgID := actor.OrganizationID
+		if deleted, err = repos.User.DeleteByID(ctx, id, &orgID); err != nil {
+			return err
+		}
+		return repos.RefreshToken.RevokeAllForUser(ctx, id)
+	})
 	if err != nil {
 		return model.User{}, err
 	}
-	message := fmt.Sprintf("user with id %d deleted", id)
-	s.logger.Info(message)
-	return user, nil
+	s.logger.Info(fmt.Sprintf("user %d deleted by user %d", id, actor.UserID))
+	return deleted, nil
 }
 
 // GetUsersList получает список пользователей с фильтрами по
@@ -120,6 +163,6 @@ func (s *UserService) GetUsersList(ctx context.Context, filter model.UserFilter)
 	if err != nil {
 		return []model.User{}, err
 	}
-	s.logger.Info("Users list:")
+	s.logger.Debug("got users list")
 	return users, nil
 }

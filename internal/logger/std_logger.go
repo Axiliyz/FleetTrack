@@ -1,11 +1,12 @@
 package logger
 
 import (
+	"context"
 	"fmt"
+	"io"
+	"log/slog"
+	"os"
 	"strings"
-	"time"
-
-	"github.com/fatih/color"
 )
 
 // Level определяет уровень логгера
@@ -19,54 +20,77 @@ const (
 	ErrorLevel
 )
 
-// StdLogger определяет стандартный логгер
+// slogLevel переводит уровень логгера в уровень slog
+func (l Level) slogLevel() slog.Level {
+	switch l {
+	case DebugLevel:
+		return slog.LevelDebug
+	case WarnLevel:
+		return slog.LevelWarn
+	case ErrorLevel:
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}
+
+// Format - формат вывода логов
+type Format string
+
+const (
+	// FormatJSON - одна JSON-запись на строку, для сборщиков логов (Loki, ELK)
+	FormatJSON Format = "json"
+	// FormatText - key=value, удобнее читать глазами при локальной разработке
+	FormatText Format = "text"
+)
+
+// StdLogger определяет стандартный логгер: обёртка над *slog.Logger
 type StdLogger struct {
-	level Level
+	l *slog.Logger
 }
 
 var _ Logger = (*StdLogger)(nil)
 
-// NewStdLogger создаёт новый стандартный логгер
+// NewStdLogger создаёт логгер, пишущий JSON в stdout
 func NewStdLogger(level Level) *StdLogger {
-	return &StdLogger{level: level}
+	return New(os.Stdout, level, FormatJSON)
 }
 
-// timestamp для форматирование дата-времени
-// Возвращает форматированный Now
-func timestamp() string {
-	return time.Now().Format(time.RFC3339Nano)
+// New создаёт логгер, пишущий в w в формате format
+func New(w io.Writer, level Level, format Format) *StdLogger {
+	opts := &slog.HandlerOptions{Level: level.slogLevel()}
+	var h slog.Handler
+	if format == FormatText {
+		h = slog.NewTextHandler(w, opts)
+	} else {
+		h = slog.NewJSONHandler(w, opts)
+	}
+	return &StdLogger{l: slog.New(contextHandler{h})}
 }
 
 // Debug уровень для логирования
 func (l *StdLogger) Debug(message string) {
-	if l.level > DebugLevel {
-		return
-	}
-	color.Cyan("[DEBUG] %s : %s\n", timestamp(), message)
+	l.l.Debug(message)
 }
 
 // Info уровень для логирования
 func (l *StdLogger) Info(message string) {
-	if l.level > InfoLevel {
-		return
-	}
-	fmt.Printf("[INFO] %s | %s\n", timestamp(), message)
+	l.l.Info(message)
 }
 
 // Warn уровень для логирования
 func (l *StdLogger) Warn(message string) {
-	if l.level > WarnLevel {
-		return
-	}
-	color.Yellow("[WARN] %s | %s\n", timestamp(), message)
+	l.l.Warn(message)
 }
 
 // Error уровень для логирования
 func (l *StdLogger) Error(message string) {
-	if l.level > ErrorLevel {
-		return
-	}
-	color.Red("[ERROR] %s | %s\n", timestamp(), message)
+	l.l.Error(message)
+}
+
+// Log пишет запись с полями args и полями запроса из ctx
+func (l *StdLogger) Log(ctx context.Context, level Level, message string, args ...any) {
+	l.l.Log(ctx, level.slogLevel(), message, args...)
 }
 
 // ParseLevel разбирает уровень логирования из строки: debug, info, warn, error.
@@ -82,4 +106,15 @@ func ParseLevel(s string) (Level, error) {
 		return ErrorLevel, nil
 	}
 	return InfoLevel, fmt.Errorf("unknown log level %q", s)
+}
+
+// ParseFormat разбирает формат логов из строки: json (по умолчанию) или text
+func ParseFormat(s string) (Format, error) {
+	switch Format(strings.ToLower(strings.TrimSpace(s))) {
+	case FormatJSON, "":
+		return FormatJSON, nil
+	case FormatText:
+		return FormatText, nil
+	}
+	return FormatJSON, fmt.Errorf("unknown log format %q", s)
 }

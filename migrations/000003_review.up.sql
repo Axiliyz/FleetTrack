@@ -1,5 +1,3 @@
-ALTER TABLE vehicles DROP COLUMN version;
-
 ALTER TABLE vehicles ADD COLUMN model VARCHAR(30) NOT NULL;
 
 ALTER TABLE vehicles 
@@ -15,10 +13,6 @@ CHECK (
     )
 );
 
-ALTER TABLE vehicles
-ADD CONSTRAINT uq_vehicle_number_plate
-UNIQUE (number_plate);
-
 ALTER TABLE organizations ADD COLUMN name VARCHAR(255) UNIQUE NOT NULL;
 ALTER TABLE organizations ADD COLUMN created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 ALTER TABLE organizations ADD COLUMN updated_at TIMESTAMPTZ;
@@ -30,10 +24,11 @@ ALTER TABLE trips
 ADD CONSTRAINT chk_trip_status
 CHECK (
     status IN (
-        'CREATED',
-        'ACTIVE',
-        'FINISHED',
-        'CANCELLED'
+        'RUNNING',
+        'CANCELLED',
+        'SUCCEEDED',
+        'SLEEPING',
+        'SERVING'
     )
 );
 
@@ -41,7 +36,7 @@ ALTER TABLE trips
 ALTER COLUMN status SET NOT NULL;
 
 ALTER TABLE trips
-ALTER COLUMN status SET DEFAULT 'CREATED';
+ALTER COLUMN status SET DEFAULT 'RUNNING';
 
 ALTER TABLE devices
 ADD CONSTRAINT chk_device_status
@@ -59,9 +54,6 @@ ALTER COLUMN status SET NOT NULL;
 ALTER TABLE devices
 ALTER COLUMN status SET DEFAULT 'ACTIVE';
 
-CREATE INDEX idx_vehicle_organization
-ON vehicles(organization_id);
-
 CREATE INDEX idx_driver_organization
 ON drivers(organization_id);
 
@@ -70,11 +62,3 @@ ON trips(vehicle_id);
 
 CREATE INDEX idx_trip_driver
 ON trips(driver_id);
-
-CREATE INDEX idx_telemetry_vehicle
-ON telemetry(vehicle_id);
-
-CREATE INDEX idx_telemetry_vehicle_created
-ON telemetry(vehicle_id, received_at DESC);
-
-DROP TABLE driver_assignments;

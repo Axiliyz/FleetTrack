@@ -7,8 +7,17 @@
 //
 // Время ускорено (FLEET_SCALE, по умолчанию ×60): точка уходит раз в секунду, а device_timestamp
 // в ней — время симуляции. Бэк считает скорость по device_timestamp, поэтому она остаётся реальной.
+// Цена ускорения: время симуляции убегает вперёд настоящего, а бэк по умолчанию принимает
+// device_timestamp не дальше 2 минут в будущем (точка «из будущего» обнуляет скорость следующих).
+// Для витрины с FLEET_SCALE > 1 допуск поднимают через TELEMETRY_MAX_CLOCK_AHEAD - только на
+// демо-стенде, на настоящих трекерах он должен оставаться в минутах. FLEET_SCALE=1 работает без этого.
 //
 // Запуск: npm run sim   (бэкенд должен работать на FLEET_API, по умолчанию http://localhost:8080)
+//
+// Демо-стенд: FLEET_DEMO_EMAIL и FLEET_DEMO_PASSWORD задают постоянную учётку вместо случайной —
+// под ней посетитель входит кнопкой «Войти в демо-парк». Роль учётки — FLEET_DEMO_ROLE (DISPATCHER
+// или ANALYTIC), администратор организации служебный. Такая организация заводится один раз:
+// повторный запуск на той же базе остановится с подсказкой, как сбросить стенд.
 
 import { randomBytes } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
@@ -18,6 +27,12 @@ import type { AlertType, FleetEvent, Trip, VehicleStatus } from '../src/types'
 const API = (process.env.FLEET_API ?? 'http://localhost:8080').replace(/\/$/, '')
 const SCALE = Number(process.env.FLEET_SCALE ?? 60)
 const CREDENTIALS_FILE = new URL('../.fleet-sim.local.json', import.meta.url)
+const DEMO_EMAIL = process.env.FLEET_DEMO_EMAIL || undefined
+const DEMO_PASSWORD = process.env.FLEET_DEMO_PASSWORD || undefined
+const DEMO_ORG = process.env.FLEET_DEMO_ORG || 'Демо-парк'
+// роль публичной учётки: диспетчер может всё с парком, но не с людьми; аналитик — только смотреть
+const DEMO_ROLE = process.env.FLEET_DEMO_ROLE || 'DISPATCHER'
+const DEMO_ROLES = new Set(['DISPATCHER', 'ANALYTIC'])
 
 // раз в сколько секунд один трекер «теряет связь» и на сколько: бэк должен поднять DEVICE_OFFLINE.
 // Тишина с запасом над порогом правила (1 мин) и тиком OfflineWorker (30 с), который на большой базе
@@ -84,14 +99,35 @@ const log = (msg: string) => console.log(`${new Date().toLocaleTimeString('ru-RU
 // пароль под правила бэка: 8–72 символа, есть буква и цифра
 const makePassword = () => `Sim${randomBytes(12).toString('base64url')}7`
 
+// saveCredentials — подсказка для локального запуска. Не записалась (например, каталог в контейнере
+// только для чтения) — не беда: те же данные напечатаны в консоли
+function saveCredentials(data: Record<string, string>): void {
+  try {
+    writeFileSync(CREDENTIALS_FILE, JSON.stringify(data, null, 2))
+  } catch (err) {
+    log(`учётку не удалось сохранить в файл (${(err as Error).message}), берите её из вывода ниже`)
+  }
+}
+
 // ---------- основной сценарий ----------
 
 async function main() {
+  if (Boolean(DEMO_EMAIL) !== Boolean(DEMO_PASSWORD)) {
+    console.error('Для демо-стенда нужны обе переменные: FLEET_DEMO_EMAIL и FLEET_DEMO_PASSWORD.')
+    process.exit(1)
+  }
+  if (!DEMO_ROLES.has(DEMO_ROLE)) {
+    console.error(`FLEET_DEMO_ROLE — одна из ролей: ${[...DEMO_ROLES].join(', ')}.`)
+    process.exit(1)
+  }
+  const demo = DEMO_EMAIL !== undefined
   const client = new ApiClient()
   const stamp = Date.now()
-  const email = `sim-${stamp}@fleettrack.test`
-  const password = makePassword()
-  const orgName = `Симулятор ${new Date(stamp).toLocaleTimeString('ru-RU')}`
+  // администратор демо-организации — служебный, его пароль никто не знает: публичной учётке
+  // достаётся роль попроще, чтобы посетитель не мог заводить себе администраторов
+  const adminEmail = demo ? `demo-admin-${stamp}@fleettrack.test` : `sim-${stamp}@fleettrack.test`
+  const adminPassword = makePassword()
+  const orgName = demo ? DEMO_ORG : `Симулятор ${new Date(stamp).toLocaleTimeString('ru-RU')}`
 
   log(`регистрирую организацию «${orgName}» на ${API}`)
   try {
@@ -100,35 +136,45 @@ async function main() {
         organization_name: orgName,
         // бэк ограничивает имя 35 байтами, а кириллица — 2 байта на букву: длинное имя не пройдёт
         admin_name: 'Диспетчер',
-        admin_email: email,
-        admin_password: password,
+        admin_email: adminEmail,
+        admin_password: adminPassword,
       }),
     )
+    if (demo) {
+      await client.call('POST', '/users', {
+        name: 'Гость',
+        email: DEMO_EMAIL,
+        password: DEMO_PASSWORD,
+        role: DEMO_ROLE,
+      })
+    }
   } catch (err) {
     console.error(`\nНе удалось зарегистрироваться: ${(err as Error).message}`)
     // fetch бросает TypeError, только когда до сервера не достучаться; ответ с ошибкой — это Error
     if (err instanceof TypeError) {
       console.error(`Бэкенд не отвечает на ${API}: запустите его (make run или make docker-up).`)
+    } else if (demo && (err as Error).message.includes('HTTP 409')) {
+      console.error('Демо-организация на этой базе уже заведена. Чтобы начать с чистого парка: make demo-reset')
     }
     process.exit(1)
   }
 
-  writeFileSync(
-    CREDENTIALS_FILE,
-    JSON.stringify({ api: API, organization: orgName, email, password, created_at: new Date(stamp).toISOString() }, null, 2),
-  )
+  const email = DEMO_EMAIL ?? adminEmail
+  const password = DEMO_PASSWORD ?? adminPassword
+  // учётку демо-стенда и так знают из окружения
+  if (!demo) saveCredentials({ api: API, organization: orgName, email, password, created_at: new Date(stamp).toISOString() })
 
-  const [org] = await client.call<Array<{ id: number; name: string }>>('GET', '/organizations')
   const rules: Array<{ type: AlertType; name: string; threshold: number; severity: string }> = [
     { type: 'SPEED_EXCEEDED', name: 'Превышение 90 км/ч', threshold: 90, severity: 'HIGH' },
     { type: 'LOW_FUEL', name: 'Топливо ниже 15%', threshold: 15, severity: 'MEDIUM' },
     { type: 'DEVICE_OFFLINE', name: 'Трекер молчит минуту', threshold: 1, severity: 'CRITICAL' },
   ]
   for (const rule of rules) {
-    await client.call('POST', '/alert-rules', { ...rule, organization_id: org.id, enabled: true })
+    // организацию правила бэк берёт из токена
+    await client.call('POST', '/alert-rules', { ...rule, enabled: true })
   }
 
-  // seed от времени: номера и VIN уникальны по всей базе, повторный запуск не должен с ними столкнуться
+  // seed от времени: каждый запуск заводит новую организацию со своим парком, номера не повторяются
   const source = new MockFleetSource({ seed: stamp % 2_147_483_647, scale: SCALE })
   const snap = await source.load()
 
@@ -166,13 +212,17 @@ async function main() {
   for (const trip of snap.trips.filter((t) => t.status === 'RUNNING')) await openTrip(trip)
 
   log(`готово: ${snap.drivers.length} водителей, ${snap.vehicles.length} машин с трекерами, ${tripIds.size} рейсов в пути`)
-  console.log(`
+  console.log(
+    demo
+      ? `\n  Демо-парк готов: вход под ${email}, время ×${SCALE}\n`
+      : `
   Войти во фронт (VITE_FLEET_SOURCE=api, npm run dev):
     почта:  ${email}
     пароль: ${password}
   Те же данные сохранены в web/.fleet-sim.local.json
   Время ×${SCALE}, остановка — Ctrl+C
-`)
+`,
+  )
 
   // ---------- поток точек ----------
 
@@ -180,6 +230,8 @@ async function main() {
   const queues = new Map<number, { tail: Promise<void>; depth: number }>()
   const silentUntil = new Map<number, number>()
   const lastSpeed = new Map<number, number>()
+  // последний ручной статус машины: IDLE после обслуживания шлём, IDLE после рейса - нет
+  const sentStatus = new Map<number, VehicleStatus>()
 
   // enqueue держит порядок запросов по каждой машине: рейс должен открыться раньше его первой точки
   const enqueue = (vehicleId: number, job: () => Promise<unknown>, droppable = false) => {
@@ -232,7 +284,12 @@ async function main() {
         return
       }
       case 'vehicle': {
+        // ON_TRIP и возврат в IDLE после рейса бэк ставит сам по рейсу, вручную - только обслуживание
         const status: VehicleStatus = event.data.status
+        const previous = sentStatus.get(event.data.id) ?? 'IDLE'
+        const manual = status === 'IN_SERVICE' || (status === 'IDLE' && previous === 'IN_SERVICE')
+        if (status === 'IN_SERVICE' || status === 'IDLE') sentStatus.set(event.data.id, status)
+        if (!manual) return
         enqueue(event.data.id, () => client.call('PATCH', `/vehicles/${vehicleIds.get(event.data.id)}`, { status }))
         return
       }
@@ -266,7 +323,7 @@ async function main() {
     stats.lastError = ''
   }, 10_000)
 
-  process.on('SIGINT', async () => {
+  const stop = async () => {
     log('останавливаюсь, дожидаюсь отправки очереди…')
     unsubscribe()
     clearTimeout(firstSilence)
@@ -275,7 +332,10 @@ async function main() {
     await Promise.all([...queues.values()].map((q) => q.tail))
     log(`итого отправлено ${stats.sent}, ошибок ${stats.failed}`)
     process.exit(0)
-  })
+  }
+  // Ctrl+C в терминале и docker stop в контейнере
+  process.once('SIGINT', stop)
+  process.once('SIGTERM', stop)
 }
 
 main().catch((err: unknown) => {

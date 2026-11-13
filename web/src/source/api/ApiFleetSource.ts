@@ -41,6 +41,9 @@ export class ApiFleetSource implements FleetSource {
       }
     }
 
+    // сервер закрывает поток, когда истекает access-токен, и предупреждает событием token_expired
+    let tokenExpired = false
+
     handlers.onLinkState?.('connecting')
     void fetchEventSource(`${API_BASE}/stream`, {
       signal: controller.signal,
@@ -65,6 +68,10 @@ export class ApiFleetSource implements FleetSource {
       },
 
       onmessage(msg: EventSourceMessage) {
+        if (msg.event === 'token_expired') {
+          tokenExpired = true
+          return
+        }
         const type = msg.event as FleetEvent['type']
         if (!EVENT_TYPES.has(type) || !msg.data) return
         let event: FleetEvent
@@ -79,6 +86,11 @@ export class ApiFleetSource implements FleetSource {
       },
 
       onclose() {
+        // токен истёк: переподключаемся сразу, onopen получит 401 и обновит токен
+        if (tokenExpired) {
+          tokenExpired = false
+          throw new RetryNow()
+        }
         // сервер закрыл поток сам: перезапуск или мы не успевали читать — переподключаемся
         handlers.onLinkState?.('reconnecting')
         throw new RetryLater()
