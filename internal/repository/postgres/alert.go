@@ -163,15 +163,59 @@ func (r *PostgresAlertRepository) Resolve(ctx context.Context, id int, resolvedB
 	return a, nil
 }
 
-// AcknowledgeAlert переводит алерт из статуса FIRED в ACKNOWLEDGED оператором
-func (r *PostgresAlertRepository) AcknowledgeAlert(ctx context.Context, alertID, userID int) (model.Alert, error) {
+// ResolveByVehicle закрывает все незакрытые алерты машины. Нужен при удалении машины:
+// иначе её DEVICE_OFFLINE так и висел бы открытым, хотя машины уже нет
+func (r *PostgresAlertRepository) ResolveByVehicle(ctx context.Context, vehicleID int) ([]model.Alert, error) {
+	return r.resolveWhere(ctx, "vehicle_id = $1", vehicleID)
+}
+
+// ResolveByRule закрывает все незакрытые алерты правила. Нужен при удалении правила:
+// удалённое правило больше не проверяется, и закрыть его алерты по телеметрии некому
+func (r *PostgresAlertRepository) ResolveByRule(ctx context.Context, ruleID int) ([]model.Alert, error) {
+	return r.resolveWhere(ctx, "rule_id = $1", ruleID)
+}
+
+// resolveWhere закрывает системой (resolved_by = NULL) незакрытые алерты по условию cond с одним аргументом
+func (r *PostgresAlertRepository) resolveWhere(ctx context.Context, cond string, arg int) ([]model.Alert, error) {
+	query := `
+	UPDATE alerts
+	SET status = 'RESOLVED', resolved_at = NOW()
+	WHERE ` + cond + ` AND status != 'RESOLVED'
+	RETURNING
+		id, organization_id, vehicle_id, rule_id, type, severity, status, message, value,
+		created_at, acknowledged_at, acknowledged_by, resolved_at, resolved_by`
+
+	rows, err := r.db.Query(ctx, query, arg)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var alerts []model.Alert
+	for rows.Next() {
+		var a model.Alert
+		if err := rows.Scan(
+			&a.ID, &a.OrganizationID, &a.VehicleID, &a.RuleID, &a.Type, &a.Severity, &a.Status,
+			&a.Message, &a.Value, &a.CreatedAt, &a.AcknowledgedAt, &a.AcknowledgedBy,
+			&a.ResolvedAt, &a.ResolvedBy,
+		); err != nil {
+			return nil, err
+		}
+		alerts = append(alerts, a)
+	}
+	return alerts, rows.Err()
+}
+
+// AcknowledgeAlert переводит алерт из статуса FIRED в ACKNOWLEDGED оператором.
+// organization_id стоит в WHERE: доступ проверяется тем же запросом, что и меняет строку
+func (r *PostgresAlertRepository) AcknowledgeAlert(ctx context.Context, alertID, userID, organizationID int) (model.Alert, error) {
 	const query = `
 	UPDATE alerts
 	SET 
 		status = 'ACKNOWLEDGED',
 		acknowledged_at = NOW(),
 		acknowledged_by = $1
-	WHERE id = $2 AND status = 'FIRED'
+	WHERE id = $2 AND status = 'FIRED' AND organization_id = $3
 	RETURNING 
 		id, 
 		organization_id, 
@@ -189,7 +233,7 @@ func (r *PostgresAlertRepository) AcknowledgeAlert(ctx context.Context, alertID,
 		resolved_by`
 
 	var a model.Alert
-	err := r.db.QueryRow(ctx, query, userID, alertID).Scan(
+	err := r.db.QueryRow(ctx, query, userID, alertID, organizationID).Scan(
 		&a.ID,
 		&a.OrganizationID,
 		&a.VehicleID,
@@ -286,7 +330,12 @@ func (r *PostgresAlertRepository) GetList(ctx context.Context, filter model.Aler
 		resolved_by
 	FROM alerts
 	%s
-	ORDER BY created_at DESC`, whereClause)
+	ORDER BY created_at DESC, id DESC`, whereClause)
+
+	if filter.Limit > 0 {
+		query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args)+1, len(args)+2)
+		args = append(args, filter.Limit, filter.Offset)
+	}
 
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
@@ -326,7 +375,8 @@ func (r *PostgresAlertRepository) GetList(ctx context.Context, filter model.Aler
 	return alerts, nil
 }
 
-// FindOfflineVehicles ищет автомобили с активными трекерами, не присылавшие телеметрию дольше thresholdMinutes
+// FindOfflineVehicles ищет автомобили с активными трекерами, не присылавшие телеметрию дольше thresholdMinutes.
+// Удалённые машины не ищутся, даже если их привязка трекера почему-то осталась открытой
 func (r *PostgresAlertRepository) FindOfflineVehicles(ctx context.Context, thresholdMinutes float64) ([]model.OfflineVehicleInfo, error) {
 	const query = `
 	SELECT 
@@ -338,6 +388,7 @@ func (r *PostgresAlertRepository) FindOfflineVehicles(ctx context.Context, thres
 	FROM device_assignments da
 	JOIN vehicles v ON v.id = da.vehicle_id
 	WHERE da.ended_at IS NULL
+	AND v.status <> 'DELETED'
 	AND EXTRACT(EPOCH FROM (NOW() - COALESCE(v.last_telemetry_at, da.started_at))) / 60 >= $1`
 
 	rows, err := r.db.Query(ctx, query, thresholdMinutes)
@@ -368,4 +419,50 @@ func (r *PostgresAlertRepository) AcquireLock(ctx context.Context, vehicleID, ru
 	const query = `SELECT pg_advisory_xact_lock($1::int, $2::int)`
 	_, err := r.db.Exec(ctx, query, vehicleID, ruleID)
 	return err
+}
+
+// GetByID возвращает алерт организации по ID; чужой алерт неотличим от несуществующего
+func (r *PostgresAlertRepository) GetByID(ctx context.Context, id, organizationID int) (model.Alert, error) {
+	const query = `SELECT id, 
+		organization_id, 
+		vehicle_id, 
+		rule_id, 
+		type, 
+		severity, 
+		status, 
+		message, 
+		value, 
+		created_at, 
+		acknowledged_at, 
+		acknowledged_by, 
+		resolved_at, 
+		resolved_by
+		FROM alerts
+		WHERE id = $1 AND organization_id = $2`
+
+	var a model.Alert
+	err := r.db.QueryRow(ctx, query, id, organizationID).Scan(
+		&a.ID,
+		&a.OrganizationID,
+		&a.VehicleID,
+		&a.RuleID,
+		&a.Type,
+		&a.Severity,
+		&a.Status,
+		&a.Message,
+		&a.Value,
+		&a.CreatedAt,
+		&a.AcknowledgedAt,
+		&a.AcknowledgedBy,
+		&a.ResolvedAt,
+		&a.ResolvedBy,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return model.Alert{}, model.ErrNotFound
+		}
+		return model.Alert{}, err
+	}
+
+	return a, nil
 }

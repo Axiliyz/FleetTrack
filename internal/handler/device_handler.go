@@ -63,8 +63,7 @@ func (h *DeviceHandler) HandlePostDevice(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	newDevice := deviceData.ToDomainModel()
-	newDevice.OrganizationID = authCtx.OrganizationID
+	newDevice := deviceData.ToDomainModel(authCtx.OrganizationID)
 	device, err := h.deviceService.ProcessDevice(r.Context(), newDevice)
 	if err != nil {
 		respondError(w, r, h.logger, err)

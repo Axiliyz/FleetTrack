@@ -76,15 +76,17 @@ func TestAlertRuleHandler_HandlePostRule(t *testing.T) {
 			authCtx:        &model.AuthContext{UserID: 1, Role: model.UserRoleDispatcher, OrganizationID: 5},
 			serviceErr:     nil,
 			expectedStatus: http.StatusCreated,
-			checkOrgID:     5, // non-admin не может переопределить свою организацию
+			checkOrgID:     5, // организация всегда из токена
 		},
 		{
-			name:           "успешное создание администратором для указанной организации",
-			body:           `{"organization_id": 999, "type": "SPEED_EXCEEDED", "name": "Speed", "threshold": 80, "severity": "HIGH"}`,
+			// ADMIN - админ своей организации, а не платформы: чужой organization_id в теле
+			// игнорируется, иначе любой зарегистрировавшийся завёл бы правило чужой организации
+			name:           "администратор не может создать правило в чужой организации",
+			body:           `{"organization_id": 999, "type": "SPEED_EXCEEDED", "name": "Speed", "threshold": 0, "severity": "CRITICAL"}`,
 			authCtx:        &model.AuthContext{UserID: 1, Role: model.UserRoleAdmin, OrganizationID: 1},
 			serviceErr:     nil,
 			expectedStatus: http.StatusCreated,
-			checkOrgID:     999, // admin может создавать для любой организации
+			checkOrgID:     1,
 		},
 		{
 			name:           "ошибка отсутствия авторизации",

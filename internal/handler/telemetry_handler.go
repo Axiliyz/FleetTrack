@@ -24,10 +24,10 @@ type TelemetryHandler struct {
 type TelemetryService interface {
 	ProcessTelemetry(ctx context.Context, t model.Telemetry) (model.Telemetry, error)
 	GetTelemetryList(ctx context.Context, filter model.TelemetryFilter) ([]model.Telemetry, error)
-	GetTelemetryByID(ctx context.Context, id int) (model.Telemetry, error)
-	GetTelemetryByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error)
+	GetTelemetryByID(ctx context.Context, id int, driverID *int) (model.Telemetry, error)
+	GetTelemetryByVehicle(ctx context.Context, id int, organizationID, driverID *int) ([]model.Telemetry, error)
 	DeleteTelemetryByID(ctx context.Context, id int, organizationID *int) (model.Telemetry, error)
-	DeleteTelemetryByVehicle(ctx context.Context, id int, organizationID *int) ([]model.Telemetry, error)
+	DeleteTelemetryByVehicle(ctx context.Context, id int, organizationID *int) (int64, error)
 }
 
 // NewTelemetryHandler создаёт новый хэндлер с заданным сервисом и логгером
@@ -65,7 +65,11 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	telemetry := telemetryData.ToDomainModel()
+	telemetry, err := telemetryData.ToDomainModel()
+	if err != nil {
+		respondError(w, r, h.logger, err)
+		return
+	}
 	telemetry.OrganizationID = authCtx.OrganizationID
 	savedTelemetry, err := h.telemetryService.ProcessTelemetry(
 		r.Context(),
@@ -77,15 +81,7 @@ func (h *TelemetryHandler) HandleTelemetry(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	telemetryResponse := dto.TelemetryResponse{
-		TelemetryID: savedTelemetry.TelemetryID,
-		VehicleID:   savedTelemetry.VehicleID,
-		DeviceID:    savedTelemetry.DeviceID,
-		ReceivedAt:  savedTelemetry.ReceivedAt,
-		TripID:      savedTelemetry.TripID,
-		DistanceKm:  savedTelemetry.DistanceKm,
-		SpeedKmh:    savedTelemetry.SpeedKmh,
-	}
+	telemetryResponse := dto.NewTelemetryResponse(savedTelemetry)
 
 	respondCreated(w, r, "telemetry stored", h.logger, telemetryResponse)
 }
@@ -139,18 +135,7 @@ func (h *TelemetryHandler) HandleGetListTelemetry(w http.ResponseWriter, r *http
 		return
 	}
 
-	responses := make([]dto.TelemetryResponse, 0, len(telemetries))
-	for _, t := range telemetries {
-		responses = append(responses, dto.TelemetryResponse{
-			TelemetryID: t.TelemetryID,
-			VehicleID:   t.VehicleID,
-			DeviceID:    t.DeviceID,
-			ReceivedAt:  t.ReceivedAt,
-			TripID:      t.TripID,
-			DistanceKm:  t.DistanceKm,
-			SpeedKmh:    t.SpeedKmh,
-		})
-	}
+	responses := dto.NewTelemetryListResponse(telemetries)
 
 	respondSuccess(w, r, "telemetry list", h.logger, responses)
 }
@@ -180,7 +165,14 @@ func (h *TelemetryHandler) HandleGetTelemetryByID(w http.ResponseWriter, r *http
 		return
 	}
 
-	telemetry, err := h.telemetryService.GetTelemetryByID(r.Context(), id)
+	// водитель видит только точки своих рейсов
+	driverScope, err := scopeDriverFilter(authCtx)
+	if err != nil {
+		respondError(w, r, h.logger, err)
+		return
+	}
+
+	telemetry, err := h.telemetryService.GetTelemetryByID(r.Context(), id, driverScope)
 	if err != nil {
 		respondError(w, r, h.logger, err)
 		return
@@ -190,21 +182,14 @@ func (h *TelemetryHandler) HandleGetTelemetryByID(w http.ResponseWriter, r *http
 		return
 	}
 
-	telemetryResponse := dto.TelemetryResponse{
-		TelemetryID: telemetry.TelemetryID,
-		VehicleID:   telemetry.VehicleID,
-		DeviceID:    telemetry.DeviceID,
-		ReceivedAt:  telemetry.ReceivedAt,
-		TripID:      telemetry.TripID,
-		DistanceKm:  telemetry.DistanceKm,
-		SpeedKmh:    telemetry.SpeedKmh,
-	}
+	telemetryResponse := dto.NewTelemetryResponse(telemetry)
 
 	respondSuccess(w, r, "telemetry found", h.logger, telemetryResponse)
 }
 
-// HandleGetTelemetryByVehicle возвращает все записи телеметрии по ID машины
-// @Summary Вся телеметрия по автомобилю
+// HandleGetTelemetryByVehicle возвращает последние записи телеметрии по ID машины;
+// водителю - только точки его рейсов
+// @Summary Последние 100 точек автомобиля
 // @Tags telemetry
 // @Produce json
 // @Param id path int true "ID автомобиля"
@@ -228,24 +213,18 @@ func (h *TelemetryHandler) HandleGetTelemetryByVehicle(w http.ResponseWriter, r 
 	}
 
 	orgScope := scopeOrganizationID(authCtx)
-	telemetries, err := h.telemetryService.GetTelemetryByVehicle(r.Context(), id, orgScope)
+	driverScope, err := scopeDriverFilter(authCtx)
+	if err != nil {
+		respondError(w, r, h.logger, err)
+		return
+	}
+	telemetries, err := h.telemetryService.GetTelemetryByVehicle(r.Context(), id, orgScope, driverScope)
 	if err != nil {
 		respondError(w, r, h.logger, err)
 		return
 	}
 
-	responses := make([]dto.TelemetryResponse, 0, len(telemetries))
-	for _, t := range telemetries {
-		responses = append(responses, dto.TelemetryResponse{
-			TelemetryID: t.TelemetryID,
-			VehicleID:   t.VehicleID,
-			DeviceID:    t.DeviceID,
-			ReceivedAt:  t.ReceivedAt,
-			TripID:      t.TripID,
-			DistanceKm:  t.DistanceKm,
-			SpeedKmh:    t.SpeedKmh,
-		})
-	}
+	responses := dto.NewTelemetryListResponse(telemetries)
 
 	respondSuccess(w, r, "telemetry list", h.logger, responses)
 }
@@ -282,25 +261,18 @@ func (h *TelemetryHandler) HandleDeleteTelemetryByID(w http.ResponseWriter, r *h
 		return
 	}
 
-	telemetryResponse := dto.TelemetryResponse{
-		TelemetryID: deleted.TelemetryID,
-		VehicleID:   deleted.VehicleID,
-		DeviceID:    deleted.DeviceID,
-		ReceivedAt:  deleted.ReceivedAt,
-		TripID:      deleted.TripID,
-		DistanceKm:  deleted.DistanceKm,
-		SpeedKmh:    deleted.SpeedKmh,
-	}
+	telemetryResponse := dto.NewTelemetryResponse(deleted)
 
 	respondSuccess(w, r, "telemetry deleted", h.logger, telemetryResponse)
 }
 
-// HandleDeleteTelemetryByVehicleID удаляет телеметрию по машине по её ID
+// HandleDeleteTelemetryByVehicleID удаляет телеметрию по машине по её ID.
+// В ответе только число удалённых точек: самих точек за месяцы могут быть миллионы
 // @Summary Удалить всю телеметрию автомобиля
 // @Tags telemetry
 // @Produce json
 // @Param id path int true "ID автомобиля"
-// @Success 200 {object} dto.APIResponse{data=[]dto.TelemetryResponse}
+// @Success 200 {object} dto.APIResponse{data=dto.DeletedCountResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse
@@ -321,23 +293,11 @@ func (h *TelemetryHandler) HandleDeleteTelemetryByVehicleID(w http.ResponseWrite
 	}
 	orgScope := scopeOrganizationID(authCtx)
 
-	telemetries, err := h.telemetryService.DeleteTelemetryByVehicle(r.Context(), id, orgScope)
+	deleted, err := h.telemetryService.DeleteTelemetryByVehicle(r.Context(), id, orgScope)
 	if err != nil {
 		respondError(w, r, h.logger, err)
 		return
 	}
-	responses := make([]dto.TelemetryResponse, 0, len(telemetries))
-	for _, t := range telemetries {
-		responses = append(responses, dto.TelemetryResponse{
-			TelemetryID: t.TelemetryID,
-			VehicleID:   t.VehicleID,
-			DeviceID:    t.DeviceID,
-			ReceivedAt:  t.ReceivedAt,
-			TripID:      t.TripID,
-			DistanceKm:  t.DistanceKm,
-			SpeedKmh:    t.SpeedKmh,
-		})
-	}
 
-	respondSuccess(w, r, "vehicle telemetry deleted", h.logger, responses)
+	respondSuccess(w, r, "vehicle telemetry deleted", h.logger, dto.DeletedCountResponse{Deleted: deleted})
 }

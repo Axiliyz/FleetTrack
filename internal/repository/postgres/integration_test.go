@@ -4,10 +4,12 @@ package postgres
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 
@@ -32,6 +34,7 @@ func TestMain(m *testing.M) {
 	}
 	applyMigrations(ctx, dsn)
 	TestPool = connectPool(ctx, dsn)
+	ensureCurrentPartitions(ctx, TestPool)
 	code := m.Run()
 	TestPool.Close()
 	container.Terminate(ctx)
@@ -78,6 +81,24 @@ func applyMigrations(ctx context.Context, dsn string) {
 		}
 	}
 
+}
+
+// ensureCurrentPartitions создаёт партиции telemetry и alerts на текущий и следующий месяц - то же,
+// что делает PartitionWorker при старте приложения. Миграции заводят партиции на фиксированные
+// месяцы, и без этого тесты падали бы с «no partition found», как только календарь уйдёт дальше
+func ensureCurrentPartitions(ctx context.Context, pool *pgxpool.Pool) {
+	repo := NewPostgresPartitionRepository(pool)
+	now := time.Now().UTC()
+	for i := 0; i <= 1; i++ {
+		from := time.Date(now.Year(), now.Month()+time.Month(i), 1, 0, 0, 0, 0, time.UTC)
+		to := from.AddDate(0, 1, 0)
+		for _, table := range []string{"telemetry", "alerts"} {
+			name := fmt.Sprintf("%s_%d_%02d", table, from.Year(), from.Month())
+			if err := repo.CreatePartition(ctx, table, name, from, to); err != nil {
+				panic(err)
+			}
+		}
+	}
 }
 
 // connectPool создаёт пул соединений с тестовой БД

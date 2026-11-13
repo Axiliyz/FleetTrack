@@ -67,8 +67,7 @@ func (h *DriverHandler) HandlePostDriver(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	newDriver := driverData.ToDomainModel()
-	newDriver.OrganizationID = authCtx.OrganizationID
+	newDriver := driverData.ToDomainModel(authCtx.OrganizationID)
 	driver, err := h.driverService.CreateDriver(r.Context(), newDriver)
 	if err != nil {
 		respondError(w, r, h.logger, err)
@@ -203,7 +202,7 @@ func (h *DriverHandler) HandleDeleteDriver(w http.ResponseWriter, r *http.Reques
 // @Success 200 {object} dto.APIResponse{data=dto.DriverResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
-// @Failure 403 {object} dto.ErrorResponse "также возвращается, если в теле передан organization_id"
+// @Failure 400 {object} dto.ErrorResponse "также если в теле неизвестное поле, например organization_id"
 // @Failure 404 {object} dto.ErrorResponse
 // @Router /drivers/{id} [patch]
 // @Security BearerAuth
@@ -214,9 +213,12 @@ func (h *DriverHandler) HandlePatchDriver(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// неизвестное поле - ошибка, а не тихий пропуск: organization_id в теле
+	// означает попытку перенести водителя в другую организацию
 	var request dto.UpdateDriverRequest
-	err = json.NewDecoder(r.Body).Decode(&request)
-	if err != nil {
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&request); err != nil {
 		respondError(w, r, h.logger, model.ErrInvalidJSON)
 		return
 	}
@@ -224,10 +226,6 @@ func (h *DriverHandler) HandlePatchDriver(w http.ResponseWriter, r *http.Request
 	authCtx, ok := middleware.AuthFromContext(r.Context())
 	if !ok {
 		respondError(w, r, h.logger, model.ErrMissingToken)
-		return
-	}
-	if request.OrganizationID != nil {
-		respondError(w, r, h.logger, model.ErrForbidden)
 		return
 	}
 	orgScope := scopeOrganizationID(authCtx)

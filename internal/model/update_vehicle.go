@@ -1,8 +1,8 @@
 package model
 
-// UpdateVehicle указывает изменяемые поля
+// UpdateVehicle указывает изменяемые поля.
+// Организацию машины поменять нельзя: такого поля здесь нет намеренно
 type UpdateVehicle struct {
-	OrganizationID *int
-	NumberPlate    *string
-	Status         *VehicleStatus
+	NumberPlate *string
+	Status      *VehicleStatus
 }

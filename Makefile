@@ -113,6 +113,38 @@ loadtest-pairs:
 	@docker compose exec -T postgres psql -U $(DB_USER) -d $(LT_DB) -At -c "select json_agg(json_build_object('device_id', device_id, 'vehicle_id', vehicle_id)) from device_assignments;" > loadtest/pairs.json
 	@echo "Пары записаны в loadtest/pairs.json"
 
+# WEB
+
+web-install:
+	@cd web && npm ci
+
+web-dev:
+	@cd web && npm run dev
+
+web-check:
+	@cd web && npm run typecheck && npm test
+
+web-build:
+	@cd web && npm run build
+
+# DEMO
+
+demo-up:
+	@docker compose --profile demo up -d --build
+	@echo "Демо-стенд: http://localhost:$${WEB_PORT:-8081}"
+
+demo-logs:
+	@docker compose --profile demo logs -f sim
+
+demo-reset:
+	@read -p "Удалить базу $(DB_NAME) и завести демо-парк заново? [y/n]: " ans; \
+	if [ "$$ans" != "y" ]; then echo "Сброс отменён"; exit 0; fi; \
+	docker compose --profile demo stop sim api; \
+	docker compose exec -T postgres dropdb -U $(DB_USER) --if-exists --force $(DB_NAME); \
+	docker compose exec -T postgres createdb -U $(DB_USER) $(DB_NAME); \
+	docker compose --profile demo up -d; \
+	echo "Демо-парк заводится заново: make demo-logs"
+
 # USEFUL
 
 help:
@@ -132,6 +164,13 @@ help:
 	@echo "make loadtest-stop       (вернуть API на рабочую базу после тестов)"
 	@echo "make loadtest-check      (счётчик строк телеметрии в тестовой базе)"
 	@echo "make loadtest-pairs      (выгрузить пары device/vehicle для k6)"
+	@echo "make web-install         (зависимости фронтенда)"
+	@echo "make web-dev             (диспетчерская на http://localhost:5173)"
+	@echo "make web-check           (типы и тесты фронтенда)"
+	@echo "make web-build           (сборка фронтенда в web/dist)"
+	@echo "make demo-up             (стенд целиком: API, фронт, генератор демо-парка)"
+	@echo "make demo-logs           (журнал генератора демо-парка)"
+	@echo "make demo-reset          (удалить базу и завести демо-парк заново)"
 	@echo "make clean"
 
 clean:

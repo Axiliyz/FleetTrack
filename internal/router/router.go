@@ -23,83 +23,111 @@ func NewRouter(
 	orgHandler *handler.OrgHandler, tripHandler *handler.TripHandler,
 	driverHandler *handler.DriverHandler, userHandler *handler.UserHandler,
 	authHandler *handler.AuthHandler, jwtParser middleware.JWTParser,
-	alertRuleHandler *handler.AlertRuleHandler, healthHandler *handler.HealthHandler,
-	requestTimeout time.Duration, logger logger.Logger) http.Handler {
+	alertRuleHandler *handler.AlertRuleHandler, alertHandler *handler.AlertHandler,
+	fleetHandler *handler.FleetHandler, streamHandler *handler.StreamHandler,
+	healthHandler *handler.HealthHandler,
+	requestTimeout time.Duration, swaggerEnabled bool, logger logger.Logger) http.Handler {
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(middleware.Metrics)
 	router.Use(middleware.Recovery(logger))
 	router.Use(middleware.LogQuery(logger))
-	router.Use(middleware.TimeoutMiddleware(requestTimeout))
+	// одна граница на всё API: самые большие тела - сотни байт, а /login и /register
+	// без авторизации иначе приняли бы JSON любого размера
+	router.Use(middleware.BodyLimit(middleware.DefaultMaxBodyBytes))
 
 	router.MethodNotAllowed((func(w http.ResponseWriter, r *http.Request) {
 		logger.Error(model.ErrInvalidMethod.Error())
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}))
 
-	authLimiter := middleware.RateLimit(5, time.Minute, logger)
+	// водителю обзор всего парка не положен: снимок и поток только для тех, кто смотрит весь парк
+	viewFleet := middleware.RequireRole(logger, model.UserRoleAdmin, model.UserRoleDispatcher, model.UserRoleAnalytic)
+	// список сотрудников с почтами водителю не нужен; свою карточку он берёт через /users/{id}
+	viewTeam := viewFleet
 
-	router.With(authLimiter).Post("/login", authHandler.HandleLogin)
-	router.With(authLimiter).Post("/register", authHandler.HandleRegisterOrganization)
-	router.Post("/refresh", authHandler.HandleRefresh)
-	router.Post("/logout", authHandler.HandleLogout)
+	// Обычные запросы ограничены по времени. Поток событий живёт, пока открыта вкладка,
+	// поэтому он в отдельной группе ниже — без TimeoutMiddleware
+	router.Group(func(api chi.Router) {
+		api.Use(middleware.TimeoutMiddleware(requestTimeout))
 
-	router.Get("/swagger/*", httpSwagger.WrapHandler)
+		authLimiter := middleware.RateLimit(5, time.Minute, logger)
 
-	router.Get("/health", healthHandler.HandleHealthCheck)
-	router.Get("/readyz", healthHandler.HandleReadinessCheck)
+		api.With(authLimiter).Post("/login", authHandler.HandleLogin)
+		api.With(authLimiter).Post("/register", authHandler.HandleRegisterOrganization)
+		api.Post("/refresh", authHandler.HandleRefresh)
+		api.Post("/logout", authHandler.HandleLogout)
+
+		if swaggerEnabled {
+			api.Get("/swagger/*", httpSwagger.WrapHandler)
+		}
+
+		api.Get("/health", healthHandler.HandleHealthCheck)
+		api.Get("/readyz", healthHandler.HandleReadinessCheck)
+
+		api.Group(func(r chi.Router) {
+			r.Use(middleware.AuthMiddleware(jwtParser, logger))
+
+			manageFleet := middleware.RequireRole(logger, model.UserRoleAdmin, model.UserRoleDispatcher)
+
+			r.Post("/telemetry", telemetryHandler.HandleTelemetry)
+			r.Get("/telemetry", telemetryHandler.HandleGetListTelemetry)
+			r.Get("/telemetry/vehicles/{id}", telemetryHandler.HandleGetTelemetryByVehicle)
+			r.Get("/telemetry/{id}", telemetryHandler.HandleGetTelemetryByID)
+			r.With(manageFleet).Delete("/telemetry/{id}", telemetryHandler.HandleDeleteTelemetryByID)
+			r.With(manageFleet).Delete("/telemetry/vehicles/{id}", telemetryHandler.HandleDeleteTelemetryByVehicleID)
+
+			r.Get("/vehicles", vehicleHandler.HandleGetListVehicle)
+			r.Get("/vehicles/{id}", vehicleHandler.HandleGetVehicleByID)
+
+			r.With(manageFleet).Post("/vehicles", vehicleHandler.HandlePostVehicle)
+			r.With(manageFleet).Delete("/vehicles/{id}", vehicleHandler.HandleDeleteVehicle)
+			r.With(manageFleet).Patch("/vehicles/{id}", vehicleHandler.HandlePatchVehicle)
+
+			r.With(manageFleet).Post("/assignments", assignmentHandler.HandlePostAssignment)
+
+			r.Get("/devices/{id}", deviceHandler.HandleGetDeviceByID)
+			r.With(manageFleet).Post("/devices", deviceHandler.HandlePostDevice)
+			r.With(manageFleet).Delete("/devices/{id}", deviceHandler.HandleDeleteDeviceByID)
+
+			r.Get("/organizations", orgHandler.HandleGetListOrg)
+
+			r.Get("/trips", tripHandler.HandleGetListTrips)
+			r.Get("/trips/{id}", tripHandler.HandleGetTripByID)
+			r.With(manageFleet).Post("/trips", tripHandler.HandleAssignTrip)
+			r.With(manageFleet).Patch("/trips/{id}", tripHandler.HandleUpdateTrip)
+			r.With(manageFleet).Delete("/trips/{id}", tripHandler.HandleDeleteTrip)
+
+			r.Get("/drivers", driverHandler.HandleGetListDriver)
+			r.Get("/drivers/{id}", driverHandler.HandleGetDriverByID)
+			r.With(manageFleet).Post("/drivers", driverHandler.HandlePostDriver)
+			r.With(manageFleet).Delete("/drivers/{id}", driverHandler.HandleDeleteDriver)
+			r.With(manageFleet).Patch("/drivers/{id}", driverHandler.HandlePatchDriver)
+
+			r.With(viewTeam).Get("/users", userHandler.HandleGetListUsers)
+			r.Get("/users/{id}", userHandler.HandleGetUserByID)
+
+			r.With(middleware.RequireRole(logger, model.UserRoleAdmin)).Post("/users", userHandler.HandleCreateUser)
+			r.With(middleware.RequireRole(logger, model.UserRoleAdmin)).Delete("/users/{id}", userHandler.HandleDeleteUserByID)
+
+			// Правила алертов
+			r.Get("/alert-rules", alertRuleHandler.HandleGetRulesList)
+			r.Get("/alert-rules/{id}", alertRuleHandler.HandleGetRuleByID)
+			r.With(manageFleet).Post("/alert-rules", alertRuleHandler.HandlePostRule)
+			r.With(manageFleet).Delete("/alert-rules/{id}", alertRuleHandler.HandleDeleteRuleByID)
+
+			// Сработавшие алерты: права на «Принять» дополнительно проверяет AlertService,
+			// manageFleet здесь только отсекает лишние запросы до разбора тела
+			r.Get("/alerts", alertHandler.HandleGetAlertsList)
+			r.With(manageFleet).Patch("/alerts/{id}", alertHandler.HandlePatchAlert)
+
+			r.With(viewFleet).Get("/fleet/snapshot", fleetHandler.HandleGetSnapshot)
+		})
+	})
 
 	router.Group(func(r chi.Router) {
 		r.Use(middleware.AuthMiddleware(jwtParser, logger))
-
-		manageFleet := middleware.RequireRole(logger, model.UserRoleAdmin, model.UserRoleDispatcher)
-
-		r.Post("/telemetry", telemetryHandler.HandleTelemetry)
-		r.Get("/telemetry", telemetryHandler.HandleGetListTelemetry)
-		r.Get("/telemetry/vehicles/{id}", telemetryHandler.HandleGetTelemetryByVehicle)
-		r.Get("/telemetry/{id}", telemetryHandler.HandleGetTelemetryByID)
-		r.With(manageFleet).Delete("/telemetry/{id}", telemetryHandler.HandleDeleteTelemetryByID)
-		r.With(manageFleet).Delete("/telemetry/vehicles/{id}", telemetryHandler.HandleDeleteTelemetryByVehicleID)
-
-		r.Get("/vehicles", vehicleHandler.HandleGetListVehicle)
-		r.Get("/vehicles/{id}", vehicleHandler.HandleGetVehicleByID)
-
-		r.With(manageFleet).Post("/vehicles", vehicleHandler.HandlePostVehicle)
-		r.With(manageFleet).Delete("/vehicles/{id}", vehicleHandler.HandleDeleteVehicle)
-		r.With(manageFleet).Patch("/vehicles/{id}", vehicleHandler.HandlePatchVehicle)
-
-		r.With(manageFleet).Post("/assignments", assignmentHandler.HandlePostAssignment)
-
-		r.Get("/devices/{id}", deviceHandler.HandleGetDeviceByID)
-		r.With(manageFleet).Post("/devices", deviceHandler.HandlePostDevice)
-		r.With(manageFleet).Delete("/devices/{id}", deviceHandler.HandleDeleteDeviceByID)
-
-		r.Get("/organizations", orgHandler.HandleGetListOrg)
-		r.With(middleware.RequireRole(logger, model.UserRoleAdmin)).Post("/organizations", orgHandler.HandlePostOrg)
-
-		r.Get("/trips", tripHandler.HandleGetListTrips)
-		r.Get("/trips/{id}", tripHandler.HandleGetTripByID)
-		r.With(manageFleet).Post("/trips", tripHandler.HandleAssignTrip)
-		r.With(manageFleet).Patch("/trips/{id}", tripHandler.HandleUpdateTrip)
-		r.With(manageFleet).Delete("/trips/{id}", tripHandler.HandleDeleteTrip)
-
-		r.Get("/drivers", driverHandler.HandleGetListDriver)
-		r.Get("/drivers/{id}", driverHandler.HandleGetDriverByID)
-		r.With(manageFleet).Post("/drivers", driverHandler.HandlePostDriver)
-		r.With(manageFleet).Delete("/drivers/{id}", driverHandler.HandleDeleteDriver)
-		r.With(manageFleet).Patch("/drivers/{id}", driverHandler.HandlePatchDriver)
-
-		r.Get("/users", userHandler.HandleGetListUsers)
-		r.Get("/users/{id}", userHandler.HandleGetUserByID)
-
-		r.With(middleware.RequireRole(logger, model.UserRoleAdmin)).Post("/users", userHandler.HandleCreateUser)
-		r.With(middleware.RequireRole(logger, model.UserRoleAdmin)).Delete("/users/{id}", userHandler.HandleDeleteUserByID)
-
-		// Правила алертов
-		r.Get("/alert-rules", alertRuleHandler.HandleGetRulesList)
-		r.Get("/alert-rules/{id}", alertRuleHandler.HandleGetRuleByID)
-		r.With(manageFleet).Post("/alert-rules", alertRuleHandler.HandlePostRule)
-		r.With(manageFleet).Delete("/alert-rules/{id}", alertRuleHandler.HandleDeleteRuleByID)
+		r.With(viewFleet).Get("/stream", streamHandler.HandleStream)
 	})
 
 	return router

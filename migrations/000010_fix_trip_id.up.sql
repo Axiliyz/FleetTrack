@@ -1,1 +1,0 @@
-ALTER TABLE telemetry ALTER COLUMN trip_id SET NOT NULL;

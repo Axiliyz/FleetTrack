@@ -8,6 +8,11 @@ import (
 
 const earthRadius = 6371.0
 
+// MaxPlausibleSpeedKmh - быстрее этого наземный транспорт не ездит. Больше - значит, приёмник
+// «прыгнул» (переотражение от домов, холодный старт): 3 км за секунду дают 10 800 км/ч.
+// Такая скорость к тому же не влезает в NUMERIC(6,2), и точка падала бы с numeric field overflow
+const MaxPlausibleSpeedKmh = 250.0
+
 // MotionService - контракт подсчёта движения
 type MotionService interface {
 	// Calculate считает пройденное расстояние и скорость за dt
@@ -33,7 +38,9 @@ func ValidateCoords(lat, lon float64) bool {
 	return lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180
 }
 
-// Calculate считает пройденное расстояние и скорость за dt
+// Calculate считает пройденное расстояние и скорость за dt.
+// Если скорость выше MaxPlausibleSpeedKmh, отрезок помечается как выброс:
+// расстояние и скорость обнуляются, а Outlier = true
 func (s *MotionServiceImpl) Calculate(last *model.Telemetry, cur model.Telemetry) (*model.MotionData, error) {
 	if last == nil {
 		return nil, model.ErrNoValue
@@ -51,6 +58,9 @@ func (s *MotionServiceImpl) Calculate(last *model.Telemetry, cur model.Telemetry
 		return nil, model.ErrCalculating
 	}
 	res.SpeedKmh = res.DistanceKm / hours
+	if res.SpeedKmh > MaxPlausibleSpeedKmh {
+		return &model.MotionData{Outlier: true}, nil
+	}
 	return &res, nil
 }
 

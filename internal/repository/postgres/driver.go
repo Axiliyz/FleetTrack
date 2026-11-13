@@ -112,11 +112,6 @@ func buildDriverSetClause(upd model.UpdateDriver) (string, []any) {
 	var conditions []string
 	var args []any
 	argN := 1
-	if upd.OrganizationID != nil {
-		conditions = append(conditions, fmt.Sprintf("organization_id = $%d", argN))
-		args = append(args, *upd.OrganizationID)
-		argN++ //nolint:ineffassign
-	}
 	if upd.Name != nil {
 		conditions = append(conditions, fmt.Sprintf("name = $%d", argN))
 		args = append(args, *upd.Name)

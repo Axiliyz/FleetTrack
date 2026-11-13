@@ -24,6 +24,8 @@ type JWTParser interface {
 // AuthMiddleware проверяет Bearer-токен и кладёт данные пользователя (UserID, Role) в контекст запроса.
 // Проверку прав доступа (кому что можно) сюда не добавляем - для этого отдельная RequireRole middleware,
 // которая читает model.AuthContext, положенный здесь.
+//
+// user_id и org_id дописываются к строке лога о запросе (см. LogQuery).
 func AuthMiddleware(jwtParser JWTParser, log logger.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -46,6 +48,10 @@ func AuthMiddleware(jwtParser JWTParser, log logger.Logger) func(http.Handler) h
 				DriverID:       claims.DriverID,
 				Role:           claims.Role,
 			}
+			if claims.ExpiresAt != nil {
+				authCtx.ExpiresAt = claims.ExpiresAt.Time
+			}
+			logger.AddRequestFields(r.Context(), "user_id", authCtx.UserID, "org_id", authCtx.OrganizationID)
 			ctx := context.WithValue(r.Context(), authContextKey, authCtx)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

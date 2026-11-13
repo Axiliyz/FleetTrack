@@ -108,3 +108,5 @@ temp/
 .claude/
 
 *TODO*
+# автосохранения draw.io
+*.bkp

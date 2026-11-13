@@ -11,3 +11,15 @@ type VehicleResponse struct {
 	Model          string              `json:"model"`
 	Status         model.VehicleStatus `json:"status"`
 }
+
+// NewVehicleResponse конвертирует model.Vehicle в VehicleResponse
+func NewVehicleResponse(v model.Vehicle) VehicleResponse {
+	return VehicleResponse{
+		ID:             v.ID,
+		OrganizationID: v.OrganizationID,
+		VIN:            v.VIN,
+		NumberPlate:    v.NumberPlate,
+		Model:          v.Model,
+		Status:         v.Status,
+	}
+}

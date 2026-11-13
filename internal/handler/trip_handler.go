@@ -47,6 +47,7 @@ func NewTripHandler(s TripService, l logger.Logger) *TripHandler {
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse
 // @Failure 404 {object} dto.ErrorResponse "водитель или автомобиль не найдены либо принадлежат другой организации"
+// @Failure 409 {object} dto.ErrorResponse "машина не простаивает: уже в рейсе или на обслуживании"
 // @Router /trips [post]
 // @Security BearerAuth
 func (h *TripHandler) HandleAssignTrip(w http.ResponseWriter, r *http.Request) {
@@ -205,7 +206,7 @@ func (h *TripHandler) HandleGetListTrips(w http.ResponseWriter, r *http.Request)
 	respondSuccess(w, r, "trips list", h.logger, trips)
 }
 
-// HandleGetTripByID возвращает рейс по ID
+// HandleGetTripByID возвращает рейс по ID; водителю - только его рейс
 // @Summary Получить рейс по ID
 // @Tags trips
 // @Produce json
@@ -233,6 +234,10 @@ func (h *TripHandler) HandleGetTripByID(w http.ResponseWriter, r *http.Request) 
 	orgScope := scopeOrganizationID(authCtx)
 	trip, err := h.tripService.GetTripByID(r.Context(), id, orgScope)
 	if err != nil {
+		respondError(w, r, h.logger, err)
+		return
+	}
+	if err := requireOwnDriver(authCtx, trip.DriverID); err != nil {
 		respondError(w, r, h.logger, err)
 		return
 	}

@@ -2,18 +2,18 @@ package dto
 
 import "fleettrack/internal/model"
 
-// UpdateVehicleRequest описывает тело HTTP запроса на частичное обновление автомобиля
+// UpdateVehicleRequest описывает тело HTTP запроса на частичное обновление автомобиля.
+// Поля organization_id нет: хендлер разбирает тело с DisallowUnknownFields,
+// и попытка перенести машину в другую организацию получает 400
 type UpdateVehicleRequest struct {
-	OrganizationID *int                 `json:"organization_id"`
-	NumberPlate    *string              `json:"number_plate"`
-	Status         *model.VehicleStatus `json:"status"`
+	NumberPlate *string              `json:"number_plate"`
+	Status      *model.VehicleStatus `json:"status"`
 }
 
 // ToDomainModel преобразует UpdateVehicleRequest в доменную модель
 func (u *UpdateVehicleRequest) ToDomainModel() model.UpdateVehicle {
 	return model.UpdateVehicle{
-		OrganizationID: u.OrganizationID,
-		NumberPlate:    u.NumberPlate,
-		Status:         u.Status,
+		NumberPlate: u.NumberPlate,
+		Status:      u.Status,
 	}
 }

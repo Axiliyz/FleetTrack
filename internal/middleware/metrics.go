@@ -12,6 +12,11 @@ import (
 // Сырой URL в метку не попадает, чтобы не раздувать кардинальность.
 const unmatchedRoute = "unmatched"
 
+// streamRoute - долгоживущий SSE-поток. Его «длительность» - это время, пока открыта вкладка,
+// а не время ответа, поэтому в гистограмму латентности он не пишется: иначе p99 всего API
+// превратился бы в часы. Сам запрос по-прежнему считается в счётчике.
+const streamRoute = "/stream"
+
 // Metrics считает каждый HTTP-запрос по методу, шаблону маршрута и статусу ответа,
 // а время обработки пишет в гистограмму.
 func Metrics(next http.Handler) http.Handler {
@@ -27,6 +32,8 @@ func Metrics(next http.Handler) http.Handler {
 			path = rctx.RoutePattern()
 		}
 		metrics.RecordHTTPRequest(r.Method, path, wrapped.statusCode)
-		metrics.RecordHTTPDuration(r.Method, path, duration.Seconds())
+		if path != streamRoute {
+			metrics.RecordHTTPDuration(r.Method, path, duration.Seconds())
+		}
 	})
 }

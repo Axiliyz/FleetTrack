@@ -1,1 +1,0 @@
-ALTER TABLE devices ALTER COLUMN api_key_hash DROP NOT NULL;

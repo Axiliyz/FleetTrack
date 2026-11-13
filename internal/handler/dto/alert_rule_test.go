@@ -20,36 +20,33 @@ func TestCreateAlertRuleRequest_ToDomainModel(t *testing.T) {
 		{
 			name: "enabled по умолчанию true когда nil",
 			req: CreateAlertRuleRequest{
-				OrganizationID: 10,
-				Type:           model.AlertRuleSpeedExceed,
-				Name:           "Превышение скорости",
-				Threshold:      90,
-				Severity:       model.SeverityLevelHigh,
-				Enabled:        nil,
+				Type:      model.AlertRuleSpeedExceed,
+				Name:      "Превышение скорости",
+				Threshold: 90,
+				Severity:  model.SeverityLevelHigh,
+				Enabled:   nil,
 			},
 			wantEnabled: true,
 		},
 		{
 			name: "enabled явно передан false",
 			req: CreateAlertRuleRequest{
-				OrganizationID: 10,
-				Type:           model.AlertRuleLowFuel,
-				Name:           "Низкое топливо",
-				Threshold:      15,
-				Severity:       model.SeverityLevelMedium,
-				Enabled:        &enabledFalse,
+				Type:      model.AlertRuleLowFuel,
+				Name:      "Низкое топливо",
+				Threshold: 15,
+				Severity:  model.SeverityLevelMedium,
+				Enabled:   &enabledFalse,
 			},
 			wantEnabled: false,
 		},
 		{
 			name: "enabled явно передан true",
 			req: CreateAlertRuleRequest{
-				OrganizationID: 10,
-				Type:           model.AlertRuleSpeedExceed,
-				Name:           "Превышение",
-				Threshold:      100,
-				Severity:       model.SeverityLevelCritical,
-				Enabled:        &enabledTrue,
+				Type:      model.AlertRuleSpeedExceed,
+				Name:      "Превышение",
+				Threshold: 100,
+				Severity:  model.SeverityLevelCritical,
+				Enabled:   &enabledTrue,
 			},
 			wantEnabled: true,
 		},
@@ -57,10 +54,10 @@ func TestCreateAlertRuleRequest_ToDomainModel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.req.ToDomainModel()
+			got := tt.req.ToDomainModel(10)
 
-			if got.OrganizationID != tt.req.OrganizationID {
-				t.Errorf("OrganizationID = %d, want %d", got.OrganizationID, tt.req.OrganizationID)
+			if got.OrganizationID != 10 {
+				t.Errorf("OrganizationID = %d, want 10 (из токена)", got.OrganizationID)
 			}
 			if got.Type != tt.req.Type {
 				t.Errorf("Type = %s, want %s", got.Type, tt.req.Type)

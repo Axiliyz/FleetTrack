@@ -60,9 +60,9 @@ func TestHandlePostDriver(t *testing.T) {
 		serviceError   error
 		expectedStatus int
 	}{
-		{name: "success", requestBody: `{"organization_id": 1, "name": "Ivan Petrov"}`, expectedStatus: http.StatusCreated},
+		{name: "success", requestBody: `{"name": "Ivan Petrov"}`, expectedStatus: http.StatusCreated},
 		{name: "invalid json", requestBody: `not-json`, expectedStatus: http.StatusBadRequest},
-		{name: "invalid name", requestBody: `{"organization_id": 1, "name": ""}`, serviceError: model.ErrInvalidDriverName, expectedStatus: http.StatusBadRequest},
+		{name: "invalid name", requestBody: `{"name": ""}`, serviceError: model.ErrInvalidDriverName, expectedStatus: http.StatusBadRequest},
 	}
 
 	for _, tt := range tests {
@@ -202,6 +202,8 @@ func TestHandlePatchDriver(t *testing.T) {
 		{name: "invalid id", urlID: "hello", requestBody: `{}`, expectedStatus: http.StatusBadRequest},
 		{name: "invalid json", urlID: "31", requestBody: `not-json`, expectedStatus: http.StatusBadRequest},
 		{name: "not found", urlID: "999", requestBody: `{}`, serviceError: model.ErrNotFound, expectedStatus: http.StatusNotFound},
+		// организацию водителя не меняют: неизвестное поле - 400, а не тихий пропуск
+		{name: "organization_id rejected", urlID: "31", requestBody: `{"organization_id": 2}`, expectedStatus: http.StatusBadRequest},
 	}
 
 	for _, tt := range tests {

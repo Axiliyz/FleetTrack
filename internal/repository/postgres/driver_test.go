@@ -94,22 +94,10 @@ func TestBuildDriverSetClause(t *testing.T) {
 			wantArgs: nil,
 		},
 		{
-			name:     "organization_id only",
-			upd:      model.UpdateDriver{OrganizationID: intPtr(3)},
-			wantSet:  "organization_id = $1",
-			wantArgs: []any{3},
-		},
-		{
 			name:     "name only",
 			upd:      model.UpdateDriver{Name: strPtr("New Name")},
 			wantSet:  "name = $1",
 			wantArgs: []any{"New Name"},
-		},
-		{
-			name:     "both fields preserve order",
-			upd:      model.UpdateDriver{OrganizationID: intPtr(3), Name: strPtr("New Name")},
-			wantSet:  "organization_id = $1, name = $2",
-			wantArgs: []any{3, "New Name"},
 		},
 	}
 

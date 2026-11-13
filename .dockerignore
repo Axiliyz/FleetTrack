@@ -11,3 +11,4 @@ loadtest/
 grafana/
 prometheus.yml
 docker-compose.loadtest.yml
+web/

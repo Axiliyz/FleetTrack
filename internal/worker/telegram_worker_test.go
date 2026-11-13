@@ -3,6 +3,9 @@ package worker
 
 import (
 	"context"
+	"errors"
+	"fleettrack/internal/model"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -43,4 +46,25 @@ func TestTelegramWorker_HandleCallbackQuery_InvalidData(t *testing.T) {
 		Data: "ack:abc",
 	}
 	w.handleCallbackQuery(ctx, cqInvalidID)
+}
+
+// TestAckFailureText проверяет, что пользователь Telegram видит причину отказа, а не общее «не удалось»
+func TestAckFailureText(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"нет прав, ошибка обёрнута сервисом", fmt.Errorf("%w: role DRIVER", model.ErrForbidden), "Недостаточно прав, чтобы принять алерт"},
+		{"уже принят", model.ErrAlertNotFired, "Алерт уже принят или закрыт"},
+		{"нет такого", model.ErrNotFound, "Алерт не найден"},
+		{"прочая ошибка", errors.New("connection reset"), "Не удалось принять алерт"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ackFailureText(tt.err); got != tt.want {
+				t.Errorf("ackFailureText = %q, want %q", got, tt.want)
+			}
+		})
+	}
 }

@@ -94,3 +94,15 @@ func RegisterAlertQueueLength(length func() float64) {
 		Help:      "Number of telemetry points waiting for alert evaluation",
 	}, length)
 }
+
+var telemetryOutliers = promauto.NewCounter(prometheus.CounterOpts{
+	Namespace: "fleettrack",
+	Subsystem: "telemetry",
+	Name:      "gps_outliers_total",
+	Help:      "Telemetry points whose speed from the previous point is implausible (GPS jumps), excluded from mileage and speed",
+})
+
+// RecordTelemetryOutlier увеличивает счётчик точек-выбросов GPS.
+func RecordTelemetryOutlier() {
+	telemetryOutliers.Inc()
+}

@@ -41,6 +41,11 @@ type APIConfig struct {
 	Port           string
 	MetricsPort    string
 	RequestTimeout time.Duration
+	// SwaggerEnabled открывает /swagger/. По умолчанию выключен: на публичном стенде
+	// полная карта API с примерами тел - лишняя подсказка
+	SwaggerEnabled bool
+	// StreamsPerUser - сколько SSE-потоков может держать один пользователь
+	StreamsPerUser int
 }
 
 // JWTConfig хранит параметры JWT
@@ -66,7 +71,8 @@ type SMTPConfig struct {
 
 // LogConfig хранит параметры логирования
 type LogConfig struct {
-	Level logger.Level
+	Level  logger.Level
+	Format logger.Format
 }
 
 // WorkersConfig хранит параметры фоновой обработки телеметрии и алертов
@@ -76,6 +82,8 @@ type WorkersConfig struct {
 	TelemetryBatchSize  int
 	TelemetryBatchWait  time.Duration
 	TelemetryBufferSize int
+	// TelemetryMaxClockAhead - насколько device_timestamp может опережать часы сервера
+	TelemetryMaxClockAhead time.Duration
 }
 
 // DSN формирует строку подключения к PostgreSQL из параметров DBConfig
@@ -156,6 +164,15 @@ func Load() (*Config, error) {
 	if err != nil {
 		collect(fmt.Errorf("%w: LOG_LEVEL: %w", ErrInvalidConfig, err))
 	}
+	cfg.Log.Format, err = logger.ParseFormat(os.Getenv("LOG_FORMAT"))
+	if err != nil {
+		collect(fmt.Errorf("%w: LOG_FORMAT: %w", ErrInvalidConfig, err))
+	}
+
+	cfg.API.SwaggerEnabled, err = envBool("SWAGGER_ENABLED", false)
+	collect(err)
+	cfg.API.StreamsPerUser, err = envInt("STREAMS_PER_USER", 5)
+	collect(err)
 
 	cfg.Workers.AlertWorkers, err = envInt("ALERT_WORKERS", 16)
 	collect(err)
@@ -166,6 +183,8 @@ func Load() (*Config, error) {
 	cfg.Workers.TelemetryBatchWait, err = envDuration("TELEMETRY_BATCH_WAIT", 20*time.Millisecond)
 	collect(err)
 	cfg.Workers.TelemetryBufferSize, err = envInt("TELEMETRY_BUFFER_SIZE", 10000)
+	collect(err)
+	cfg.Workers.TelemetryMaxClockAhead, err = envDuration("TELEMETRY_MAX_CLOCK_AHEAD", 2*time.Minute)
 	collect(err)
 
 	if len(errs) > 0 {
@@ -179,6 +198,19 @@ func envString(name, def string) string {
 		return v
 	}
 	return def
+}
+
+// envBool читает true/false (а также 1/0); пустая переменная даёт значение по умолчанию
+func envBool(name string, def bool) (bool, error) {
+	v := os.Getenv(name)
+	if v == "" {
+		return def, nil
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return false, fmt.Errorf("%w: %s must be true or false, got %q", ErrInvalidConfig, name, v)
+	}
+	return b, nil
 }
 
 // envInt читает положительное целое; пустая переменная даёт значение по умолчанию

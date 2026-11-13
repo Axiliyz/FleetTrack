@@ -10,6 +10,37 @@ definitions:
       status:
         type: string
     type: object
+  dto.AlertResponse:
+    properties:
+      acknowledged_at:
+        type: string
+      acknowledged_by:
+        type: integer
+      created_at:
+        type: string
+      id:
+        type: integer
+      message:
+        type: string
+      organization_id:
+        type: integer
+      resolved_at:
+        type: string
+      resolved_by:
+        type: integer
+      rule_id:
+        type: integer
+      severity:
+        $ref: '#/definitions/model.SeverityLevel'
+      status:
+        $ref: '#/definitions/model.AlertStatus'
+      type:
+        $ref: '#/definitions/model.AlertRuleType'
+      value:
+        type: number
+      vehicle_id:
+        type: integer
+    type: object
   dto.AlertRuleResponse:
     properties:
       created_at:
@@ -50,8 +81,6 @@ definitions:
         type: boolean
       name:
         type: string
-      organization_id:
-        type: integer
       severity:
         $ref: '#/definitions/model.SeverityLevel'
       threshold:
@@ -68,8 +97,6 @@ definitions:
     type: object
   dto.CreateDeviceRequest:
     properties:
-      organization_id:
-        type: integer
       serial_number:
         type: string
     type: object
@@ -77,17 +104,18 @@ definitions:
     properties:
       name:
         type: string
-      organization_id:
-        type: integer
     type: object
   dto.CreateUserRequest:
     properties:
+      driver_id:
+        description: |-
+          DriverID - водитель, к которому привязан аккаунт. Обязателен для роли DRIVER
+          и запрещён для остальных; водитель должен быть из той же организации
+        type: integer
       email:
         type: string
       name:
         type: string
-      organization_id:
-        type: integer
       password:
         type: string
       role:
@@ -99,10 +127,13 @@ definitions:
         type: string
       number_plate:
         type: string
-      organization_id:
-        type: integer
       vin:
         type: string
+    type: object
+  dto.DeletedCountResponse:
+    properties:
+      deleted:
+        type: integer
     type: object
   dto.DeviceResponse:
     properties:
@@ -139,16 +170,40 @@ definitions:
       status:
         type: string
     type: object
+  dto.FleetSnapshotResponse:
+    properties:
+      alerts:
+        items:
+          $ref: '#/definitions/dto.AlertResponse'
+        type: array
+      drivers:
+        items:
+          $ref: '#/definitions/dto.DriverResponse'
+        type: array
+      org:
+        $ref: '#/definitions/dto.OrgResponse'
+      positions:
+        items:
+          $ref: '#/definitions/dto.TelemetryResponse'
+        type: array
+      rules:
+        items:
+          $ref: '#/definitions/dto.AlertRuleResponse'
+        type: array
+      trips:
+        items:
+          $ref: '#/definitions/model.Trip'
+        type: array
+      vehicles:
+        items:
+          $ref: '#/definitions/dto.VehicleResponse'
+        type: array
+    type: object
   dto.LoginRequest:
     properties:
       email:
         type: string
       password:
-        type: string
-    type: object
-  dto.OrgRequest:
-    properties:
-      name:
         type: string
     type: object
   dto.OrgResponse:
@@ -178,9 +233,19 @@ definitions:
     properties:
       device_id:
         type: integer
+      device_timestamp:
+        description: |-
+          DeviceTimestamp — время замера по часам терминала. Терминал копит точки, пока нет связи,
+          и досылает их пачкой; скорость считается по этому времени, а не по времени приёма.
+          Если не передано, используется время приёма
+        format: date-time
+        type: string
       fuel:
         type: number
       lat:
+        description: |-
+          Lat и Lon - указатели, чтобы отличить «не прислали» от нуля: без координат точка
+          сохранялась бы как (0, 0), это Гвинейский залив
         type: number
       lon:
         type: number
@@ -192,6 +257,12 @@ definitions:
       device_id:
         type: integer
       distance_km:
+        type: number
+      fuel:
+        type: number
+      lat:
+        type: number
+      lon:
         type: number
       received_at:
         type: string
@@ -211,12 +282,19 @@ definitions:
       vehicle_id:
         type: integer
     type: object
+  dto.UpdateAlertRequest:
+    properties:
+      status:
+        allOf:
+        - $ref: '#/definitions/model.AlertStatus'
+        enum:
+        - ACKNOWLEDGED
+        example: ACKNOWLEDGED
+    type: object
   dto.UpdateDriverRequest:
     properties:
       name:
         type: string
-      organization_id:
-        type: integer
     type: object
   dto.UpdateTripRequest:
     properties:
@@ -227,8 +305,6 @@ definitions:
     properties:
       number_plate:
         type: string
-      organization_id:
-        type: integer
       status:
         $ref: '#/definitions/model.VehicleStatus'
     type: object
@@ -270,6 +346,16 @@ definitions:
     - AlertRuleSpeedExceed
     - AlertRuleDeviceOffline
     - AlertRuleLowFuel
+  model.AlertStatus:
+    enum:
+    - FIRED
+    - ACKNOWLEDGED
+    - RESOLVED
+    type: string
+    x-enum-varnames:
+    - AlertStatusFired
+    - AlertStatusAcknowledged
+    - AlertStatusResolved
   model.AuthResult:
     properties:
       access_token:
@@ -508,6 +594,128 @@ paths:
       summary: Получить правило алерта по ID
       tags:
       - alert-rules
+  /alerts:
+    get:
+      parameters:
+      - description: Статус алерта
+        enum:
+        - FIRED
+        - ACKNOWLEDGED
+        - RESOLVED
+        in: query
+        name: status
+        type: string
+      - description: Критичность
+        enum:
+        - LOW
+        - MEDIUM
+        - HIGH
+        - CRITICAL
+        in: query
+        name: severity
+        type: string
+      - description: ID машины
+        in: query
+        name: vehicle_id
+        type: integer
+      - description: Алерты начиная с момента (RFC3339)
+        format: date-time
+        in: query
+        name: created_from
+        type: string
+      - default: 100
+        description: Максимум записей
+        in: query
+        maximum: 500
+        minimum: 1
+        name: limit
+        type: integer
+      - default: 0
+        description: Сколько записей пропустить
+        in: query
+        minimum: 0
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.AlertResponse'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список алертов организации
+      tags:
+      - alerts
+  /alerts/{id}:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID алерта
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Новый статус, поддерживается только ACKNOWLEDGED
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateAlertRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.AlertResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: алерта нет или он принадлежит другой организации
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "409":
+          description: алерт уже принят или закрыт
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Принять алерт в работу
+      tags:
+      - alerts
   /assignments:
     post:
       consumes:
@@ -876,15 +1084,11 @@ paths:
                   $ref: '#/definitions/dto.DriverResponse'
               type: object
         "400":
-          description: Bad Request
+          description: также если в теле неизвестное поле, например organization_id
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "401":
           description: Unauthorized
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-        "403":
-          description: также возвращается, если в теле передан organization_id
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "404":
@@ -896,6 +1100,36 @@ paths:
       summary: Изменить водителя
       tags:
       - drivers
+  /fleet/snapshot:
+    get:
+      description: |-
+        Машины, водители, рейсы смены, последняя точка по каждой машине, алерты смены и правила одним ответом.
+        Окно смены — последние 24 часа; рейсы в пути и незакрытые алерты попадают в ответ независимо от возраста.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.FleetSnapshotResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Снимок парка для карты
+      tags:
+      - fleet
   /health:
     get:
       description: Публичный эндпоинт, не обращается к БД и внешним сервисам
@@ -999,49 +1233,6 @@ paths:
       summary: Получить свою организацию
       tags:
       - organization
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Название организации
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.OrgRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            allOf:
-            - $ref: '#/definitions/dto.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.OrgResponse'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-        "409":
-          description: Conflict
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Создать организацию
-      tags:
-      - organization
   /readyz:
     get:
       description: Публичный эндпоинт, проверяет доступность PostgreSQL
@@ -1131,6 +1322,37 @@ paths:
       summary: Регистрация компании
       tags:
       - auth
+  /stream:
+    get:
+      description: |-
+        Соединение не закрывается: сервер пишет события в формате text/event-stream.
+        Типы событий: telemetry, alert, trip, vehicle; data — тот же JSON, что в REST-ответах.
+        Если клиент не успевает читать, сервер закрывает поток — клиент переподключается и заново берёт /fleet/snapshot.
+        Поток закрывается и когда истекает access-токен: переподключаться нужно уже со свежим.
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: поток событий
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "429":
+          description: у пользователя уже открыто максимум потоков
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Поток событий парка (SSE)
+      tags:
+      - fleet
   /telemetry:
     get:
       parameters:
@@ -1355,9 +1577,7 @@ paths:
             - $ref: '#/definitions/dto.APIResponse'
             - properties:
                 data:
-                  items:
-                    $ref: '#/definitions/dto.TelemetryResponse'
-                  type: array
+                  $ref: '#/definitions/dto.DeletedCountResponse'
               type: object
         "400":
           description: Bad Request
@@ -1407,7 +1627,7 @@ paths:
             $ref: '#/definitions/dto.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Вся телеметрия по автомобилю
+      summary: Последние 100 точек автомобиля
       tags:
       - telemetry
   /trips:
@@ -1533,6 +1753,10 @@ paths:
         "404":
           description: водитель или автомобиль не найдены либо принадлежат другой
             организации
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "409":
+          description: 'машина не простаивает: уже в рейсе или на обслуживании'
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
       security:
@@ -1710,6 +1934,10 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: роль DRIVER
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Список пользователей организации
@@ -1792,6 +2020,10 @@ paths:
             $ref: '#/definitions/dto.ErrorResponse'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "409":
+          description: удаление себя или последнего админа
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
       security:
@@ -1976,6 +2208,10 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
+        "409":
+          description: машина в рейсе
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Удалить автомобиль
@@ -2045,7 +2281,8 @@ paths:
                   $ref: '#/definitions/dto.VehicleResponse'
               type: object
         "400":
-          description: Bad Request
+          description: также если в теле неизвестное поле, например organization_id,
+            или статус ON_TRIP/DELETED
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "401":
@@ -2053,11 +2290,15 @@ paths:
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "403":
-          description: также возвращается, если в теле передан organization_id
+          description: Forbidden
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "409":
+          description: 'машина в рейсе: её статусом управляет рейс'
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
       security:

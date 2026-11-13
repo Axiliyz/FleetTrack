@@ -68,7 +68,7 @@ func (r *PostgresAlertRuleRepository) GetActiveRulesByOrg(ctx context.Context, o
 		created_at, 
 		updated_at 
 	FROM alert_rules
-	WHERE organization_id = $1 AND enabled = true`
+	WHERE organization_id = $1 AND enabled = true AND deleted_at IS NULL`
 
 	rows, err := r.db.Query(ctx, query, orgID)
 	if err != nil {
@@ -104,7 +104,7 @@ func (r *PostgresAlertRuleRepository) GetActiveRulesByOrg(ctx context.Context, o
 }
 
 // GetByID возвращает правило по его ID
-// Возвращает model.ErrNotFound, если правило с таким ID не существует
+// Возвращает model.ErrNotFound, если правило с таким ID не существует или удалено
 func (r *PostgresAlertRuleRepository) GetByID(ctx context.Context, id int) (model.AlertRule, error) {
 	const query = `
 	SELECT
@@ -118,7 +118,7 @@ func (r *PostgresAlertRuleRepository) GetByID(ctx context.Context, id int) (mode
 		created_at, 
 		updated_at 
 	FROM alert_rules
-	WHERE id = $1`
+	WHERE id = $1 AND deleted_at IS NULL`
 
 	var rule model.AlertRule
 	err := r.db.QueryRow(ctx, query, id).Scan(
@@ -153,7 +153,7 @@ func (r *PostgresAlertRuleRepository) Update(ctx context.Context, upd model.Aler
 		severity = $4,
 		enabled = $5,
 		updated_at = NOW()
-	WHERE id = $6
+	WHERE id = $6 AND deleted_at IS NULL
 	RETURNING id, organization_id, type, name, threshold, severity, enabled, created_at, updated_at`
 
 	var rule model.AlertRule
@@ -184,12 +184,14 @@ func (r *PostgresAlertRuleRepository) Update(ctx context.Context, upd model.Aler
 	return rule, nil
 }
 
-// DeleteByID удаляет правило по его ID и возвращает удалённую сущность
-// Возвращает model.ErrNotFound, если удаляемая запись не найдена
+// DeleteByID мягко удаляет правило по его ID и возвращает удалённую сущность.
+// Строка остаётся: на неё ссылаются алерты, и в истории должно быть видно, по какому правилу они сработали
+// Возвращает model.ErrNotFound, если удаляемая запись не найдена или уже удалена
 func (r *PostgresAlertRuleRepository) DeleteByID(ctx context.Context, id int) (model.AlertRule, error) {
 	const query = `
-	DELETE FROM alert_rules
-	WHERE id = $1
+	UPDATE alert_rules
+	SET deleted_at = NOW(), updated_at = NOW()
+	WHERE id = $1 AND deleted_at IS NULL
 	RETURNING id, organization_id, type, name, threshold, severity, enabled, created_at, updated_at`
 
 	var rule model.AlertRule
@@ -215,7 +217,7 @@ func (r *PostgresAlertRuleRepository) DeleteByID(ctx context.Context, id int) (m
 
 // buildAlertRuleWhereClause формирует динамический WHERE-блок для фильтрации правил
 func buildAlertRuleWhereClause(filter model.AlertRuleFilter) (string, []any) {
-	var conditions []string
+	conditions := []string{"deleted_at IS NULL"}
 	var args []any
 	argN := 1
 
@@ -259,11 +261,7 @@ func buildAlertRuleWhereClause(filter model.AlertRuleFilter) (string, []any) {
 		args = append(args, *filter.CreatedAt)
 	}
 
-	whereClause := ""
-	if len(conditions) > 0 {
-		whereClause = "WHERE " + strings.Join(conditions, " AND ")
-	}
-	return whereClause, args
+	return "WHERE " + strings.Join(conditions, " AND "), args
 }
 
 // GetList возвращает список правил алертов согласно переданным фильтрам и пагинации

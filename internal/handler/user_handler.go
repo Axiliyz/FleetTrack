@@ -29,8 +29,8 @@ type UserService interface {
 	GetUserByEmail(ctx context.Context, email string) (model.User, error)
 	// GetUsersList возвращает список пользователей по фильтру
 	GetUsersList(ctx context.Context, filter model.UserFilter) ([]model.User, error)
-	// DeleteUserByID удаляет пользователя по его ID
-	DeleteUserByID(ctx context.Context, id int, organizationID *int) (model.User, error)
+	// DeleteUserByID мягко удаляет пользователя организации actor; себя и последнего админа удалить нельзя
+	DeleteUserByID(ctx context.Context, id int, actor model.AuthContext) (model.User, error)
 }
 
 // NewUserHandler создаёт UserHandler с переданными сервисом пользователей и логгером
@@ -68,8 +68,7 @@ func (h *UserHandler) HandleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newUser := userData.ToDomainModel()
-	newUser.OrganizationID = authCtx.OrganizationID
+	newUser := userData.ToDomainModel(authCtx.OrganizationID)
 	savedUser, err := h.userService.CreateUser(r.Context(), newUser, userData.Password)
 	if err != nil {
 		respondError(w, r, h.logger, err)
@@ -78,7 +77,7 @@ func (h *UserHandler) HandleCreateUser(w http.ResponseWriter, r *http.Request) {
 	respondCreated(w, r, "user created", h.logger, dto.NewUserResponse(savedUser))
 }
 
-// HandleGetUserByID получает пользователя по ID
+// HandleGetUserByID получает пользователя по ID. Водитель видит только себя
 // @Summary Получить пользователя по ID
 // @Tags users
 // @Produce json
@@ -99,6 +98,12 @@ func (h *UserHandler) HandleGetUserByID(w http.ResponseWriter, r *http.Request) 
 	authCtx, ok := middleware.AuthFromContext(r.Context())
 	if !ok {
 		respondError(w, r, h.logger, model.ErrMissingToken)
+		return
+	}
+
+	// водителю чужие почты ни к чему: из коллег он видит только себя
+	if authCtx.Role == model.UserRoleDriver && id != authCtx.UserID {
+		respondError(w, r, h.logger, model.ErrNotFound)
 		return
 	}
 
@@ -124,6 +129,7 @@ func (h *UserHandler) HandleGetUserByID(w http.ResponseWriter, r *http.Request) 
 // @Success 200 {object} dto.APIResponse{data=[]dto.UserResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
+// @Failure 403 {object} dto.ErrorResponse "роль DRIVER"
 // @Router /users [get]
 // @Security BearerAuth
 func (h *UserHandler) HandleGetListUsers(w http.ResponseWriter, r *http.Request) {
@@ -163,6 +169,7 @@ func (h *UserHandler) HandleGetListUsers(w http.ResponseWriter, r *http.Request)
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse
 // @Failure 404 {object} dto.ErrorResponse
+// @Failure 409 {object} dto.ErrorResponse "удаление себя или последнего админа"
 // @Router /users/{id} [delete]
 // @Security BearerAuth
 func (h *UserHandler) HandleDeleteUserByID(w http.ResponseWriter, r *http.Request) {
@@ -177,9 +184,7 @@ func (h *UserHandler) HandleDeleteUserByID(w http.ResponseWriter, r *http.Reques
 		respondError(w, r, h.logger, model.ErrMissingToken)
 		return
 	}
-	orgScope := scopeOrganizationID(authCtx)
-
-	deletedUser, err := h.userService.DeleteUserByID(r.Context(), id, orgScope)
+	deletedUser, err := h.userService.DeleteUserByID(r.Context(), id, authCtx)
 	if err != nil {
 		respondError(w, r, h.logger, err)
 		return

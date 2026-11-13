@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fleettrack/internal/logger"
+	"fleettrack/internal/model"
 	"fleettrack/internal/repository"
-	"fleettrack/internal/service"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,10 +17,15 @@ import (
 	"time"
 )
 
+// AlertAcknowledger принимает алерт в работу от имени пользователя; реализует *service.AlertService
+type AlertAcknowledger interface {
+	AcknowledgeAlert(ctx context.Context, alertID int, actor model.AuthContext) (model.Alert, error)
+}
+
 // TelegramWorker опрашивает Telegram Bot API методом long polling и обрабатывает callback-запросы от inline-кнопок
 type TelegramWorker struct {
 	botToken     string
-	alertService *service.AlertService
+	alertService AlertAcknowledger
 	channelRepo  repository.NotificationChannelRepository
 	httpClient   *http.Client
 	logger       logger.Logger
@@ -30,7 +36,7 @@ type TelegramWorker struct {
 // NewTelegramWorker создаёт экземпляр фонового воркера для обработки callback-запросов Telegram
 func NewTelegramWorker(
 	token string,
-	as *service.AlertService,
+	as AlertAcknowledger,
 	channelRepo repository.NotificationChannelRepository,
 	client *http.Client,
 	l logger.Logger,
@@ -170,17 +176,17 @@ func (w *TelegramWorker) handleCallbackQuery(ctx context.Context, cq *telegramCa
 		chatID = cq.From.ID
 	}
 
-	userID, err := w.channelRepo.GetUserIDByTelegramChatID(ctx, int(chatID))
+	authCtx, err := w.channelRepo.GetAuthContextByTelegramChatID(ctx, int(chatID))
 	if err != nil {
 		w.logger.Warn(fmt.Sprintf("unknown telegram user/chat %d: %s", chatID, err.Error()))
 		w.answerCallbackQuery(ctx, cq.ID, "Telegram-чат не привязан к пользователю FleetTrack")
 		return
 	}
 
-	_, err = w.alertService.AcknowledgeAlert(ctx, alertID, userID)
+	_, err = w.alertService.AcknowledgeAlert(ctx, alertID, authCtx)
 	if err != nil {
 		w.logger.Warn(fmt.Sprintf("failed to ack alert %d: %s", alertID, err.Error()))
-		w.answerCallbackQuery(ctx, cq.ID, "не удалось принять алерт")
+		w.answerCallbackQuery(ctx, cq.ID, ackFailureText(err))
 		return
 	}
 
@@ -190,7 +196,21 @@ func (w *TelegramWorker) handleCallbackQuery(ctx context.Context, cq *telegramCa
 		w.editMessageButton(ctx, cq.Message.Chat.ID, cq.Message.MessageID, "В работе")
 	}
 
-	w.logger.Info(fmt.Sprintf("telegram callback handled: alert %d acknowledged by user %d", alertID, userID))
+	w.logger.Info(fmt.Sprintf("telegram callback handled: alert %d acknowledged by user %d", alertID, authCtx.UserID))
+}
+
+// ackFailureText переводит ошибку принятия алерта в ответ для пользователя Telegram
+func ackFailureText(err error) string {
+	switch {
+	case errors.Is(err, model.ErrForbidden):
+		return "Недостаточно прав, чтобы принять алерт"
+	case errors.Is(err, model.ErrAlertNotFired):
+		return "Алерт уже принят или закрыт"
+	case errors.Is(err, model.ErrNotFound):
+		return "Алерт не найден"
+	default:
+		return "Не удалось принять алерт"
+	}
 }
 
 // answerCallbackQuery отправляет подтверждение Telegram о получении клика

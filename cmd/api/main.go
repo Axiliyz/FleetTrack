@@ -38,7 +38,7 @@ func run() int {
 		logger.NewStdLogger(logger.ErrorLevel).Error("load config: " + err.Error())
 		return 1
 	}
-	log := logger.NewStdLogger(cfg.Log.Level)
+	log := logger.New(os.Stdout, cfg.Log.Level, cfg.Log.Format)
 
 	fleetApp, err := app.New(ctx, *cfg, log)
 	if err != nil {

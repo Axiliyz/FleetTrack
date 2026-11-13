@@ -14,6 +14,7 @@ import (
 	"fleettrack/internal/repository/postgres"
 	"fleettrack/internal/router"
 	"fleettrack/internal/service"
+	"fleettrack/internal/stream"
 	"fleettrack/internal/transaction"
 	"fleettrack/internal/worker"
 	"net/http"
@@ -76,6 +77,7 @@ func New(ctx context.Context, cfg config.Config, log logger.Logger) (*App, error
 	channelRepo := postgres.NewUserNotificationChannelRepository(pool)
 	notificationRepo := postgres.NewPostgresAlertNotificationRepository(pool)
 	partitionRepo := postgres.NewPostgresPartitionRepository(pool)
+	snapshotRepo := postgres.NewPostgresSnapshotRepository(pool)
 
 	alertService := service.NewAlertService(
 		alertRepo, alertRuleRepo, channelRepo, notificationRepo,
@@ -91,17 +93,26 @@ func New(ctx context.Context, cfg config.Config, log logger.Logger) (*App, error
 			MaxWait:    cfg.Workers.TelemetryBatchWait,
 		},
 	)
+	telemetryService.SetMaxClockAhead(cfg.Workers.TelemetryMaxClockAhead)
 
 	assignmentService := service.NewAssignmentService(assignmentRepo, deviceRepo, vehicleRepo, txManager, repoFactory)
 	deviceService := service.NewDeviceService(deviceRepo, log, txManager, repoFactory)
-	vehicleService := service.NewVehicleService(vehicleRepo, log)
+	vehicleService := service.NewVehicleService(vehicleRepo, log, txManager, repoFactory)
 	orgService := service.NewOrgService(orgRepo, log)
-	tripService := service.NewTripService(tripRepo, log)
+	tripService := service.NewTripService(tripRepo, log, txManager, repoFactory)
 	driverService := service.NewDriverService(driverRepo, log)
-	userService := service.NewUserService(userRepo, log)
+	userService := service.NewUserService(userRepo, log, txManager, repoFactory)
 	jwtService := service.NewJWTService(cfg.JWT.Secret, cfg.JWT.TTL)
 	authService := service.NewAuthService(userRepo, refreshTokenRepo, jwtService, cfg.JWT.RefreshTTL, log, txManager, repoFactory)
 	healthService := service.NewHealthService(pool)
+
+	// события для живой карты: сервисы публикуют после коммита, /stream раздаёт браузерам
+	eventHub := stream.NewHub(cfg.API.StreamsPerUser)
+	for _, svc := range []interface{ SetEventPublisher(service.EventPublisher) }{
+		telemetryService, alertService, tripService, vehicleService,
+	} {
+		svc.SetEventPublisher(eventHub)
+	}
 
 	dispatcher := notifier.NewDispatcher(
 		notifier.NewTelegramSender(cfg.Telegram.BotToken, nil),
@@ -130,12 +141,14 @@ func New(ctx context.Context, cfg config.Config, log logger.Logger) (*App, error
 	telegramWorker := worker.NewTelegramWorker(cfg.Telegram.BotToken, alertService, channelRepo, nil, log)
 	offlineWorker := worker.NewOfflineWorker(alertRepo, alertRuleRepo, alertService, log, 30*time.Second)
 	partitionWorker := worker.NewPartitionWorker(partitionRepo, log, 24*time.Hour, 3)
+	tokenCleanupWorker := worker.NewTokenCleanupWorker(refreshTokenRepo, log, 6*time.Hour, 7*24*time.Hour)
 
 	notificationWorker.Start(workerCtx)
 	telegramWorker.Start(workerCtx)
 	offlineWorker.Start(workerCtx)
 	partitionWorker.Start(workerCtx)
-	a.periodicWorkers = []stopper{notificationWorker, telegramWorker, offlineWorker, partitionWorker}
+	tokenCleanupWorker.Start(workerCtx)
+	a.periodicWorkers = []stopper{notificationWorker, telegramWorker, offlineWorker, partitionWorker, tokenCleanupWorker}
 
 	apiRouter := router.NewRouter(
 		handler.NewTelemetryHandler(telemetryService, log),
@@ -149,8 +162,12 @@ func New(ctx context.Context, cfg config.Config, log logger.Logger) (*App, error
 		handler.NewAuthHandler(authService, log),
 		jwtService,
 		handler.NewAlertRuleHandler(alertService, log),
+		handler.NewAlertHandler(alertService, log),
+		handler.NewFleetHandler(service.NewFleetService(vehicleRepo, driverRepo, alertRuleRepo, orgRepo, snapshotRepo), log),
+		handler.NewStreamHandler(eventHub, log),
 		handler.NewHealthHandler(healthService, log),
 		cfg.API.RequestTimeout,
+		cfg.API.SwaggerEnabled,
 		log,
 	)
 
@@ -162,6 +179,9 @@ func New(ctx context.Context, cfg config.Config, log logger.Logger) (*App, error
 		WriteTimeout:      10 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
+	// Shutdown ждёт, пока закроются все соединения, а SSE-потоки сами не закрываются:
+	// закрываем их через Hub, как только сервер начал останавливаться
+	a.Server.RegisterOnShutdown(eventHub.Close)
 
 	metricsMux := http.NewServeMux()
 	metricsMux.Handle("/metrics", promhttp.Handler())
@@ -171,7 +191,7 @@ func New(ctx context.Context, cfg config.Config, log logger.Logger) (*App, error
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	log.Info("background workers started: alerts, telemetry batcher, notifications, telegram, offline, partitions")
+	log.Info("background workers started: alerts, telemetry batcher, notifications, telegram, offline, partitions, token cleanup")
 	return a, nil
 }
 

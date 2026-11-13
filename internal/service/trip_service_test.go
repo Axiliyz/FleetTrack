@@ -45,7 +45,7 @@ func (m *mockTripRepository) UpdateTrip(ctx context.Context, upd model.Trip, org
 	if m.updateErr != nil {
 		return model.Trip{}, m.updateErr
 	}
-	return model.Trip{ID: upd.ID, Status: upd.Status}, nil
+	return model.Trip{ID: upd.ID, VehicleID: 7, Status: upd.Status}, nil
 }
 
 func (m *mockTripRepository) DeleteTrip(ctx context.Context, id int, organizationID *int) (model.Trip, error) {
@@ -58,6 +58,12 @@ func (m *mockTripRepository) DeleteTrip(ctx context.Context, id int, organizatio
 func (m *mockTripRepository) UpdateTripStats(ctx context.Context, id int, distance, speed float64) (model.Trip, error) {
 	m.statsUpdates++
 	return model.Trip{}, nil
+}
+
+// newTestTripService собирает TripService, у которого транзакция работает с теми же моками рейсов и машин
+func newTestTripService(repo *mockTripRepository, vehicles *mockVehicleRepository, log logger.Logger) *TripService {
+	rf := &fakeRepoFactory{trip: repo, vehicle: vehicles}
+	return NewTripService(repo, log, &fakeTxManager{}, rf)
 }
 
 func TestAssignTrip(t *testing.T) {
@@ -75,7 +81,7 @@ func TestAssignTrip(t *testing.T) {
 
 	repo := &mockTripRepository{}
 	log := logger.NewStdLogger(logger.DebugLevel)
-	svc := NewTripService(repo, log)
+	svc := newTestTripService(repo, &mockVehicleRepository{}, log)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -93,7 +99,7 @@ func TestAssignTrip(t *testing.T) {
 func TestAssignTrip_RepositoryError(t *testing.T) {
 	repo := &mockTripRepository{createErr: model.ErrInvalidVehicleID}
 	log := logger.NewStdLogger(logger.DebugLevel)
-	svc := NewTripService(repo, log)
+	svc := newTestTripService(repo, &mockVehicleRepository{}, log)
 
 	_, err := svc.AssignTrip(context.Background(), 1, 1, nil)
 	if err != model.ErrInvalidVehicleID {
@@ -115,7 +121,7 @@ func TestTripServiceUpdateTrip(t *testing.T) {
 
 	repo := &mockTripRepository{}
 	log := logger.NewStdLogger(logger.DebugLevel)
-	svc := NewTripService(repo, log)
+	svc := newTestTripService(repo, &mockVehicleRepository{}, log)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -130,7 +136,7 @@ func TestTripServiceUpdateTrip(t *testing.T) {
 func TestTripServiceUpdateTrip_RepositoryError(t *testing.T) {
 	repo := &mockTripRepository{updateErr: model.ErrTripAlreadyFinished}
 	log := logger.NewStdLogger(logger.DebugLevel)
-	svc := NewTripService(repo, log)
+	svc := newTestTripService(repo, &mockVehicleRepository{}, log)
 
 	_, err := svc.UpdateTrip(context.Background(), 1, model.Trip{Status: model.TripStatusRunning}, nil)
 	if err != model.ErrTripAlreadyFinished {
@@ -141,7 +147,7 @@ func TestTripServiceUpdateTrip_RepositoryError(t *testing.T) {
 func TestTripServiceDeleteTrip(t *testing.T) {
 	repo := &mockTripRepository{}
 	log := logger.NewStdLogger(logger.DebugLevel)
-	svc := NewTripService(repo, log)
+	svc := newTestTripService(repo, &mockVehicleRepository{}, log)
 
 	trip, err := svc.DeleteTrip(context.Background(), 5, nil)
 	if err != nil {
@@ -156,7 +162,7 @@ func TestTripServiceDeleteTrip(t *testing.T) {
 		t.Errorf("got %v, want %v", err, model.ErrInvalidTripID)
 	}
 
-	repo.deleteErr = model.ErrTripAlreadyFinished
+	repo.updateErr = model.ErrTripAlreadyFinished
 	_, err = svc.DeleteTrip(context.Background(), 5, nil)
 	if err != model.ErrTripAlreadyFinished {
 		t.Errorf("got %v, want %v", err, model.ErrTripAlreadyFinished)
@@ -199,7 +205,7 @@ func TestGetListTrips(t *testing.T) {
 
 	repo := &mockTripRepository{}
 	log := logger.NewStdLogger(logger.DebugLevel)
-	svc := NewTripService(repo, log)
+	svc := newTestTripService(repo, &mockVehicleRepository{}, log)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -214,7 +220,7 @@ func TestGetListTrips(t *testing.T) {
 func TestGetListTrips_RepositoryError(t *testing.T) {
 	repo := &mockTripRepository{listErr: model.ErrNotFound}
 	log := logger.NewStdLogger(logger.DebugLevel)
-	svc := NewTripService(repo, log)
+	svc := newTestTripService(repo, &mockVehicleRepository{}, log)
 
 	_, err := svc.GetListTrips(context.Background(), model.TripFilter{Limit: 100})
 	if err != model.ErrNotFound {
@@ -225,7 +231,7 @@ func TestGetListTrips_RepositoryError(t *testing.T) {
 func TestGetTripByID(t *testing.T) {
 	repo := &mockTripRepository{}
 	log := logger.NewStdLogger(logger.DebugLevel)
-	svc := NewTripService(repo, log)
+	svc := newTestTripService(repo, &mockVehicleRepository{}, log)
 
 	trip, err := svc.GetTripByID(context.Background(), 1, nil)
 	if err != nil {
@@ -245,4 +251,69 @@ func TestGetTripByID(t *testing.T) {
 	if err != model.ErrNotFound {
 		t.Errorf("got %v, want %v", err, model.ErrNotFound)
 	}
+}
+
+// TestTripService_VehicleStatus проверяет, что статус машины ведёт рейс:
+// старт рейса занимает машину, завершение и отмена освобождают, промежуточные статусы не трогают
+func TestTripService_VehicleStatus(t *testing.T) {
+	org := 1
+	log := logger.NewStdLogger(logger.ErrorLevel)
+
+	t.Run("старт рейса: IDLE -> ON_TRIP", func(t *testing.T) {
+		vehicles := &mockVehicleRepository{}
+		svc := newTestTripService(&mockTripRepository{}, vehicles, log)
+		if _, err := svc.AssignTrip(context.Background(), 1, 7, &org); err != nil {
+			t.Fatal(err)
+		}
+		if len(vehicles.transitions) != 1 || vehicles.transitions[0] != "IDLE->ON_TRIP" {
+			t.Errorf("transitions = %v", vehicles.transitions)
+		}
+	})
+
+	t.Run("машина занята: второй рейс не стартует", func(t *testing.T) {
+		vehicles := &mockVehicleRepository{
+			statusErr: model.ErrNotFound,
+			vehicle:   &model.Vehicle{ID: 7, OrganizationID: org, Status: model.VehicleStatusOnTrip},
+		}
+		trips := &mockTripRepository{}
+		svc := newTestTripService(trips, vehicles, log)
+		if _, err := svc.AssignTrip(context.Background(), 1, 7, &org); err != model.ErrVehicleIsBusy {
+			t.Errorf("err = %v, want ErrVehicleIsBusy", err)
+		}
+	})
+
+	t.Run("машина чужой организации неотличима от несуществующей", func(t *testing.T) {
+		vehicles := &mockVehicleRepository{
+			statusErr: model.ErrNotFound,
+			vehicle:   &model.Vehicle{ID: 7, OrganizationID: 2, Status: model.VehicleStatusIdle},
+		}
+		svc := newTestTripService(&mockTripRepository{}, vehicles, log)
+		if _, err := svc.AssignTrip(context.Background(), 1, 7, &org); err != model.ErrNotFound {
+			t.Errorf("err = %v, want ErrNotFound", err)
+		}
+	})
+
+	for _, status := range []model.TripStatus{model.TripStatusSucceeded, model.TripStatusCancelled} {
+		t.Run(string(status)+": ON_TRIP -> IDLE", func(t *testing.T) {
+			vehicles := &mockVehicleRepository{}
+			svc := newTestTripService(&mockTripRepository{}, vehicles, log)
+			if _, err := svc.UpdateTrip(context.Background(), 3, model.Trip{Status: status}, &org); err != nil {
+				t.Fatal(err)
+			}
+			if len(vehicles.transitions) != 1 || vehicles.transitions[0] != "ON_TRIP->IDLE" {
+				t.Errorf("transitions = %v", vehicles.transitions)
+			}
+		})
+	}
+
+	t.Run("промежуточный статус машину не освобождает", func(t *testing.T) {
+		vehicles := &mockVehicleRepository{}
+		svc := newTestTripService(&mockTripRepository{}, vehicles, log)
+		if _, err := svc.UpdateTrip(context.Background(), 3, model.Trip{Status: model.TripStatusSleeping}, &org); err != nil {
+			t.Fatal(err)
+		}
+		if len(vehicles.transitions) != 0 {
+			t.Errorf("transitions = %v, want none", vehicles.transitions)
+		}
+	})
 }

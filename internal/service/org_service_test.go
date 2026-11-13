@@ -18,39 +18,15 @@ func (m *mockOrgRepository) GetList(ctx context.Context, organizationID int) ([]
 	return []model.Org{}, nil
 }
 
-func TestCreateOrg(t *testing.T) {
-	tests := []struct {
-		name    string
-		org     model.Org
-		wantErr error
-	}{
-		{
-			name:    "valid",
-			org:     model.Org{Name: "Acme"},
-			wantErr: nil,
-		},
-		{
-			name:    "empty name",
-			org:     model.Org{Name: ""},
-			wantErr: model.ErrInvalidOrgName,
-		},
-		{
-			name:    "blank name",
-			org:     model.Org{Name: "   "},
-			wantErr: model.ErrInvalidOrgName,
-		},
+// TestGetOrgList проверяет, что сервис отдаёт организацию из репозитория без изменений
+func TestGetOrgList(t *testing.T) {
+	service := NewOrgService(&mockOrgRepository{}, logger.NewStdLogger(logger.ErrorLevel))
+
+	orgs, err := service.GetOrgList(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-
-	repo := &mockOrgRepository{}
-	logger := logger.NewStdLogger(logger.DebugLevel)
-	service := NewOrgService(repo, logger)
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := service.CreateOrg(context.Background(), tt.org)
-			if err != tt.wantErr {
-				t.Errorf("got %v, want %v", err, tt.wantErr)
-			}
-		})
+	if len(orgs) != 0 {
+		t.Errorf("got %d orgs, want 0", len(orgs))
 	}
 }

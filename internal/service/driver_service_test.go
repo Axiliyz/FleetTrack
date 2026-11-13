@@ -179,7 +179,6 @@ func TestUpdateDriverByID(t *testing.T) {
 		{name: "valid name", upd: model.UpdateDriver{Name: strPtr("New Name")}, wantErr: nil},
 		{name: "empty name", upd: model.UpdateDriver{Name: strPtr("")}, wantErr: model.ErrInvalidDriverName},
 		{name: "blank name", upd: model.UpdateDriver{Name: strPtr("   ")}, wantErr: model.ErrInvalidDriverName},
-		{name: "invalid organization id", upd: model.UpdateDriver{OrganizationID: intPtr(0)}, wantErr: model.ErrInvalidOrganizationID},
 		{name: "no fields", upd: model.UpdateDriver{}, wantErr: nil},
 	}
 

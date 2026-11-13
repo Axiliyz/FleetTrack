@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fleettrack/internal/config"
+	"fleettrack/internal/logger"
 	"fleettrack/internal/model"
 	"strings"
 	"testing"
@@ -27,9 +28,11 @@ func (m *mockSender) Send(ctx context.Context, ch model.UserNotificationChannel,
 type mockLogger struct{}
 
 func (m *mockLogger) Debug(msg string) {}
-func (m *mockLogger) Info(msg string)  {}
-func (m *mockLogger) Warn(msg string)  {}
-func (m *mockLogger) Error(msg string) {}
+
+func (m *mockLogger) Log(context.Context, logger.Level, string, ...any) {}
+func (m *mockLogger) Info(msg string)                                   {}
+func (m *mockLogger) Warn(msg string)                                   {}
+func (m *mockLogger) Error(msg string)                                  {}
 
 // TestSeverityBadge проверяет корректность текстового бейджа для каждого уровня критичности
 func TestSeverityBadge(t *testing.T) {

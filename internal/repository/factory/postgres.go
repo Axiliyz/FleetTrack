@@ -15,6 +15,7 @@ type Repositories struct {
 	Trip                repository.TripRepository
 	Org                 repository.OrgRepository
 	User                repository.UserRepository
+	RefreshToken        repository.RefreshTokenRepository
 	AlertRule           repository.AlertRuleRepository
 	Alert               repository.AlertRepository
 	NotificationChannel repository.NotificationChannelRepository
@@ -39,6 +40,7 @@ func (f *PostgresRepositoryFactory) New(tx database.DBTX) Repositories {
 		Trip:                postgres.NewPostgresTripRepository(tx),
 		Org:                 postgres.NewPostgresOrgRepository(tx),
 		User:                postgres.NewPostgresUserRepository(tx),
+		RefreshToken:        postgres.NewPostgresRefreshTokenRepository(tx),
 		AlertRule:           postgres.NewPostgresAlertRuleRepository(tx),
 		Alert:               postgres.NewPostgresAlertRepository(tx),
 		NotificationChannel: postgres.NewUserNotificationChannelRepository(tx),

@@ -32,3 +32,25 @@ func requireOwnOrg(authCtx model.AuthContext, resourceOrgID int) error {
 	}
 	return nil
 }
+
+// scopeDriverFilter возвращает driver_id, которым надо ограничить выборку по ID: для DRIVER - свой,
+// для остальных ролей nil (без ограничения). Как и scopeDriverID, возвращает model.ErrDriverNotLinked
+// для DRIVER без привязанного водителя
+func scopeDriverFilter(authCtx model.AuthContext) (*int, error) {
+	return scopeDriverID(authCtx, nil)
+}
+
+// requireOwnDriver проверяет, что уже загруженный ресурс водителя принадлежит вызывающему DRIVER.
+// Для остальных ролей ничего не проверяет. Чужой рейс неотличим от несуществующего - model.ErrNotFound
+func requireOwnDriver(authCtx model.AuthContext, resourceDriverID int) error {
+	if authCtx.Role != model.UserRoleDriver {
+		return nil
+	}
+	if authCtx.DriverID == nil {
+		return model.ErrDriverNotLinked
+	}
+	if *authCtx.DriverID != resourceDriverID {
+		return model.ErrNotFound
+	}
+	return nil
+}

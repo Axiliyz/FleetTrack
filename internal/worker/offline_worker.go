@@ -5,17 +5,21 @@ import (
 	"fleettrack/internal/logger"
 	"fleettrack/internal/model"
 	"fleettrack/internal/repository"
-	"fleettrack/internal/service"
 	"fmt"
 	"sync"
 	"time"
 )
 
+// OfflineAlertFirer поднимает алерт DEVICE_OFFLINE; реализует *service.AlertService
+type OfflineAlertFirer interface {
+	FireOfflineAlert(ctx context.Context, info model.OfflineVehicleInfo, r model.AlertRule) error
+}
+
 // OfflineWorker периодически проверяет автомобили с активными трекерами на отсутствие телеметрии
 type OfflineWorker struct {
 	alertRepo     repository.AlertRepository
 	ruleRepo      repository.AlertRuleRepository
-	alertService  *service.AlertService
+	alertService  OfflineAlertFirer
 	logger        logger.Logger
 	checkInterval time.Duration
 	wg            sync.WaitGroup
@@ -25,7 +29,7 @@ type OfflineWorker struct {
 func NewOfflineWorker(
 	alertRepo repository.AlertRepository,
 	ruleRepo repository.AlertRuleRepository,
-	alertService *service.AlertService,
+	alertService OfflineAlertFirer,
 	l logger.Logger,
 	interval time.Duration,
 ) *OfflineWorker {

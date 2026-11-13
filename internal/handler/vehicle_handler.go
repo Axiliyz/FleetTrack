@@ -29,7 +29,7 @@ type VehicleService interface {
 	GetVehicleByID(ctx context.Context, id int) (model.Vehicle, error)
 	// DeleteVehicleByID удаляет автомобиль по его ID
 	DeleteVehicleByID(ctx context.Context, id int, organizationID *int) (model.Vehicle, error)
-	// UpdateVehicle
+	// UpdateVehicleByID меняет номер и статус машины (IDLE или IN_SERVICE)
 	UpdateVehicleByID(ctx context.Context, id int, upd model.UpdateVehicle, organizationID *int) (model.Vehicle, error)
 }
 
@@ -68,8 +68,7 @@ func (h *VehicleHandler) HandlePostVehicle(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	vehicle := vehicleData.ToDomainModel()
-	vehicle.OrganizationID = authCtx.OrganizationID
+	vehicle := vehicleData.ToDomainModel(authCtx.OrganizationID)
 	savedVehicle, err := h.vehicleService.CreateVehicle(r.Context(), vehicle)
 	if err != nil {
 		respondError(w, r, h.logger, err)
@@ -97,6 +96,7 @@ func (h *VehicleHandler) HandlePostVehicle(w http.ResponseWriter, r *http.Reques
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 403 {object} dto.ErrorResponse
 // @Failure 404 {object} dto.ErrorResponse
+// @Failure 409 {object} dto.ErrorResponse "машина в рейсе"
 // @Router /vehicles/{id} [delete]
 // @Security BearerAuth
 func (h *VehicleHandler) HandleDeleteVehicle(w http.ResponseWriter, r *http.Request) {
@@ -194,8 +194,10 @@ func (h *VehicleHandler) HandleGetListVehicle(w http.ResponseWriter, r *http.Req
 // @Success 200 {object} dto.APIResponse{data=dto.VehicleResponse}
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
-// @Failure 403 {object} dto.ErrorResponse "также возвращается, если в теле передан organization_id"
+// @Failure 400 {object} dto.ErrorResponse "также если в теле неизвестное поле, например organization_id, или статус ON_TRIP/DELETED"
+// @Failure 403 {object} dto.ErrorResponse
 // @Failure 404 {object} dto.ErrorResponse
+// @Failure 409 {object} dto.ErrorResponse "машина в рейсе: её статусом управляет рейс"
 // @Router /vehicles/{id} [patch]
 // @Security BearerAuth
 func (h *VehicleHandler) HandlePatchVehicle(w http.ResponseWriter, r *http.Request) {
@@ -205,9 +207,12 @@ func (h *VehicleHandler) HandlePatchVehicle(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// неизвестное поле - ошибка, а не тихий пропуск: organization_id в теле
+	// означает попытку перенести машину в другую организацию
 	var request dto.UpdateVehicleRequest
-	err = json.NewDecoder(r.Body).Decode(&request)
-	if err != nil {
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&request); err != nil {
 		respondError(w, r, h.logger, model.ErrInvalidJSON)
 		return
 	}
@@ -215,10 +220,6 @@ func (h *VehicleHandler) HandlePatchVehicle(w http.ResponseWriter, r *http.Reque
 	authCtx, ok := middleware.AuthFromContext(r.Context())
 	if !ok {
 		respondError(w, r, h.logger, model.ErrMissingToken)
-		return
-	}
-	if request.OrganizationID != nil {
-		respondError(w, r, h.logger, model.ErrForbidden)
 		return
 	}
 	orgScope := scopeOrganizationID(authCtx)

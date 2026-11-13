@@ -63,8 +63,20 @@ func (m *mockOfflineAlertRepo) Resolve(ctx context.Context, id int, resolvedBy *
 	return model.Alert{}, nil
 }
 
-func (m *mockOfflineAlertRepo) AcknowledgeAlert(ctx context.Context, alertID, userID int) (model.Alert, error) {
+func (m *mockOfflineAlertRepo) AcknowledgeAlert(ctx context.Context, alertID, userID, organizationID int) (model.Alert, error) {
 	return model.Alert{}, nil
+}
+
+func (m *mockOfflineAlertRepo) GetByID(ctx context.Context, id, organizationID int) (model.Alert, error) {
+	return model.Alert{}, nil
+}
+
+func (m *mockOfflineAlertRepo) ResolveByVehicle(ctx context.Context, vehicleID int) ([]model.Alert, error) {
+	return nil, nil
+}
+
+func (m *mockOfflineAlertRepo) ResolveByRule(ctx context.Context, ruleID int) ([]model.Alert, error) {
+	return nil, nil
 }
 
 func (m *mockOfflineAlertRepo) GetList(ctx context.Context, filter model.AlertFilter) ([]model.Alert, error) {
@@ -114,4 +126,39 @@ func TestOfflineWorker_CheckOffline_Empty(t *testing.T) {
 	w := NewOfflineWorker(alertRepo, ruleRepo, nil, logger, time.Minute)
 	ctx := context.Background()
 	w.checkOffline(ctx)
+}
+
+// fakeOfflineFirer запоминает, по каким машинам и правилам поднимались алерты
+type fakeOfflineFirer struct {
+	fired []model.OfflineVehicleInfo
+}
+
+func (f *fakeOfflineFirer) FireOfflineAlert(ctx context.Context, info model.OfflineVehicleInfo, r model.AlertRule) error {
+	f.fired = append(f.fired, info)
+	return nil
+}
+
+// TestOfflineWorker_CheckOffline_OnlyOwnOrganization проверяет, что правило организации
+// поднимает алерты только по её машинам, а не по всем замолчавшим машинам базы
+func TestOfflineWorker_CheckOffline_OnlyOwnOrganization(t *testing.T) {
+	ruleRepo := &mockRuleRepo{
+		rules: []model.AlertRule{
+			{ID: 1, OrganizationID: 1, Type: model.AlertRuleDeviceOffline, Threshold: 15, Enabled: true},
+			{ID: 2, OrganizationID: 1, Type: model.AlertRuleSpeedExceed, Threshold: 90, Enabled: true},
+		},
+	}
+	alertRepo := &mockOfflineAlertRepo{
+		vehicles: []model.OfflineVehicleInfo{
+			{VehicleID: 10, OrganizationID: 1, DeviceID: 100, MinutesOffline: 20},
+			{VehicleID: 20, OrganizationID: 2, DeviceID: 200, MinutesOffline: 40},
+		},
+	}
+	firer := &fakeOfflineFirer{}
+
+	w := NewOfflineWorker(alertRepo, ruleRepo, firer, &mockLogger{}, time.Minute)
+	w.checkOffline(context.Background())
+
+	if len(firer.fired) != 1 || firer.fired[0].VehicleID != 10 {
+		t.Fatalf("fired = %+v, want only vehicle 10 of organization 1", firer.fired)
+	}
 }
